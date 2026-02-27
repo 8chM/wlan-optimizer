@@ -123,6 +123,7 @@ Vollständig autonom, ohne Benutzer-Interaktion. Orchestriert nach Phase-6-Strat
 - **Einfachheit vor Komplexität**
 - **Entscheidungen dokumentieren** - Jede wichtige Entscheidung als ADR
 - **Vollständiger Funktionsumfang** - Alles muss funktionieren
+- **Regelmaessig zu GitHub pushen** - Nach jedem sinnvollen Arbeitsschritt committen und pushen
 
 ## Dokumentationsstruktur
 ```

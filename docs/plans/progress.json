@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 6,
+  "currentPhase": 8,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -71,7 +71,14 @@
       "deliverable": "docs/plans/Orchestrierung.md",
       "notes": "1074 Zeilen: Modell-Matrix, 6 Agenten-Rollen, Sub-Phasen-Plan, Quality Gates, Session-Management"
     },
-    "7": { "name": "Detailplanung", "status": "pending", "gate": "pending" },
+    "7": {
+      "name": "Detailplanung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "deliverable": "docs/plans/Implementierungsplan.md",
+      "notes": "103 Tasks, 1412 Zeilen. Agenten und Skills fuer Phase 8 ueberarbeitet (code-reviewer, tester, run-tests Skill). ADR-Skill fuer Autonomie angepasst."
+    },
     "8": { "name": "Autonome Entwicklung", "status": "pending", "gate": "pending" },
     "9": { "name": "Qualitaetskontrolle & Verbesserungsidentifikation", "status": "pending", "gate": "pending" },
     "10": { "name": "Produktverbesserungen", "status": "pending", "gate": "pending" },

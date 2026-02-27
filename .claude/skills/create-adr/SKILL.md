@@ -44,5 +44,6 @@ Was wurde entschieden?
 - Wissensluecken-IDs (WL-...)
 ```
 
-4. Ask user for details to fill in, or fill from context if clear
+4. Fill all sections from context (autonomous mode - do NOT ask user)
 5. Add decision to `docs/plans/progress.json` decisions array
+6. Use conservative defaults when uncertain, document reasoning

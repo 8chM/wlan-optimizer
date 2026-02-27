@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 10,
+  "currentPhase": 11,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -95,8 +95,8 @@
       }
     },
     "9": { "name": "Qualitaetskontrolle & Verbesserungsidentifikation", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "notes": "Test-Report: 497 Tests (100% pass), Coverage (RF-Engine 100%, Stores 99%). Security-Audit: 6x PASS, 2x WARNING. Verbesserungen: 18 identifiziert (4H, 8M, 6L). Deliverables: Test-Report.md, Verbesserungen.md" },
-    "10": { "name": "Produktverbesserungen", "status": "in_progress", "gate": "pending" },
-    "11": { "name": "Dokumentation & Uebergabe", "status": "pending", "gate": "pending" }
+    "10": { "name": "Produktverbesserungen", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "notes": "H-03 Export (JSON+CSV), H-02 iPerf3 Security-Doku, H-01 Accessibility (Labels, ARIA), M-02 Document Titles. 4 von 4 HOCH-Prioritaet umgesetzt." },
+    "11": { "name": "Dokumentation & Uebergabe", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "notes": "README.md: Quick Start, Architektur, Benutzung, Tech-Stack, RF-Modell, Konfiguration, Entwicklung. Alle 11 Phasen abgeschlossen." }
   },
   "blockers": [],
   "decisions": [

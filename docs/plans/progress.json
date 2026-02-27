@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 11,
+  "currentPhase": 14,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -96,7 +96,38 @@
     },
     "9": { "name": "Qualitaetskontrolle & Verbesserungsidentifikation", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "notes": "Test-Report: 497 Tests (100% pass), Coverage (RF-Engine 100%, Stores 99%). Security-Audit: 6x PASS, 2x WARNING. Verbesserungen: 18 identifiziert (4H, 8M, 6L). Deliverables: Test-Report.md, Verbesserungen.md" },
     "10": { "name": "Produktverbesserungen", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "notes": "H-03 Export (JSON+CSV), H-02 iPerf3 Security-Doku, H-01 Accessibility (Labels, ARIA), M-02 Document Titles. 4 von 4 HOCH-Prioritaet umgesetzt." },
-    "11": { "name": "Dokumentation & Uebergabe", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "notes": "README.md: Quick Start, Architektur, Benutzung, Tech-Stack, RF-Modell, Konfiguration, Entwicklung. Alle 11 Phasen abgeschlossen." }
+    "11": { "name": "Dokumentation & Uebergabe", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "notes": "README.md: Quick Start, Architektur, Benutzung, Tech-Stack, RF-Modell, Konfiguration, Entwicklung. Alle 11 Phasen abgeschlossen." },
+    "12": {
+      "name": "Live Editor Experience",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "subtasks": {
+        "12a": { "name": "Undo/Redo System (Command Pattern)", "status": "completed", "notes": "undoStore.svelte.ts (max 50 Commands), wallCommands.ts, apCommands.ts. 22 Tests." },
+        "12b": { "name": "Live Heatmap im Editor", "status": "completed", "notes": "convert.ts (shared AP/Wall conversion), editorHeatmapStore, EditorHeatmap, EditorHeatmapPanel. ForecastHeatmap refactored. 10 Tests." },
+        "12c": { "name": "Coverage Statistics", "status": "completed", "notes": "coverage-stats.ts (5 bins), CoverageStatsPanel, Worker+Manager erweitert. 15 Tests." }
+      }
+    },
+    "13": {
+      "name": "Channel Intelligence",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "subtasks": {
+        "13a": { "name": "Channel Conflict Detection & Visualization", "status": "completed", "notes": "channel-analysis.ts (co-channel + adjacent), channelStore, ChannelConflictOverlay (Konva), ChannelMapPanel. 12 Tests." },
+        "13b": { "name": "Before/After Heatmap Comparison", "status": "completed", "notes": "difference.ts (pixel-diff), comparisonStore, HeatmapComparison (3 modes: side-by-side/overlay/difference), ComparisonControls, DifferenceHeatmap. Mixing-Page Snapshot-Button. 9 Tests." }
+      }
+    },
+    "14": {
+      "name": "Polish & Smart Hints",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "subtasks": {
+        "14a": { "name": "AP Placement Hints", "status": "completed", "notes": "placement-hints.ts (BFS flood-fill, centroid), PlacementHintMarker (Konva). 11 Tests." },
+        "14b": { "name": "Code Quality & Finalisierung", "status": "completed", "notes": "svelte-check 0 errors, npm run build OK. 575/576 Tests pass (1 flaky perf test pre-existing)." }
+      }
+    }
   },
   "blockers": [],
   "decisions": [

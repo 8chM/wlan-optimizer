@@ -43,6 +43,16 @@ export interface HeatmapStats {
   gridStep: number;
   /** LOD level used for this calculation */
   lodLevel: LODLevel;
+  /** Coverage bins (signal quality distribution) */
+  coverageBins?: {
+    excellent: number;
+    good: number;
+    fair: number;
+    poor: number;
+    none: number;
+  };
+  /** Total number of grid cells */
+  totalCells?: number;
 }
 
 /** Parameters required for a heatmap calculation */
@@ -312,6 +322,8 @@ export class HeatmapManager {
           calculationTimeMs: response.calculationTimeMs,
           gridStep: lodInfo?.gridStep ?? 0.25,
           lodLevel: lodInfo?.lod ?? 2,
+          coverageBins: response.stats.coverageBins,
+          totalCells: response.stats.totalCells,
         };
 
         this.options.onResult(canvas, stats);

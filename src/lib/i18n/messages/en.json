@@ -261,6 +261,35 @@
     "gotIt": "Got it!",
     "skip": "Skip"
   },
+  "channel": {
+    "title": "Channel Map",
+    "noConflicts": "No channel conflicts detected",
+    "conflictsFound": "conflicts found",
+    "coChannel": "Co-Channel",
+    "adjacent": "Adjacent",
+    "showOverlay": "Show Conflicts",
+    "hideOverlay": "Hide Conflicts"
+  },
+  "comparison": {
+    "title": "Heatmap Comparison",
+    "sideBySide": "Side by Side",
+    "overlay": "Overlay",
+    "difference": "Difference",
+    "improved": "Improved",
+    "degraded": "Degraded",
+    "unchanged": "Unchanged",
+    "snapshot": "Snapshot",
+    "takeSnapshot": "Take Snapshot",
+    "compare": "Compare",
+    "before": "Before",
+    "after": "After"
+  },
+  "hints": {
+    "weakSpot": "Weak coverage area",
+    "suggestAp": "Consider placing an AP here",
+    "showHints": "Show Placement Hints",
+    "hideHints": "Hide Placement Hints"
+  },
   "settings": {
     "title": "Settings",
     "language": "Language",

@@ -19,9 +19,11 @@
   import ChangeList from '$lib/components/mixing/ChangeList.svelte';
   import AssistSteps from '$lib/components/mixing/AssistSteps.svelte';
   import ForecastHeatmap from '$lib/components/mixing/ForecastHeatmap.svelte';
+  import HeatmapComparison from '$lib/components/comparison/HeatmapComparison.svelte';
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { mixingStore } from '$lib/stores/mixingStore.svelte';
+  import { comparisonStore } from '$lib/stores/comparisonStore.svelte';
   import { t } from '$lib/i18n';
 
   // ─── Layout State ─────────────────────────────────────────────
@@ -55,6 +57,7 @@
   $effect(() => {
     return () => {
       mixingStore.reset();
+      comparisonStore.reset();
     };
   });
 
@@ -107,6 +110,17 @@
 
   function handleForecastStats(stats: { minRSSI: number; maxRSSI: number; avgRSSI: number; calculationTimeMs: number } | null): void {
     forecastStats = stats;
+  }
+
+  function handleTakeSnapshot(): void {
+    if (!forecastCanvas) return;
+    if (!comparisonStore.beforeCanvas) {
+      comparisonStore.setBeforeSnapshot(forecastCanvas, t('mixing.original'));
+    } else {
+      comparisonStore.setAfterSnapshot(forecastCanvas, t('mixing.forecast'));
+      comparisonStore.computeDifference();
+      comparisonStore.activate();
+    }
   }
 </script>
 
@@ -241,8 +255,16 @@
           <span class="badge-label">{t('mixing.forecast')}</span>
           <span class="badge-stat">{forecastStats.avgRSSI.toFixed(0)} dBm {t('heatmap.avgRSSI')}</span>
           <span class="badge-time">{forecastStats.calculationTimeMs.toFixed(0)} ms</span>
+          {#if forecastCanvas}
+            <button class="snapshot-btn" onclick={handleTakeSnapshot}>
+              {comparisonStore.beforeCanvas ? t('comparison.compare') : t('comparison.takeSnapshot')}
+            </button>
+          {/if}
         </div>
       {/if}
+
+      <!-- Heatmap Comparison Panel -->
+      <HeatmapComparison visible={comparisonStore.isActive} />
     {:else}
       <div class="empty-canvas">
         <p>{t('editor.noFloorplan')}</p>
@@ -341,5 +363,22 @@
     font-size: 0.6rem;
     color: #808090;
     font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .snapshot-btn {
+    padding: 3px 8px;
+    background: rgba(99, 102, 241, 0.2);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    border-radius: 4px;
+    color: #a5b4fc;
+    font-size: 0.65rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .snapshot-btn:hover {
+    background: rgba(99, 102, 241, 0.35);
   }
 </style>

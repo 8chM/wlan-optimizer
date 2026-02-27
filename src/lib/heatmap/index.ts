@@ -1,5 +1,34 @@
 // Heatmap module barrel export
 export { default as HeatmapRenderer } from './HeatmapRenderer.svelte';
+export { convertApsToConfig, convertWallsToData } from './convert';
+export {
+  calculateCoverageFromBins,
+  estimateCoverageFromStats,
+  classifyRSSI,
+  COVERAGE_THRESHOLDS,
+  type CoverageBins,
+  type CoverageStats,
+} from './coverage-stats';
+export {
+  computeHeatmapDifference,
+  snapshotCanvas,
+  type DifferenceResult,
+} from './difference';
+export {
+  analyzeChannelConflicts,
+  getRecommendedChannels,
+  type ChannelConflict,
+  type ChannelAnalysisResult,
+  type APConflictSummary,
+  type AnalysisBand,
+  type ConflictType,
+  type ConflictSeverity,
+} from './channel-analysis';
+export {
+  findPlacementHints,
+  type PlacementHint,
+  type PlacementHintOptions,
+} from './placement-hints';
 export {
   generateViridisLUT,
   generateJetLUT,

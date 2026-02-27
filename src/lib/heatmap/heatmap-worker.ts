@@ -117,6 +117,13 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   let maxRSSI = Number.NEGATIVE_INFINITY;
   let sumRSSI = 0;
 
+  // Coverage bins
+  let binExcellent = 0; // >= -50
+  let binGood = 0;      // >= -65
+  let binFair = 0;      // >= -75
+  let binPoor = 0;      // >= -85
+  let binNone = 0;      // < -85
+
   for (let gy = 0; gy < gridHeight; gy++) {
     const pointY = gy * gridStep;
 
@@ -143,6 +150,13 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
       if (bestRSSI < minRSSI) minRSSI = bestRSSI;
       if (bestRSSI > maxRSSI) maxRSSI = bestRSSI;
       sumRSSI += bestRSSI;
+
+      // Classify into coverage bins
+      if (bestRSSI >= -50) binExcellent++;
+      else if (bestRSSI >= -65) binGood++;
+      else if (bestRSSI >= -75) binFair++;
+      else if (bestRSSI >= -85) binPoor++;
+      else binNone++;
     }
   }
 
@@ -172,6 +186,14 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
       minRSSI: minRSSI === Number.POSITIVE_INFINITY ? RSSI_MIN : minRSSI,
       maxRSSI: maxRSSI === Number.NEGATIVE_INFINITY ? RSSI_MAX : maxRSSI,
       avgRSSI,
+      coverageBins: {
+        excellent: binExcellent,
+        good: binGood,
+        fair: binFair,
+        poor: binPoor,
+        none: binNone,
+      },
+      totalCells: totalPoints,
     },
   };
 }

@@ -261,6 +261,35 @@
     "gotIt": "Verstanden!",
     "skip": "Ueberspringen"
   },
+  "channel": {
+    "title": "Kanal-Uebersicht",
+    "noConflicts": "Keine Kanal-Konflikte erkannt",
+    "conflictsFound": "Konflikte gefunden",
+    "coChannel": "Gleicher Kanal",
+    "adjacent": "Nachbarkanal",
+    "showOverlay": "Konflikte anzeigen",
+    "hideOverlay": "Konflikte ausblenden"
+  },
+  "comparison": {
+    "title": "Heatmap-Vergleich",
+    "sideBySide": "Nebeneinander",
+    "overlay": "Ueberblendung",
+    "difference": "Differenz",
+    "improved": "Verbessert",
+    "degraded": "Verschlechtert",
+    "unchanged": "Unveraendert",
+    "snapshot": "Momentaufnahme",
+    "takeSnapshot": "Momentaufnahme erstellen",
+    "compare": "Vergleichen",
+    "before": "Vorher",
+    "after": "Nachher"
+  },
+  "hints": {
+    "weakSpot": "Schwache Abdeckung",
+    "suggestAp": "Hier koennte ein AP platziert werden",
+    "showHints": "Platzierungstipps anzeigen",
+    "hideHints": "Platzierungstipps ausblenden"
+  },
   "settings": {
     "title": "Einstellungen",
     "language": "Sprache",

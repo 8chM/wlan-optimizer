@@ -89,6 +89,16 @@ export interface HeatmapWorkerResult {
     minRSSI: number;
     maxRSSI: number;
     avgRSSI: number;
+    /** Coverage bins: count of cells per signal quality bracket */
+    coverageBins?: {
+      excellent: number;
+      good: number;
+      fair: number;
+      poor: number;
+      none: number;
+    };
+    /** Total number of grid cells computed */
+    totalCells?: number;
   };
 }
 

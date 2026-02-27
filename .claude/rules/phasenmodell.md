@@ -11,6 +11,7 @@ Fortschritt in `docs/plans/progress.json`.
 - 3a: Technische Recherche (Canvas, Heatmap, RF, iPerf, AP-Steuerung)
 - 3b: Open-Source-Evaluation
 - 3c: Tech-Stack-Evaluation
+- BMAD: `/research` fuer strukturierte Recherche
 - Gate: Recherche in `docs/research/` dokumentiert, Tech-Stack-Empfehlung
 
 ## Phase 4: Klaerung mit Benutzer
@@ -19,17 +20,20 @@ Fortschritt in `docs/plans/progress.json`.
 
 ## Phase 5: Architektur & Tech-Stack
 - Komponentenarchitektur, ADRs in `docs/architecture/`
+- BMAD: `/architecture` + `/solutioning-gate-check`
 - Gate: ADRs, Komponentendiagramm, Tech-Stack festgelegt
 
 ## Phase 6: Orchestrierungsstrategie
 - Gate: Agenten-Plan, Modell-Matrix in `docs/plans/Orchestrierung.md`
 
 ## Phase 7: Detailplanung
+- BMAD: `/sprint-planning` + `/create-story`
 - Gate: Tasks mit Abhaengigkeiten in `docs/plans/Implementierungsplan.md`
 
 ## Phase 8: Autonome Entwicklung
 - 8a: Scaffolding | 8b: Planung | 8c: Heatmap | 8d: Messung
 - 8e: Optimierung | 8f: UI/UX & i18n | 8g: Integration
+- BMAD: `/dev-story` pro Modul, `/create-ux-design` fuer UI
 - Gate je Sub-Phase: Tests gruen, Review bestanden
 
 ## Phase 9: Qualitaetssicherung
@@ -37,3 +41,18 @@ Fortschritt in `docs/plans/progress.json`.
 
 ## Phase 10: Uebergabe & Demo
 - Gate: App laeuft, README + Setup-Anleitung komplett
+
+## BMAD-Toolbox (global installiert: ~/.claude/commands/bmad/)
+| Command | Nutzen | Phase |
+|---|---|---|
+| `/product-brief` | Produkt-Analyse | 2-3 |
+| `/prd` | Product Requirements Document | 3-4 |
+| `/tech-spec` | Technische Spezifikation | 5 |
+| `/architecture` | Architektur-Design | 5 |
+| `/solutioning-gate-check` | Architektur-Validierung | 5 |
+| `/sprint-planning` | Sprint-Planung | 7 |
+| `/create-story` | User Story erstellen | 7 |
+| `/dev-story` | Implementierungs-Story | 8 |
+| `/brainstorm` | Brainstorming | beliebig |
+| `/research` | Strukturierte Recherche | 3 |
+| `/create-ux-design` | UX-Design erstellen | 8f |

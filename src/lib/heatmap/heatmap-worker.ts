@@ -12,20 +12,11 @@
  * Generates RGBA ImageData via color LUT and bilinear interpolation.
  */
 
-import {
-  type HeatmapWorkerRequest,
-  type HeatmapWorkerResult,
-  type HeatmapWorkerError,
-} from './worker-types';
+import type { HeatmapWorkerError, HeatmapWorkerRequest, HeatmapWorkerResult } from './worker-types';
 
-import {
-  getColorLUT,
-  rssiToLutIndex,
-  RSSI_MIN,
-  RSSI_MAX,
-} from './color-schemes';
+import { RSSI_MAX, RSSI_MIN, getColorLUT, rssiToLutIndex } from './color-schemes';
 
-import { createRFConfig, computeRSSI } from './rf-engine';
+import { computeRSSI, createRFConfig } from './rf-engine';
 import { buildSpatialGrid } from './spatial-grid';
 
 // ─── Bilinear Interpolation ────────────────────────────────────────
@@ -84,6 +75,7 @@ function interpolateAndColorize(
 /**
  * Performs the full heatmap calculation for the given request.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: monolithic worker calculation kept for performance
 function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   const startTime = performance.now();
 
@@ -111,11 +103,7 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   const activeAPs = aps.filter((ap) => ap.enabled);
 
   // Build spatial grid for wall intersection acceleration
-  const { grid: spatialGrid, allSegments } = buildSpatialGrid(
-    walls,
-    bounds.width,
-    bounds.height,
-  );
+  const { grid: spatialGrid, allSegments } = buildSpatialGrid(walls, bounds.width, bounds.height);
 
   // Build the color LUT for the chosen scheme
   const colorLUT = getColorLUT(colorScheme);
@@ -125,8 +113,8 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   const gridHeight = Math.max(1, Math.ceil(bounds.height / gridStep) + 1);
   const rssiGrid = new Float32Array(gridWidth * gridHeight);
 
-  let minRSSI = Infinity;
-  let maxRSSI = -Infinity;
+  let minRSSI = Number.POSITIVE_INFINITY;
+  let maxRSSI = Number.NEGATIVE_INFINITY;
   let sumRSSI = 0;
 
   for (let gy = 0; gy < gridHeight; gy++) {
@@ -136,21 +124,17 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
       const pointX = gx * gridStep;
 
       // Compute combined RSSI from all active APs (max-signal model)
-      let bestRSSI = -Infinity;
+      let bestRSSI = Number.NEGATIVE_INFINITY;
 
       for (const ap of activeAPs) {
-        const rssi = computeRSSI(
-          pointX, pointY, ap,
-          rfConfig,
-          spatialGrid, allSegments,
-        );
+        const rssi = computeRSSI(pointX, pointY, ap, rfConfig, spatialGrid, allSegments);
         if (rssi > bestRSSI) {
           bestRSSI = rssi;
         }
       }
 
       // If no APs, set minimum signal
-      if (bestRSSI === -Infinity) {
+      if (bestRSSI === Number.NEGATIVE_INFINITY) {
         bestRSSI = RSSI_MIN;
       }
 
@@ -185,8 +169,8 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
     height: outputHeight,
     calculationTimeMs,
     stats: {
-      minRSSI: minRSSI === Infinity ? RSSI_MIN : minRSSI,
-      maxRSSI: maxRSSI === -Infinity ? RSSI_MAX : maxRSSI,
+      minRSSI: minRSSI === Number.POSITIVE_INFINITY ? RSSI_MIN : minRSSI,
+      maxRSSI: maxRSSI === Number.NEGATIVE_INFINITY ? RSSI_MAX : maxRSSI,
       avgRSSI,
     },
   };
@@ -211,7 +195,7 @@ self.onmessage = (event: MessageEvent<HeatmapWorkerRequest>) => {
     const result = calculateHeatmap(request);
 
     // Transfer the ArrayBuffer to avoid copying
-    self.postMessage(result, [result.buffer]);
+    self.postMessage(result, { transfer: [result.buffer] });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown calculation error';
     const error: HeatmapWorkerError = {

@@ -278,6 +278,7 @@ export interface CommandMap {
         opacity?: number;
         show_24ghz?: boolean;
         show_5ghz?: boolean;
+        show_6ghz?: boolean;
       };
     };
     result: HeatmapSettingsResponse;
@@ -329,13 +330,50 @@ export interface CommandMap {
     result: boolean;
   };
   update_measurement_run_status: {
-    params: { measurement_run_id: string; status: 'pending' | 'in_progress' | 'completed' | 'failed' };
+    params: {
+      measurement_run_id: string;
+      status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
+    };
     result: null;
+  };
+
+  // ── Export Commands ──────────────────────────────────────────
+  export_project: {
+    params: { project_id: string };
+    result: string;
+  };
+
+  // ── Floor Image Commands ───────────────────────────────────
+  get_floor_image: {
+    params: { floor_id: string };
+    result: FloorImageResponse | null;
+  };
+
+  // ── Save Measurement Command ───────────────────────────────
+  save_measurement: {
+    params: {
+      params: {
+        measurement_point_id: string;
+        measurement_run_id: string;
+        frequency_band: string;
+        rssi_dbm?: number;
+        noise_dbm?: number;
+        iperf_tcp_upload_bps?: number;
+        iperf_tcp_download_bps?: number;
+        iperf_tcp_retransmits?: number;
+        iperf_udp_throughput_bps?: number;
+        iperf_udp_jitter_ms?: number;
+        iperf_udp_lost_packets?: number;
+        iperf_udp_total_packets?: number;
+        raw_iperf_json?: string;
+      };
+    };
+    result: string;
   };
 
   // ── Optimization Commands ────────────────────────────────────
   generate_optimization_plan: {
-    params: { project_id: string; floor_id: string; name?: string };
+    params: { params: { project_id: string; floor_id: string; name?: string } };
     result: { plan: OptimizationPlanResponse; steps: OptimizationStepResponse[] };
   };
   get_optimization_plan: {
@@ -420,12 +458,17 @@ export interface FloorDataResponse {
   project_id: string;
   name: string;
   floor_number: number;
+  background_image_format: string | null;
   scale_px_per_meter: number | null;
   width_meters: number | null;
   height_meters: number | null;
   ceiling_height_m: number;
+  floor_material_id: string | null;
+  created_at: string;
+  updated_at: string;
   walls: WallResponse[];
   access_points: AccessPointResponse[];
+  measurement_points: MeasurementPointResponse[];
 }
 
 export interface WallResponse {
@@ -433,8 +476,12 @@ export interface WallResponse {
   floor_id: string;
   material_id: string;
   segments: WallSegmentResponse[];
+  material: MaterialResponse;
   attenuation_override_24ghz: number | null;
   attenuation_override_5ghz: number | null;
+  attenuation_override_6ghz: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WallSegmentResponse {
@@ -450,14 +497,26 @@ export interface WallSegmentResponse {
 export interface AccessPointResponse {
   id: string;
   floor_id: string;
+  ap_model_id: string | null;
   label: string | null;
   x: number;
   y: number;
+  height_m: number;
+  mounting: string;
   tx_power_24ghz_dbm: number | null;
   tx_power_5ghz_dbm: number | null;
-  antenna_gain_24ghz_dbi: number | null;
-  antenna_gain_5ghz_dbi: number | null;
+  tx_power_6ghz_dbm: number | null;
+  channel_24ghz: number | null;
+  channel_5ghz: number | null;
+  channel_6ghz: number | null;
+  channel_width: string;
+  band_steering_enabled: boolean;
+  ip_address: string | null;
+  ssid: string | null;
   enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  ap_model: ApModelResponse | null;
 }
 
 export interface MaterialResponse {
@@ -482,10 +541,21 @@ export interface ApModelResponse {
   wifi_standard: string | null;
   max_tx_power_24ghz_dbm: number | null;
   max_tx_power_5ghz_dbm: number | null;
+  max_tx_power_6ghz_dbm: number | null;
   antenna_gain_24ghz_dbi: number | null;
   antenna_gain_5ghz_dbi: number | null;
+  antenna_gain_6ghz_dbi: number | null;
   mimo_streams: number | null;
+  supported_channels_24ghz: string | null;
+  supported_channels_5ghz: string | null;
+  supported_channels_6ghz: string | null;
   is_user_defined: boolean;
+}
+
+export interface FloorImageResponse {
+  id: string;
+  background_image: number[] | null;
+  background_image_format: string | null;
 }
 
 export interface HeatmapSettingsResponse {
@@ -501,9 +571,11 @@ export interface HeatmapSettingsResponse {
   path_loss_exponent: number;
   reference_loss_24ghz: number;
   reference_loss_5ghz: number;
+  reference_loss_6ghz: number;
   opacity: number;
   show_24ghz: boolean;
   show_5ghz: boolean;
+  show_6ghz: boolean;
 }
 
 export interface MeasurementRunResponse {
@@ -700,6 +772,9 @@ export function getErrorTitle(command: string): string {
     cancel_measurement: 'Could not cancel measurement',
     check_iperf_server: 'Server check failed',
     update_measurement_run_status: 'Could not update run status',
+    export_project: 'Could not export project',
+    get_floor_image: 'Could not load floor image',
+    save_measurement: 'Could not save measurement',
     generate_optimization_plan: 'Could not generate optimization plan',
     get_optimization_plan: 'Could not load optimization plan',
     list_optimization_plans: 'Could not load optimization plans',

@@ -63,13 +63,6 @@ impl From<rusqlite::Error> for AppError {
     }
 }
 
-impl From<reqwest::Error> for AppError {
-    fn from(err: reqwest::Error) -> Self {
-        AppError::Network {
-            message: err.to_string(),
-        }
-    }
-}
 
 impl From<serde_json::Error> for AppError {
     fn from(err: serde_json::Error) -> Self {

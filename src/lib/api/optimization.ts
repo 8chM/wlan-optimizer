@@ -5,11 +5,7 @@
  * managing plan steps, and updating plan status.
  */
 
-import {
-  safeInvoke,
-  type OptimizationPlanResponse,
-  type OptimizationStepResponse,
-} from './invoke';
+import { type OptimizationPlanResponse, type OptimizationStepResponse, safeInvoke } from './invoke';
 
 /**
  * Generates a new optimization plan for a floor.
@@ -20,8 +16,10 @@ export async function generateOptimizationPlan(
   floorId: string,
 ): Promise<{ plan: OptimizationPlanResponse; steps: OptimizationStepResponse[] }> {
   return safeInvoke('generate_optimization_plan', {
-    project_id: projectId,
-    floor_id: floorId,
+    params: {
+      project_id: projectId,
+      floor_id: floorId,
+    },
   });
 }
 
@@ -46,10 +44,7 @@ export async function listOptimizationPlans(
 /**
  * Marks an optimization step as applied or unapplied.
  */
-export async function updateOptimizationStep(
-  stepId: string,
-  applied: boolean,
-): Promise<void> {
+export async function updateOptimizationStep(stepId: string, applied: boolean): Promise<void> {
   await safeInvoke('update_optimization_step', { step_id: stepId, applied });
 }
 

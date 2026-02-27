@@ -98,6 +98,14 @@ pub fn update_measurement_run_status(
     status: String,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    // Validate status values
+    const VALID_STATUSES: &[&str] = &["pending", "in_progress", "completed", "failed", "cancelled"];
+    if !VALID_STATUSES.contains(&status.as_str()) {
+        return Err(AppError::Validation {
+            message: format!("Invalid status '{}'. Must be one of: {}", status, VALID_STATUSES.join(", ")),
+        });
+    }
+
     let conn = state.db.lock().map_err(|e| AppError::Internal {
         message: format!("Failed to acquire DB lock: {}", e),
     })?;

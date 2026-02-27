@@ -43,9 +43,28 @@ export const SHORTCUTS: KeyboardShortcut[] = [
  * Deduplicated shortcuts for display in the help dialog.
  * Filters out the Backspace duplicate (same action as Delete).
  */
-export const DISPLAY_SHORTCUTS: KeyboardShortcut[] = SHORTCUTS.filter(
-  (s) => s.key !== 'Backspace'
-);
+export const DISPLAY_SHORTCUTS: KeyboardShortcut[] = SHORTCUTS.filter((s) => s.key !== 'Backspace');
+
+// ─── Matching ───────────────────────────────────────────────────
+
+/**
+ * Find the first shortcut that matches a keyboard event.
+ * Returns the matching shortcut or undefined.
+ */
+export function matchShortcut(event: KeyboardEvent): KeyboardShortcut | undefined {
+  const ctrlOrMeta = event.ctrlKey || event.metaKey;
+
+  for (const shortcut of SHORTCUTS) {
+    const keyMatches = event.key.toLowerCase() === shortcut.key.toLowerCase();
+    const ctrlMatches = shortcut.ctrl ? ctrlOrMeta : !ctrlOrMeta;
+    const shiftMatches = shortcut.shift ? event.shiftKey : !event.shiftKey;
+
+    if (keyMatches && ctrlMatches && shiftMatches) {
+      return shortcut;
+    }
+  }
+  return undefined;
+}
 
 // ─── Registration ───────────────────────────────────────────────
 
@@ -79,13 +98,14 @@ export function formatShortcut(shortcut: KeyboardShortcut): string {
   }
 
   // Format special key names
-  const keyDisplay = shortcut.key === 'Delete'
-    ? 'Del'
-    : shortcut.key === 'Escape'
-      ? 'Esc'
-      : shortcut.key === 'Backspace'
-        ? '\u232B'
-        : shortcut.key.toUpperCase();
+  const keyDisplay =
+    shortcut.key === 'Delete'
+      ? 'Del'
+      : shortcut.key === 'Escape'
+        ? 'Esc'
+        : shortcut.key === 'Backspace'
+          ? '\u232B'
+          : shortcut.key.toUpperCase();
 
   parts.push(keyDisplay);
 
@@ -114,22 +134,14 @@ export function registerShortcuts(handlers: Record<string, () => void>): () => v
   function handleKeydown(event: KeyboardEvent): void {
     if (isInputFocused()) return;
 
-    const ctrlOrMeta = event.ctrlKey || event.metaKey;
+    const matched = matchShortcut(event);
+    if (!matched) return;
 
-    for (const shortcut of SHORTCUTS) {
-      const keyMatches = event.key.toLowerCase() === shortcut.key.toLowerCase();
-      const ctrlMatches = shortcut.ctrl ? ctrlOrMeta : !ctrlOrMeta;
-      const shiftMatches = shortcut.shift ? event.shiftKey : !event.shiftKey;
-
-      if (keyMatches && ctrlMatches && shiftMatches) {
-        const handler = handlers[shortcut.action];
-        if (handler) {
-          event.preventDefault();
-          event.stopPropagation();
-          handler();
-          return;
-        }
-      }
+    const handler = handlers[matched.action];
+    if (handler) {
+      event.preventDefault();
+      event.stopPropagation();
+      handler();
     }
   }
 

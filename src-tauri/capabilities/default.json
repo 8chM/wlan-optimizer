@@ -26,7 +26,6 @@
           "sidecar": true
         }
       ]
-    },
-    "http:default"
+    }
   ]
 }

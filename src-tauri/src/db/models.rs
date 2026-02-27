@@ -635,6 +635,7 @@ pub struct AccessPointWithModel {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FloorData {
+    #[serde(flatten)]
     pub floor: Floor,
     pub walls: Vec<WallWithSegments>,
     pub access_points: Vec<AccessPointWithModel>,

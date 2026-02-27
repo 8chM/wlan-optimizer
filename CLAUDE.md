@@ -22,6 +22,15 @@ Grundriss + Waende + APs -> Heatmap via RF-Modell (ITU-R P.1238).
 - Keine Phase ueberspringen (siehe `.claude/rules/phasenmodell.md`)
 - Keine hardcodierten UI-Strings - immer i18n-Keys verwenden
 
+## Tech-Stack (Phase 5 festgelegt)
+- Frontend: Svelte 5 (Runes) + Konva.js (svelte-konva) + Paraglide-js
+- Desktop: Tauri 2
+- Backend: Rust (rusqlite, reqwest, rasn-snmp)
+- Heatmap: TypeScript Web Worker + Canvas ImageData
+- Tests: Vitest + cargo test + WebdriverIO
+- Linting: Biome + eslint-plugin-svelte
+- Architektur: `docs/architecture/Architektur.md`
+
 ## Verzeichnisse
 - `docs/prd/` - Anforderungen (PRD, Funktionsliste)
 - `docs/research/` - Recherche, Evaluationen, Wissensluecken

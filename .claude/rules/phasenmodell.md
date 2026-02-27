@@ -7,21 +7,10 @@ Fortschritt in `docs/plans/progress.json`.
 ## Phase 1: Projektsetup ✅
 ## Phase 2: Deep Dive & Lueckenanalyse ✅
 
-## Phase 3: Recherche & Evaluation
-- 3a: Technische Recherche (Canvas, Heatmap, RF, iPerf, AP-Steuerung)
-- 3b: Open-Source-Evaluation
-- 3c: Tech-Stack-Evaluation
-- BMAD: `/research` fuer strukturierte Recherche
-- Gate: Recherche in `docs/research/` dokumentiert, Tech-Stack-Empfehlung
-
-## Phase 4: Klaerung mit Benutzer
-- Offene Fragen aus `docs/research/Wissensluecken.md` klaeren
-- Gate: Alle HOCH-Prioritaet-Fragen beantwortet
-
-## Phase 5: Architektur & Tech-Stack
-- Komponentenarchitektur, ADRs in `docs/architecture/`
-- BMAD: `/architecture` + `/solutioning-gate-check`
-- Gate: ADRs, Komponentendiagramm, Tech-Stack festgelegt
+## Phase 3: Recherche & Evaluation ✅
+## Phase 4: Klaerung mit Benutzer ✅
+## Phase 5: Architektur & Tech-Stack ✅
+- Deliverable: `docs/architecture/Architektur.md`
 
 ## Phase 6: Orchestrierungsstrategie
 - Gate: Agenten-Plan, Modell-Matrix in `docs/plans/Orchestrierung.md`

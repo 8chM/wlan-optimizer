@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 5,
+  "currentPhase": 6,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -55,7 +55,14 @@
       "deliverable": "docs/architecture/Entscheidungen.md",
       "notes": "19 Fragen geklaert. Kern: Mixing Console Forecast+Assist MVP, kein Paywall, Svelte5+Tauri2+Rust bestaetigt (mit PoC-Bedingung), macOS-first, Heatmap im Frontend Worker, 10-12 Materialien user-editierbar, Multi-Floor+6GHz in Datenstruktur vorbereiten"
     },
-    "5": { "name": "Architektur & Tech-Stack", "status": "pending", "gate": "pending" },
+    "5": {
+      "name": "Architektur & Tech-Stack",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "deliverable": "docs/architecture/Architektur.md",
+      "notes": "Komponentenarchitektur mit 8 Abschnitten: System-Ueberblick (Mermaid), Frontend (Svelte-Komponentenbaum, 4 Stores, 3 Konva-Layers, Web Worker), Backend (5 Rust-Module: commands, db, ap_control, measurement, export), Verzeichnisstruktur (70+ Dateien), 4 Datenfluss-Diagramme, IPC-API (37 Tauri Commands in 9 Gruppen + 3 Events), Fehlerbehandlung (thiserror + Toast), Sicherheit (Tauri Permissions, CSP). DB-Schema mit 8 Tabellen (Multi-Floor + 6GHz vorbereitet). 10 Architektur-Entscheidungen dokumentiert (A-01 bis A-10)."
+    },
     "6": { "name": "Orchestrierungsstrategie", "status": "pending", "gate": "pending" },
     "7": { "name": "Detailplanung", "status": "pending", "gate": "pending" },
     "8": { "name": "Autonome Entwicklung", "status": "pending", "gate": "pending" },

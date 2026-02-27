@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicobao/tauri-v2-schema/refs/heads/main/capability.json",
+  "identifier": "default",
+  "description": "Default capability set for WLAN-Optimizer",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-close",
+    "core:window:allow-set-title",
+    "core:window:allow-set-size",
+    "core:window:allow-set-fullscreen",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-confirm",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "iperf3",
+          "cmd": "iperf3",
+          "args": true,
+          "sidecar": true
+        }
+      ]
+    },
+    "http:default"
+  ]
+}

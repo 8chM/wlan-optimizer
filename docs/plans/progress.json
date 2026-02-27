@@ -79,7 +79,20 @@
       "deliverable": "docs/plans/Implementierungsplan.md",
       "notes": "103 Tasks, 1412 Zeilen. Agenten und Skills fuer Phase 8 ueberarbeitet (code-reviewer, tester, run-tests Skill). ADR-Skill fuer Autonomie angepasst."
     },
-    "8": { "name": "Autonome Entwicklung", "status": "pending", "gate": "pending" },
+    "8": {
+      "name": "Autonome Entwicklung",
+      "status": "in_progress",
+      "gate": "pending",
+      "subtasks": {
+        "8a": { "name": "Scaffolding + PoC", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8a-01..09: Tauri2+Svelte5 Scaffolding, Biome, Vitest, 16 DB-Tabellen (3 Migrationen), Rust module stubs (commands, db, ap_control, measurement, export, platform), TypeScript types, i18n, SvelteKit routes" },
+        "8b": { "name": "Kernmodul Planung", "status": "pending" },
+        "8c": { "name": "Kernmodul Heatmap", "status": "pending" },
+        "8d": { "name": "Modul Messung", "status": "pending" },
+        "8e": { "name": "Modul Optimierung", "status": "pending" },
+        "8f": { "name": "UI/UX & i18n", "status": "pending" },
+        "8g": { "name": "Integration", "status": "pending" }
+      }
+    },
     "9": { "name": "Qualitaetskontrolle & Verbesserungsidentifikation", "status": "pending", "gate": "pending" },
     "10": { "name": "Produktverbesserungen", "status": "pending", "gate": "pending" },
     "11": { "name": "Dokumentation & Uebergabe", "status": "pending", "gate": "pending" }

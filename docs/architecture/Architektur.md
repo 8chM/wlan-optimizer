@@ -1,1025 +1,803 @@
-# Komponentenarchitektur: WLAN-Optimizer
+# Architektur-Dokument: WLAN-Optimizer
 
-> **Phase 5 Deliverable** | **Datum:** 2026-02-27 | **Status:** Entwurf
+> **Phase 5 Deliverable** | **Version:** 1.0 | **Datum:** 2026-02-27 | **Status:** Abgeschlossen
 >
-> Basierend auf: Entscheidungen D-01 bis D-19, Tech-Stack-Evaluation, Canvas-Heatmap-Recherche,
-> AP-Steuerung-Recherche, Messung-Kalibrierung-Recherche, PRD und Funktionsliste.
+> Dieses Dokument ist die verbindliche Architektur-Referenz fuer Phase 8 (Autonome Entwicklung).
+> Alle Entscheidungen basieren auf den 19 bestaetigten Entscheidungen aus `docs/architecture/Entscheidungen.md`
+> und den Recherche-Ergebnissen aus Phase 3.
 
 ---
 
 ## Inhaltsverzeichnis
 
-1. [System-Ueberblick](#1-system-ueberblick)
-2. [Frontend-Architektur](#2-frontend-architektur)
-3. [Backend-Architektur (Rust/Tauri)](#3-backend-architektur-rusttauri)
+1. [Systemuebersicht](#1-systemuebersicht)
+2. [Frontend-Architektur (Svelte 5 + Konva.js)](#2-frontend-architektur-svelte-5--konvajs)
+3. [Backend-Architektur (Tauri 2 + Rust)](#3-backend-architektur-tauri-2--rust)
 4. [Verzeichnisstruktur](#4-verzeichnisstruktur)
 5. [Datenfluss-Diagramme](#5-datenfluss-diagramme)
 6. [IPC-API Design](#6-ipc-api-design)
-7. [Fehlerbehandlung](#7-fehlerbehandlung)
-8. [Sicherheit](#8-sicherheit)
+7. [Fehlerbehandlung & Sicherheit](#7-fehlerbehandlung--sicherheit)
+8. [Erweiterbarkeit](#8-erweiterbarkeit)
 
 ---
 
-## 1. System-Ueberblick
+## 1. Systemuebersicht
 
-### 1.1 High-Level-Architektur
+### 1.1 Kontextdiagramm (C4 Level 1)
 
 ```mermaid
-graph TB
-    subgraph "Tauri 2 Shell"
-        subgraph "Frontend (Svelte 5 + TypeScript)"
-            UI[UI-Komponenten<br/>shadcn-svelte]
-            Canvas[Konva.js Canvas<br/>svelte-konva]
-            Worker[Web Worker<br/>RF-Engine]
-            i18n[Paraglide-js<br/>i18n]
-            State[Svelte 5 Runes<br/>State Management]
-        end
+C4Context
+    title WLAN-Optimizer - Systemkontext
 
-        IPC{{Tauri IPC<br/>Commands + Events}}
+    Person(user, "Benutzer", "Heimnetzwerk-Besitzer, technikaffin")
 
-        subgraph "Backend (Rust)"
-            CMD[Tauri Commands]
-            DB[db-Modul<br/>rusqlite]
-            AP[ap_control-Modul<br/>Adapter-Pattern]
-            MEAS[measurement-Modul<br/>iPerf3 + RSSI]
-            EXP[export-Modul<br/>JSON/PNG/PDF]
-        end
-    end
+    System_Boundary(app, "WLAN-Optimizer") {
+        System(tauriApp, "Tauri Desktop App", "Svelte 5 Frontend + Rust Backend")
+    }
 
-    subgraph "Extern"
-        SQLite[(SQLite DB)]
-        DAP[D-Link DAP-X2810<br/>Web-GUI / SNMP]
-        IPERF[iPerf3 Server<br/>Ethernet-angebunden]
-        FS[Dateisystem<br/>Projekte, Bilder]
-    end
+    System_Ext(ap, "Access Point", "D-Link DAP-X2810 oder Custom AP, Web-GUI / SNMP")
+    System_Ext(iperf, "iPerf3 Server", "Ethernet-angebundenes Geraet, iperf3 -s")
+    System_Ext(wifi, "WLAN-Interface", "macOS CoreWLAN / Windows WlanApi / Linux nl80211")
 
-    UI --> State
-    Canvas --> State
-    Worker -->|ImageData via postMessage| Canvas
-    State --> IPC
-    IPC --> CMD
-    CMD --> DB
-    CMD --> AP
-    CMD --> MEAS
-    CMD --> EXP
-    DB --> SQLite
-    AP -->|HTTP/SNMP| DAP
-    MEAS -->|Sidecar Process| IPERF
-    MEAS -->|CoreWLAN| WiFi[WLAN-Interface]
-    EXP --> FS
-    DB --> FS
+    Rel(user, tauriApp, "Grundriss, Waende, APs, Messungen", "GUI")
+    Rel(tauriApp, ap, "Konfiguration lesen/schreiben", "HTTP/SNMP/CLI")
+    Rel(tauriApp, iperf, "Throughput-Messung", "TCP/UDP Port 5201")
+    Rel(tauriApp, wifi, "RSSI, BSSID, Kanal", "OS-native API")
 ```
 
-### 1.2 Technologie-Zuordnung
+### 1.2 Container-Diagramm (C4 Level 2)
 
-| Schicht | Technologie | Verantwortung |
-|---------|------------|---------------|
-| **UI-Rendering** | Svelte 5 (Runes) + shadcn-svelte | Reaktive UI-Komponenten, Layouts, Dialoge |
-| **Canvas** | Konva.js via svelte-konva | Grundriss-Editor, AP-Platzierung, Heatmap-Overlay |
-| **Heatmap-Berechnung** | TypeScript Web Worker | RF-Modell (ITU-R P.1238), Pixel-Rendering |
-| **i18n** | Paraglide-js | Compilierte, typsichere Uebersetzungen (DE/EN) |
-| **IPC** | Tauri 2 Commands + Events | Frontend-Backend-Kommunikation |
-| **Datenhaltung** | rusqlite (synchron) | Projekte, Grundrisse, APs, Messungen, Materialien |
-| **AP-Steuerung** | reqwest (HTTP), rasn-snmp (SNMP) | Web-GUI-Scraping, SNMP-Befehle |
-| **Messung** | Tauri Shell Plugin (Sidecar) | iPerf3-Steuerung als Child-Process |
-| **RSSI** | objc2-core-wlan (macOS) | Signalstaerke, Noise, BSSID |
-| **Build** | Vite 6 + Cargo | Frontend-Bundling + Rust-Kompilierung |
-| **Tests** | Vitest + cargo test + WebdriverIO | Unit, Component, Integration, E2E |
-| **Linting** | Biome + eslint-plugin-svelte | Formatting + Linting (TS, Svelte) |
+```mermaid
+C4Container
+    title WLAN-Optimizer - Container-Architektur
+
+    Person(user, "Benutzer")
+
+    System_Boundary(tauri, "Tauri 2 Desktop-App") {
+        Container(frontend, "Svelte 5 Frontend", "TypeScript, Konva.js, Paraglide-js", "Canvas-Editor, Heatmap, UI, Mixing Console")
+        Container(worker, "Web Worker", "TypeScript", "RF-Berechnung, Heatmap-Rendering")
+        Container(backend, "Rust Backend", "Rust, rusqlite, reqwest", "DB, AP-Steuerung, iPerf3, Export")
+        ContainerDb(db, "SQLite DB", "rusqlite", "Projekte, Grundrisse, Messungen")
+        Container(sidecar, "iPerf3 Binary", "C, BSD-3-Clause", "Sidecar-Prozess fuer Throughput-Tests")
+    }
+
+    System_Ext(ap, "Access Point", "Web-GUI / SNMP")
+    System_Ext(wlan, "WLAN-Interface", "OS-native API")
+
+    Rel(user, frontend, "Interaktion", "GUI")
+    Rel(frontend, worker, "Berechnung anfordern", "postMessage / Transferable")
+    Rel(frontend, backend, "Daten lesen/schreiben", "Tauri IPC Commands")
+    Rel(backend, db, "CRUD", "rusqlite sync")
+    Rel(backend, ap, "Konfiguration", "HTTP / SNMP")
+    Rel(backend, sidecar, "Messung starten", "Tauri Shell Plugin")
+    Rel(backend, wlan, "RSSI abfragen", "CoreWLAN / WlanApi")
+```
+
+### 1.3 Designprinzipien
+
+| Prinzip | Beschreibung |
+|---------|-------------|
+| **Lokal-First** | Alle Daten bleiben auf dem Geraet. Keine Cloud, keine Telemetrie. |
+| **Konservativ-Prinzip** | RF-Modell nutzt immer den pessimistischeren Wert. Lieber zu pessimistisch als zu optimistisch. |
+| **Plattform-Abstraktion** | Traits/Interfaces fuer alles Plattformspezifische (RSSI, AP-Steuerung). |
+| **Frontend-First Berechnung** | Heatmap-Berechnung im Web Worker (kein IPC-Overhead). |
+| **Progressive Enhancement** | MVP = Forecast + Assist-Mode. Auto-Mode kommt spaeter. |
+| **Erweiterbarkeit** | Plugin-artige Adapter fuer neue AP-Hersteller. |
+| **Zweisprachigkeit** | Code in Englisch, Dokumentation in Deutsch, UI in EN + DE. |
 
 ---
 
-## 2. Frontend-Architektur
+## 2. Frontend-Architektur (Svelte 5 + Konva.js)
 
-### 2.1 Svelte-Komponenten-Baum
+### 2.1 Komponentenhierarchie
 
 ```mermaid
 graph TD
-    App[App.svelte]
-    App --> Layout[Layout.svelte]
-    Layout --> Sidebar[Sidebar.svelte]
-    Layout --> MainArea[MainArea.svelte]
-    Layout --> StatusBar[StatusBar.svelte]
+    App["App.svelte"]
+    Layout["Layout.svelte"]
+    Sidebar["Sidebar.svelte"]
+    Toolbar["Toolbar.svelte"]
+    StatusBar["StatusBar.svelte"]
 
-    Sidebar --> ProjectPanel[ProjectPanel.svelte]
-    Sidebar --> ToolPanel[ToolPanel.svelte]
-    Sidebar --> PropertiesPanel[PropertiesPanel.svelte]
+    ProjectSetup["ProjectSetupView.svelte"]
+    FloorPlanEditor["FloorPlanEditorView.svelte"]
+    MeasurementWizard["MeasurementWizardView.svelte"]
+    MixingConsole["MixingConsoleView.svelte"]
+    ResultsDashboard["ResultsDashboardView.svelte"]
+    Settings["SettingsView.svelte"]
 
-    MainArea --> TabBar[TabBar.svelte]
-    MainArea --> CanvasView[CanvasView.svelte]
-    MainArea --> MeasurementWizard[MeasurementWizard.svelte]
-    MainArea --> MixingConsole[MixingConsole.svelte]
-    MainArea --> SettingsView[SettingsView.svelte]
+    CanvasEditor["CanvasEditor.svelte"]
+    WallTool["WallDrawingTool.svelte"]
+    APMarker["AccessPointMarker.svelte"]
+    HeatmapOverlay["HeatmapOverlay.svelte"]
+    ScaleIndicator["ScaleIndicator.svelte"]
+    MeasurementPoints["MeasurementPoints.svelte"]
+    BackgroundImage["BackgroundImage.svelte"]
+    GridOverlay["GridOverlay.svelte"]
 
-    CanvasView --> KonvaStage[KonvaStage]
-    KonvaStage --> FloorplanLayer[FloorplanLayer.svelte]
-    KonvaStage --> HeatmapLayer[HeatmapLayer.svelte]
-    KonvaStage --> UILayer[UILayer.svelte]
+    MaterialPicker["MaterialPicker.svelte"]
+    APLibrary["APLibraryPanel.svelte"]
+    HeatmapControls["HeatmapControls.svelte"]
+    MixingSliders["MixingSliders.svelte"]
+    RunOverview["RunOverview.svelte"]
+    ComparisonChart["ComparisonChart.svelte"]
+    ServerSetup["ServerSetupWizard.svelte"]
 
-    FloorplanLayer --> BackgroundImage[BackgroundImage.svelte]
-    FloorplanLayer --> WallGroup[WallGroup.svelte]
-    FloorplanLayer --> DoorGroup[DoorGroup.svelte]
+    App --> Layout
+    Layout --> Sidebar
+    Layout --> Toolbar
+    Layout --> StatusBar
 
-    HeatmapLayer --> HeatmapImage[HeatmapImage.svelte]
+    Layout --> ProjectSetup
+    Layout --> FloorPlanEditor
+    Layout --> MeasurementWizard
+    Layout --> MixingConsole
+    Layout --> ResultsDashboard
+    Layout --> Settings
 
-    UILayer --> APMarker[APMarker.svelte]
-    UILayer --> MeasurementPoint[MeasurementPointMarker.svelte]
-    UILayer --> ScaleReference[ScaleReference.svelte]
-    UILayer --> GridOverlay[GridOverlay.svelte]
-    UILayer --> SelectionRect[SelectionRect.svelte]
+    FloorPlanEditor --> CanvasEditor
+    FloorPlanEditor --> MaterialPicker
+    FloorPlanEditor --> APLibrary
+    FloorPlanEditor --> HeatmapControls
 
-    MeasurementWizard --> WizardStep[WizardStep.svelte]
-    MeasurementWizard --> MeasurementProgress[MeasurementProgress.svelte]
-    MeasurementWizard --> ResultCard[ResultCard.svelte]
+    CanvasEditor --> BackgroundImage
+    CanvasEditor --> GridOverlay
+    CanvasEditor --> WallTool
+    CanvasEditor --> APMarker
+    CanvasEditor --> HeatmapOverlay
+    CanvasEditor --> ScaleIndicator
+    CanvasEditor --> MeasurementPoints
 
-    MixingConsole --> APSliderGroup[APSliderGroup.svelte]
-    MixingConsole --> ForecastHeatmap[ForecastHeatmap.svelte]
-    MixingConsole --> ChangeList[ChangeList.svelte]
-    MixingConsole --> AssistSteps[AssistSteps.svelte]
+    MeasurementWizard --> CanvasEditor
+    MeasurementWizard --> RunOverview
+    MeasurementWizard --> ServerSetup
 
-    ToolPanel --> DrawWallTool[DrawWallTool.svelte]
-    ToolPanel --> PlaceAPTool[PlaceAPTool.svelte]
-    ToolPanel --> MeasureDistTool[MeasureDistTool.svelte]
-    ToolPanel --> ScaleTool[ScaleTool.svelte]
+    MixingConsole --> CanvasEditor
+    MixingConsole --> MixingSliders
 
-    PropertiesPanel --> WallProperties[WallProperties.svelte]
-    PropertiesPanel --> APProperties[APProperties.svelte]
-    PropertiesPanel --> MaterialSelector[MaterialSelector.svelte]
+    ResultsDashboard --> ComparisonChart
 ```
 
-### 2.2 State Management (Svelte 5 Runes)
+### 2.2 Hauptansichten (Views)
 
-State wird in `.svelte.ts`-Dateien als reaktive Stores verwaltet. Kein externer State Manager noetig.
+| View | Beschreibung | Hauptkomponenten |
+|------|-------------|------------------|
+| **ProjectSetupView** | Projekt erstellen/laden, Grundriss importieren, Massstab setzen | Projektliste, Import-Dialog, Referenzlinie |
+| **FloorPlanEditorView** | Waende zeichnen, APs platzieren, Heatmap anzeigen | CanvasEditor, MaterialPicker, APLibrary |
+| **MeasurementWizardView** | Gefuehrte Messlaeufe (Run 1, 2, 3) | Messpunkt-Canvas, iPerf-Setup, Fortschritt |
+| **MixingConsoleView** | TX-Power, Kanal, Kanalbreite per Slider | Slider-Panel, Forecast-Heatmap, Aenderungsliste |
+| **ResultsDashboardView** | Vorher/Nachher-Vergleich, Export | Vergleichs-Heatmaps, Charts, PDF-Export |
+| **SettingsView** | Sprache, Materialeditor, AP-Modelle, iPerf-Server | Formulare, Tabellen |
 
-**`src/lib/stores/project.svelte.ts`** -- Projekt-State:
+### 2.3 State Management mit Svelte 5 Runes
+
+Die Applikation nutzt Svelte 5 Runes als zentrales Reaktivitaetssystem. Kein externer State Manager noetig.
+
+**Globale Stores** (`src/lib/stores/`):
 
 ```typescript
-import type { Project, Floor, Wall, AccessPoint } from '$lib/types';
-
+// projectStore.svelte.ts - Zentraler Projekt-State
 class ProjectStore {
-  project = $state<Project | null>(null);
+  // Reaktive Felder
+  currentProject = $state<Project | null>(null);
+  floors = $state<Floor[]>([]);
   activeFloorId = $state<string | null>(null);
   isDirty = $state(false);
 
-  activeFloor = $derived<Floor | undefined>(
-    this.project?.floors.find(f => f.id === this.activeFloorId)
+  // Abgeleitete Werte
+  activeFloor = $derived(
+    this.floors.find(f => f.id === this.activeFloorId) ?? null
   );
 
-  walls = $derived<Wall[]>(
-    this.activeFloor?.walls ?? []
-  );
+  // Methoden
+  async loadProject(id: string): Promise<void> {
+    const project = await invoke('get_project', { id });
+    this.currentProject = project;
+    this.floors = await invoke('get_floors', { projectId: id });
+    this.activeFloorId = this.floors[0]?.id ?? null;
+    this.isDirty = false;
+  }
 
-  accessPoints = $derived<AccessPoint[]>(
-    this.activeFloor?.access_points ?? []
-  );
-
-  async load(projectId: string) { /* invoke('get_project', { id: projectId }) */ }
-  async save() { /* invoke('save_project', { project: this.project }) */ }
-  setDirty() { this.isDirty = true; }
+  markDirty(): void {
+    this.isDirty = true;
+  }
 }
 
 export const projectStore = new ProjectStore();
 ```
 
-**`src/lib/stores/canvas.svelte.ts`** -- Canvas-State:
-
 ```typescript
-import type { Tool, Selection } from '$lib/types';
-
+// canvasStore.svelte.ts - Canvas-Zustand
 class CanvasStore {
-  activeTool = $state<Tool>('select');
-  zoom = $state(1.0);
-  panX = $state(0);
-  panY = $state(0);
-  selection = $state<Selection | null>(null);
-  gridVisible = $state(true);
+  walls = $state<Wall[]>([]);
+  accessPoints = $state<AccessPoint[]>([]);
+  measurementPoints = $state<MeasurementPoint[]>([]);
+
+  // Zeichenwerkzeug
+  activeTool = $state<'select' | 'wall' | 'ap' | 'measure' | 'eraser'>('select');
+  selectedMaterial = $state<WallMaterial>('brick');
+  selectedWallId = $state<string | null>(null);
+  selectedAPId = $state<string | null>(null);
+
+  // Zoom/Pan
+  scale = $state(1);
+  offsetX = $state(0);
+  offsetY = $state(0);
+
+  // Heatmap
   heatmapVisible = $state(true);
+  heatmapOpacity = $state(0.65);
   heatmapBand = $state<'2.4ghz' | '5ghz'>('5ghz');
   heatmapColorScheme = $state<'viridis' | 'jet' | 'inferno'>('viridis');
-  heatmapOpacity = $state(0.7);
 
-  stageWidth = $derived(/* berechnet aus Container-Groesse */);
-  stageHeight = $derived(/* berechnet aus Container-Groesse */);
+  // Abgeleitet
+  zoomPercent = $derived(Math.round(this.scale * 100));
+  wallCount = $derived(this.walls.length);
+  apCount = $derived(this.accessPoints.length);
 }
 
 export const canvasStore = new CanvasStore();
 ```
 
-**`src/lib/stores/measurement.svelte.ts`** -- Mess-State:
-
 ```typescript
-import type { MeasurementRun, MeasurementPointStatus } from '$lib/types';
-
+// measurementStore.svelte.ts - Mess-Zustand
 class MeasurementStore {
-  activeRun = $state<MeasurementRun | null>(null);
-  currentPointIndex = $state(0);
-  isRunning = $state(false);
-  progress = $state(0);
-  liveRssi = $state<number | null>(null);
-  liveThroughput = $state<number | null>(null);
+  currentRun = $state<1 | 2 | 3>(1);
+  runStatus = $state<Record<number, RunStatus>>({
+    1: { status: 'pending', pointsCompleted: 0, pointsTotal: 0 },
+    2: { status: 'pending', pointsCompleted: 0, pointsTotal: 0 },
+    3: { status: 'pending', pointsCompleted: 0, pointsTotal: 0 },
+  });
+
   iperfServerIp = $state('');
   iperfServerReachable = $state(false);
-  wifiConnected = $state(false);
+  wlanConnected = $state(false);
+  currentRSSI = $state<number | null>(null);
+  isMeasuring = $state(false);
+  measurementProgress = $state(0);
 
-  pointStatuses = $derived<MeasurementPointStatus[]>(/* ... */);
-  completedCount = $derived(/* ... */);
+  // Kalibrierung
+  calibratedN = $state(3.5);
+  calibrationRMSE = $state<number | null>(null);
+  calibrationConfidence = $state<'high' | 'medium' | 'low' | null>(null);
 }
 
 export const measurementStore = new MeasurementStore();
 ```
 
-**`src/lib/stores/mixing-console.svelte.ts`** -- Mixing-Console-State:
-
 ```typescript
-import type { APParameterOverride, ChangeEntry } from '$lib/types';
+// mixingStore.svelte.ts - Mixing Console State
+class MixingStore {
+  // Pro AP: Aktuelle und angepasste Werte
+  apConfigs = $state<MixingAPConfig[]>([]);
+  changeList = $state<ParameterChange[]>([]);
+  forecastMode = $state(true); // true = nur Forecast, false = Apply
 
-class MixingConsoleStore {
-  overrides = $state<Map<string, APParameterOverride>>(new Map());
-  changes = $derived<ChangeEntry[]>(/* ... berechnet aus overrides vs. original */);
-  mode = $state<'forecast' | 'assist'>('forecast');
-  forecastDirty = $state(false);
+  hasChanges = $derived(this.changeList.length > 0);
 
-  setTxPower(apId: string, band: string, value: number) { /* ... */ }
-  setChannel(apId: string, band: string, value: number) { /* ... */ }
-  setChannelWidth(apId: string, band: string, value: string) { /* ... */ }
-  resetAll() { /* ... */ }
-  getAssistSteps(): AssistStep[] { /* ... */ }
+  applyChange(apId: string, param: string, value: number): void {
+    // Slider-Aenderung registrieren
+    const existing = this.changeList.findIndex(
+      c => c.apId === apId && c.param === param
+    );
+    if (existing >= 0) {
+      this.changeList[existing].newValue = value;
+    } else {
+      this.changeList = [...this.changeList, { apId, param, newValue: value }];
+    }
+  }
+
+  resetAll(): void {
+    this.changeList = [];
+    // APs auf Original-Werte zuruecksetzen
+  }
 }
 
-export const mixingConsoleStore = new MixingConsoleStore();
+export const mixingStore = new MixingStore();
 ```
 
-### 2.3 Canvas-Layer-Architektur
+### 2.4 Canvas-Layer-Architektur (Konva.js)
 
-Konva.js organisiert den Canvas-Editor in drei Layers, die jeweils als eigenes HTML5-Canvas-Element existieren.
+Das Canvas besteht aus einer Konva `Stage` mit mehreren `Layer`-Objekten. Jede Layer ist ein separates HTML5-Canvas-Element, das unabhaengig gezeichnet wird.
 
 ```mermaid
 graph TB
-    subgraph "Konva Stage"
+    subgraph Stage["Konva.Stage (Zoom/Pan)"]
         direction TB
-        L1[Layer 1: Grundriss<br/>- Hintergrundbild<br/>- Waende Linien<br/>- Tueren/Fenster<br/>- Raumbezeichnungen<br/><i>listening: true</i>]
-        L2[Layer 2: Heatmap<br/>- Konva.Image mit ImageData<br/>- Opacity steuerbar<br/>- Band-Toggle 2.4/5 GHz<br/><i>listening: false</i>]
-        L3[Layer 3: UI-Overlay<br/>- AP-Icons drag-and-drop<br/>- Messpunkt-Marker<br/>- Massstabslinie<br/>- Selektionsrahmen<br/>- Grid-Overlay<br/><i>listening: true</i>]
+        L1["Layer 1: Background<br/>- Grundriss-Bild (Konva.Image)<br/>- Grid-Overlay (Konva.Line[])<br/>- listening: false"]
+        L2["Layer 2: Walls<br/>- Wand-Segmente (Konva.Line[])<br/>- Tuer/Fenster (Konva.Line[])<br/>- Raum-Labels (Konva.Text[])<br/>- hitStrokeWidth: 20px"]
+        L3["Layer 3: Heatmap<br/>- Berechnetes Bild (Konva.Image)<br/>- opacity: 0.6-0.7<br/>- listening: false"]
+        L4["Layer 4: Measurements<br/>- Messpunkte (Konva.Circle[])<br/>- Messpunkt-Labels (Konva.Text[])<br/>- Signalwerte (Konva.Group[])"]
+        L5["Layer 5: UI Overlay<br/>- AP-Marker (Konva.Group[], draggable)<br/>- Zeichnungs-Preview (Konva.Line)<br/>- Snap-Indikatoren (Konva.Circle[])<br/>- Massstab-Leiste (Konva.Group)"]
     end
 
-    style L2 fill:#e8f5e9
-    style L1 fill:#e3f2fd
-    style L3 fill:#fff3e0
+    L1 --> L2 --> L3 --> L4 --> L5
+
+    style L1 fill:#e8e8e8,stroke:#999
+    style L2 fill:#ffe0cc,stroke:#cc6633
+    style L3 fill:#ccffcc,stroke:#009900
+    style L4 fill:#cce5ff,stroke:#0066cc
+    style L5 fill:#fff3cc,stroke:#cc9900
 ```
 
-**Rendering-Reihenfolge:** L1 (unten) -> L2 (mitte) -> L3 (oben).
+**Layer-Regeln:**
 
-**Layer-Optimierungen:**
-- Layer 2 (Heatmap): `listening(false)` -- keine Event-Verarbeitung, rein visuell.
-- Layer 1: `shape.cache()` fuer statische Grundriss-Elemente nach Aenderung.
-- Layer 3: `perfectDrawEnabled(false)` fuer UI-Elemente zur Reduzierung von Render-Overhead.
+| Layer | `listening` | `cache()` | Update-Trigger |
+|-------|------------|-----------|----------------|
+| Background | false | nach Bild-Laden | Bild-Import, Zoom |
+| Walls | true (Hit Detection) | nach Wand-Aenderung | Wand hinzufuegen/aendern/loeschen |
+| Heatmap | false | nach jeder Berechnung | AP-Aenderung, Wand-Aenderung, Band-Toggle |
+| Measurements | true | nein | Messpunkt hinzufuegen/aktualisieren |
+| UI Overlay | true | nein | Immer (Drag, Zeichnung, Cursor) |
 
-### 2.4 Web Worker Integration (RF-Berechnung)
+### 2.5 Web Worker Integration (Heatmap-Berechnung)
 
 ```mermaid
 sequenceDiagram
     participant UI as Main Thread (Svelte)
-    participant W as Web Worker (heatmap.worker.ts)
+    participant W as Web Worker (RF-Engine)
 
-    UI->>W: postMessage({ type: 'calculate', payload: { aps, walls, floor, band, gridStep, colorScheme } })
-    Note over W: 1. Grid erstellen (z.B. 200x200 bei 5cm Schritt)
-    Note over W: 2. Pro Gridpunkt: Distanz zu APs, Wand-Intersections
-    Note over W: 3. ITU-R P.1238 Path Loss berechnen
-    Note over W: 4. Besten AP waehlen (max RSSI)
-    Note over W: 5. RSSI -> Farbe via LUT
-    Note over W: 6. ImageData befuellen (Uint32Array)
-    W-->>UI: postMessage({ type: 'progress', percent: 50 })
-    W-->>UI: postMessage({ type: 'result', imageData }, [buffer])
-    Note over UI: Konva.Image mit neuem ImageData aktualisieren
+    Note over UI: AP wird verschoben (Drag)
+    UI->>W: postMessage({type: 'calculate', resolution: 'low', aps, walls, bounds})
+    Note over W: Grid 10cm, Spatial Index, ITU-R P.1238
+    W-->>UI: postMessage({imageData}, [buffer]) -- Transferable
+
+    Note over UI: AP-Drag endet (150ms Debounce)
+    UI->>W: postMessage({type: 'calculate', resolution: 'high', aps, walls, bounds})
+    Note over W: Grid 5cm, volle Aufloesung
+    W-->>UI: postMessage({imageData}, [buffer]) -- Transferable
+
+    Note over UI: Heatmap-Layer aktualisiert
 ```
 
-**Progressive Render** (D-06):
-1. **Schnelle Vorschau** (< 50ms): 10cm Grid, grobe Heatmap waehrend AP-Drag.
-2. **Finale Ansicht** (< 500ms): 5cm Grid nach Loslassen.
-
-**Worker-Datei:** `src/workers/heatmap.worker.ts`
+**Worker-Architektur:**
 
 ```typescript
-// Vereinfachte Struktur
-interface HeatmapRequest {
+// heatmap-worker.ts - Kernstruktur
+interface CalculateRequest {
   type: 'calculate';
-  payload: {
-    accessPoints: { x: number; y: number; txPower: number; gain: number; band: string }[];
-    walls: { x1: number; y1: number; x2: number; y2: number; attenuation: number }[];
-    floorWidth: number;  // Meter
-    floorHeight: number; // Meter
-    gridStep: number;    // Meter (0.05 oder 0.10)
-    colorScheme: 'viridis' | 'jet' | 'inferno';
-    canvasWidth: number;
-    canvasHeight: number;
+  id: number;
+  aps: APConfig[];
+  walls: WallData[];
+  bounds: FloorBounds;
+  gridStep: number;       // Meter (0.05 oder 0.10)
+  outputWidth: number;    // Pixel
+  outputHeight: number;
+  band: '2.4ghz' | '5ghz';
+  colorScheme: 'viridis' | 'jet' | 'inferno';
+  calibratedN?: number;   // Kalibrierter Path-Loss-Exponent
+}
+
+interface CalculateResponse {
+  type: 'result';
+  id: number;
+  buffer: ArrayBuffer;    // RGBA ImageData (Transferable)
+  width: number;
+  height: number;
+  stats: {
+    minRSSI: number;
+    maxRSSI: number;
+    avgRSSI: number;
+    calcTimeMs: number;
   };
 }
-
-interface HeatmapResponse {
-  type: 'result' | 'progress';
-  imageData?: ImageData;
-  percent?: number;
-}
 ```
 
-### 2.5 i18n Integration (Paraglide-js)
+### 2.6 Progressive Rendering Strategie
 
-Paraglide-js erzeugt typsichere Message-Funktionen zur Build-Zeit.
+| Phase | Grid-Schritt | Trigger | Erwartete Dauer |
+|-------|-------------|---------|-----------------|
+| **Waehrend Drag** | 20 cm (LOD niedrig) | `onDragMove` sofort | < 15 ms |
+| **Drag-Ende** | 10 cm (LOD normal) | 150 ms Debounce | < 50 ms |
+| **Idle / Fein** | 5 cm (LOD hoch) | 300 ms nach letzter Aenderung | < 200 ms |
+| **Maximale Qualitaet** | 2.5 cm | Manuell / Export | < 500 ms |
 
-**Verzeichnisstruktur:**
+Die LOD-Stufe passt sich zusaetzlich an den Zoom-Level an (siehe Abschnitt 4 der Canvas-Heatmap-Recherche).
 
-```
-src/lib/i18n/
-  messages/
-    en.json    # { "floorplan.import": "Import Floor Plan", ... }
-    de.json    # { "floorplan.import": "Grundriss importieren", ... }
-```
+### 2.7 Farbschemata
 
-**Nutzung in Komponenten:**
+Drei Farbschemata (D-17), schaltbar ueber die Toolbar:
 
-```svelte
-<script>
-  import * as m from '$lib/i18n/messages';
-</script>
+| Schema | Beschreibung | Einsatzzweck |
+|--------|-------------|--------------|
+| **Viridis** (Default) | Blau-Gruen-Gelb, farbenblind-freundlich | Standard, barrierefreie Darstellung |
+| **Jet** | Blau-Cyan-Gruen-Gelb-Rot, klassisch | Gewohnter WLAN-Heatmap-Look |
+| **Inferno** | Schwarz-Violett-Orange-Gelb | Hoher Kontrast, gut fuer Praesentationen |
 
-<button>{m.floorplanImport()}</button>
-```
-
-**Spracherkennung (D-18):** System-Sprache via `navigator.language`. Deutsch wenn `de*`, sonst Englisch. Aenderbar ueber Einstellungsmenue.
-
-### 2.6 Routing (Tab-basierte SPA)
-
-Kein URL-basiertes Routing (Tauri-Desktop-App). Stattdessen Tab-basierte Navigation:
-
-```typescript
-type AppView = 'floorplan' | 'measurement' | 'mixing-console' | 'settings';
-```
-
-Die aktive View wird im `canvasStore` gehalten. Tabs werden in `TabBar.svelte` gerendert. Nur die aktive View wird gemounted (kein lazy-loading noetig bei Desktop-App).
+Jedes Schema wird als `Uint32Array[256]` Lookup-Table vorberechnet und im Worker gehalten.
 
 ---
 
-## 3. Backend-Architektur (Rust/Tauri)
+## 3. Backend-Architektur (Tauri 2 + Rust)
 
-### 3.1 Modulstruktur
+### 3.1 Rust-Modulstruktur
 
 ```mermaid
-graph TD
-    subgraph "src-tauri/src"
-        main[main.rs<br/>Tauri-Setup, Plugin-Registration]
-        lib[lib.rs<br/>Modul-Deklarationen]
+graph LR
+    subgraph Backend["src-tauri/src/"]
+        main["main.rs<br/>Tauri-Setup, Command-Registry"]
 
-        subgraph "commands/"
-            cmd_project[project.rs<br/>Projekt-CRUD]
-            cmd_floor[floor.rs<br/>Stockwerk + Grundriss]
-            cmd_wall[wall.rs<br/>Wand-CRUD]
-            cmd_ap[access_point.rs<br/>AP-CRUD + Modelle]
-            cmd_heatmap[heatmap.rs<br/>Kalibrierungs-Parameter]
-            cmd_measurement[measurement.rs<br/>Mess-Steuerung]
-            cmd_ap_control[ap_control.rs<br/>AP-Fernsteuerung]
-            cmd_settings[settings.rs<br/>App-Einstellungen]
-            cmd_export[export.rs<br/>Projekt-Export/Import]
+        subgraph db["db/"]
+            db_mod["mod.rs"]
+            db_conn["connection.rs<br/>Pool, Migrations"]
+            db_project["project.rs<br/>CRUD Projects"]
+            db_floor["floor.rs<br/>CRUD Floors"]
+            db_wall["wall.rs<br/>CRUD Walls"]
+            db_ap["access_point.rs<br/>CRUD APs"]
+            db_measurement["measurement.rs<br/>CRUD Measurements"]
+            db_material["material.rs<br/>Materialdatenbank"]
+            db_ap_model["ap_model.rs<br/>AP-Modell-Bibliothek"]
+            db_migrations["migrations/<br/>SQL-Dateien"]
         end
 
-        subgraph "db/"
-            db_mod[mod.rs<br/>Connection-Pool, Migrations]
-            db_schema[schema.rs<br/>CREATE TABLE Statements]
-            db_project[project.rs<br/>Projekt-Queries]
-            db_floor[floor.rs<br/>Floor-Queries]
-            db_wall[wall.rs<br/>Wall-Queries]
-            db_ap[access_point.rs<br/>AP-Queries]
-            db_measurement[measurement.rs<br/>Mess-Queries]
-            db_material[material.rs<br/>Material-Queries]
-            db_ap_model[ap_model.rs<br/>AP-Modell-Queries]
+        subgraph ap_control["ap_control/"]
+            ap_mod["mod.rs<br/>APControllerTrait"]
+            ap_webgui["webgui_adapter.rs<br/>HTTP/Cookie-Auth"]
+            ap_snmp["snmp_adapter.rs<br/>SNMP v2c"]
+            ap_cli["cli_adapter.rs<br/>Telnet/Serial"]
+            ap_custom["custom_adapter.rs<br/>Manuell (Assist-Mode)"]
         end
 
-        subgraph "ap_control/"
-            ac_mod[mod.rs<br/>APControllerTrait]
-            ac_webgui[webgui_adapter.rs<br/>HTTP/Cookie-basiert]
-            ac_snmp[snmp_adapter.rs<br/>SNMP v2c]
-            ac_generic[generic_adapter.rs<br/>Custom AP Profil]
-            ac_types[types.rs<br/>APConfig, APStatus]
+        subgraph measurement["measurement/"]
+            meas_mod["mod.rs"]
+            meas_iperf["iperf.rs<br/>Sidecar-Management"]
+            meas_rssi["rssi.rs<br/>WifiMeasurementTrait"]
+            meas_calibration["calibration.rs<br/>Least Squares"]
         end
 
-        subgraph "measurement/"
-            ms_mod[mod.rs<br/>MeasurementManager]
-            ms_iperf[iperf.rs<br/>iPerf3 Sidecar-Steuerung]
-            ms_wifi[wifi_scanner.rs<br/>WifiScannerTrait]
-            ms_macos[macos.rs<br/>CoreWLAN-Implementierung]
-            ms_calibration[calibration.rs<br/>Least-Squares-Fitting]
-            ms_types[types.rs<br/>IperfResult, WifiInfo]
+        subgraph export_mod["export/"]
+            exp_mod["mod.rs"]
+            exp_pdf["pdf.rs<br/>PDF-Report"]
+            exp_image["image.rs<br/>PNG-Export"]
+            exp_project["project.rs<br/>JSON-Projektdatei"]
         end
 
-        subgraph "export/"
-            ex_mod[mod.rs<br/>ExportManager]
-            ex_json[json.rs<br/>Projekt-Serialisierung]
-            ex_image[image.rs<br/>Heatmap-PNG-Export]
+        subgraph platform["platform/"]
+            plat_mod["mod.rs"]
+            plat_macos["macos.rs<br/>CoreWLAN"]
+            plat_windows["windows.rs<br/>WlanApi"]
+            plat_linux["linux.rs<br/>nl80211"]
         end
-
-        models[models.rs<br/>Shared DTOs / Serde-Structs]
-        error[error.rs<br/>AppError, thiserror]
-        state[state.rs<br/>AppState, Managed State]
     end
 
-    main --> lib
-    lib --> cmd_project & cmd_floor & cmd_wall & cmd_ap
-    lib --> cmd_heatmap & cmd_measurement & cmd_ap_control
-    lib --> cmd_settings & cmd_export
-    cmd_project --> db_project
-    cmd_floor --> db_floor
-    cmd_wall --> db_wall
-    cmd_ap --> db_ap
-    cmd_measurement --> ms_mod
-    cmd_ap_control --> ac_mod
-    cmd_export --> ex_mod
-    db_mod --> db_schema
-    ac_mod --> ac_webgui & ac_snmp & ac_generic
-    ms_mod --> ms_iperf & ms_wifi
-    ms_wifi --> ms_macos
+    main --> db
+    main --> ap_control
+    main --> measurement
+    main --> export_mod
+    main --> platform
+
+    measurement --> platform
+    ap_control --> db
 ```
 
-### 3.2 Tauri Managed State
+### 3.2 Tauri IPC Command Design
+
+Alle Frontend-Backend-Kommunikation laeuft ueber Tauri IPC Commands. Commands sind gruppiert nach Domaene.
+
+**Rust-seitige Signatur-Konvention:**
 
 ```rust
-// src-tauri/src/state.rs
-
-use rusqlite::Connection;
-use std::sync::Mutex;
-
-pub struct AppState {
-    pub db: Mutex<Connection>,
-}
-
-impl AppState {
-    pub fn new(db_path: &str) -> Result<Self, crate::error::AppError> {
-        let conn = Connection::open(db_path)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
-        crate::db::run_migrations(&conn)?;
-        Ok(Self { db: Mutex::new(conn) })
-    }
+#[tauri::command]
+async fn command_name(
+    state: tauri::State<'_, AppState>,
+    param1: Type1,
+    param2: Type2,
+) -> Result<ReturnType, AppError> {
+    // ...
 }
 ```
 
-Registrierung in `main.rs`:
+**TypeScript-seitige Aufruf-Konvention:**
 
-```rust
-fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .manage(AppState::new(&db_path()).unwrap())
-        .invoke_handler(tauri::generate_handler![
-            // project
-            commands::project::create_project,
-            commands::project::get_project,
-            commands::project::list_projects,
-            commands::project::update_project,
-            commands::project::delete_project,
-            // floor
-            commands::floor::create_floor,
-            commands::floor::get_floor,
-            commands::floor::update_floor,
-            commands::floor::delete_floor,
-            commands::floor::import_background_image,
-            commands::floor::set_scale,
-            // wall
-            commands::wall::create_wall,
-            commands::wall::update_wall,
-            commands::wall::delete_wall,
-            commands::wall::batch_create_walls,
-            // access_point
-            commands::access_point::create_access_point,
-            commands::access_point::update_access_point,
-            commands::access_point::delete_access_point,
-            commands::access_point::list_ap_models,
-            commands::access_point::get_ap_model,
-            // heatmap
-            commands::heatmap::get_calibration_params,
-            commands::heatmap::update_calibration_params,
-            // measurement
-            commands::measurement::start_measurement,
-            commands::measurement::cancel_measurement,
-            commands::measurement::get_measurement_results,
-            commands::measurement::check_iperf_server,
-            commands::measurement::get_wifi_info,
-            commands::measurement::calibrate,
-            // ap_control
-            commands::ap_control::discover_ap,
-            commands::ap_control::get_ap_config,
-            commands::ap_control::apply_ap_changes,
-            commands::ap_control::verify_ap,
-            // settings
-            commands::settings::get_settings,
-            commands::settings::update_settings,
-            commands::settings::get_materials,
-            commands::settings::update_material,
-            // export
-            commands::export::export_project,
-            commands::export::import_project,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const result = await invoke<ReturnType>('command_name', {
+  param1: value1,
+  param2: value2,
+});
 ```
 
-### 3.3 AP-Controller Adapter-Pattern (D-01, D-10)
+### 3.3 AP-Steuerung: Adapter-Pattern
 
-```rust
-// src-tauri/src/ap_control/mod.rs
-
-use async_trait::async_trait;
-use crate::ap_control::types::{APConfig, APStatus, APChangeSet};
-use crate::error::AppError;
-
-#[async_trait]
-pub trait APController: Send + Sync {
-    /// Aktuelle Konfiguration auslesen
-    async fn get_config(&self) -> Result<APConfig, AppError>;
-
-    /// Aktuellen Status auslesen (online, Firmware, Uptime)
-    async fn get_status(&self) -> Result<APStatus, AppError>;
-
-    /// Konfigurationsaenderungen anwenden
-    async fn apply_changes(&self, changes: &APChangeSet) -> Result<(), AppError>;
-
-    /// Pruefen ob der AP erreichbar und steuerbar ist
-    async fn verify(&self) -> Result<APVerificationResult, AppError>;
-
-    /// Unterstuetzte Funktionen abfragen
-    fn capabilities(&self) -> APCapabilities;
-}
-
-pub struct APCapabilities {
-    pub can_set_tx_power: bool,
-    pub can_set_channel: bool,
-    pub can_set_channel_width: bool,
-    pub can_set_ssid: bool,
-    pub supports_auto_apply: bool,  // false fuer GenericAdapter
-}
-```
-
-```rust
-// src-tauri/src/ap_control/webgui_adapter.rs
-
-use reqwest::{Client, cookie::Jar};
-use scraper::{Html, Selector};
-
-pub struct WebGUIAdapter {
-    client: Client,
-    base_url: String,
-    session_active: bool,
-}
-
-impl WebGUIAdapter {
-    pub fn new(ip: &str, username: &str, password: &str) -> Self {
-        let jar = Jar::default();
-        let client = Client::builder()
-            .cookie_provider(jar.into())
-            .danger_accept_invalid_certs(true) // Self-signed AP Certs
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .unwrap();
-        Self { client, base_url: format!("https://{}", ip), session_active: false }
+```mermaid
+classDiagram
+    class APControllerTrait {
+        <<trait>>
+        +connect(config: APConnectionConfig) Result~()~
+        +disconnect() Result~()~
+        +get_status() Result~APStatus~
+        +get_wireless_config() Result~WirelessConfig~
+        +set_tx_power(band: Band, level: u8) Result~()~
+        +set_channel(band: Band, channel: u8) Result~()~
+        +set_channel_width(band: Band, width: ChannelWidth) Result~()~
+        +get_firmware_version() Result~String~
+        +is_connected() bool
+        +supports_auto_mode() bool
     }
 
-    async fn login(&mut self) -> Result<(), AppError> {
-        // POST /cgi-bin/webproc mit obj-action=auth
-        todo!()
+    class WebGUIAdapter {
+        -http_client: reqwest::Client
+        -session_cookie: Option~String~
+        -base_url: String
+        +login(username: &str, password: &str) Result~()~
+        +parse_wireless_page() Result~WirelessConfig~
+        +submit_config_change(params: HashMap) Result~()~
+        +save_and_activate() Result~()~
     }
 
-    async fn parse_wireless_config(&self, html: &str) -> Result<APConfig, AppError> {
-        // HTML-Parsing mit scraper Crate
-        todo!()
+    class SNMPAdapter {
+        -community_read: String
+        -community_write: String
+        -target_ip: IpAddr
+        +snmp_get(oid: &str) Result~Value~
+        +snmp_set(oid: &str, value: Value) Result~()~
     }
-}
-```
 
-```rust
-// src-tauri/src/ap_control/snmp_adapter.rs
-
-pub struct SNMPAdapter {
-    target: String,        // IP:Port
-    community_read: String,
-    community_write: String,
-}
-
-// OIDs fuer IEEE802dot11-MIB
-const OID_TX_POWER_LEVEL: &str = "1.2.840.10036.4.3.1.10";
-const OID_CURRENT_CHANNEL: &str = "1.2.840.10036.4.5.1.1";
-const OID_CURRENT_FREQUENCY: &str = "1.2.840.10036.4.11.1.1";
-```
-
-```rust
-// src-tauri/src/ap_control/generic_adapter.rs
-// Fuer Custom APs ohne spezifischen Treiber: Nur Assist-Steps, kein Auto-Apply
-
-pub struct GenericAdapter {
-    ap_profile: CustomAPProfile,
-}
-
-impl GenericAdapter {
-    // capabilities().supports_auto_apply == false
-    // apply_changes() gibt AssistSteps zurueck statt direkt zu aendern
-}
-```
-
-### 3.4 Measurement-Modul
-
-```rust
-// src-tauri/src/measurement/mod.rs
-
-pub struct MeasurementManager {
-    iperf_runner: IperfRunner,
-    wifi_scanner: Box<dyn WifiScanner>,
-}
-
-impl MeasurementManager {
-    pub async fn run_measurement_sequence(
-        &self,
-        server_ip: &str,
-        app_handle: &tauri::AppHandle,
-    ) -> Result<MeasurementResult, AppError> {
-        // 1. RSSI + Noise + BSSID sofort auslesen
-        let wifi_info = self.wifi_scanner.get_current_info()?;
-
-        // 2. TCP Upload (10s, 4 Streams, 2s Omit)
-        let tcp_upload = self.iperf_runner
-            .run_tcp(server_ip, 10, 4, false, app_handle).await?;
-
-        // 3. TCP Download (10s, 4 Streams, Reverse)
-        let tcp_download = self.iperf_runner
-            .run_tcp(server_ip, 10, 4, true, app_handle).await?;
-
-        // 4. UDP Qualitaetstest (5s)
-        let udp_result = self.iperf_runner
-            .run_udp(server_ip, 5, app_handle).await?;
-
-        Ok(MeasurementResult {
-            wifi_info,
-            tcp_upload,
-            tcp_download,
-            udp_result,
-            quality: assess_quality(&tcp_upload, &tcp_download, &udp_result),
-        })
+    class CLIAdapter {
+        -transport: CLITransport
+        +send_command(cmd: &str) Result~String~
+        +expect_prompt() Result~()~
     }
-}
+
+    class CustomAPAdapter {
+        -manual_config: ManualAPConfig
+        +generate_assist_steps(changes: Vec~Change~) Vec~AssistStep~
+    }
+
+    APControllerTrait <|.. WebGUIAdapter
+    APControllerTrait <|.. SNMPAdapter
+    APControllerTrait <|.. CLIAdapter
+    APControllerTrait <|.. CustomAPAdapter
 ```
 
-```rust
-// src-tauri/src/measurement/iperf.rs
+**Adapter-Nutzung im MVP:**
 
+| AP-Typ | Forecast | Assist-Mode | Auto-Mode |
+|--------|----------|-------------|-----------|
+| DAP-X2810 (registriert) | WebGUIAdapter | WebGUIAdapter (Assist-Steps) | WebGUIAdapter (nach Verifizierung, Post-MVP) |
+| Custom AP | Manuelle Parameter | CustomAPAdapter (generische Steps) | Nicht verfuegbar |
+
+### 3.4 Messung: iPerf3 Sidecar + RSSI
+
+**iPerf3 Sidecar-Management:**
+
+```rust
 use tauri_plugin_shell::ShellExt;
 
-pub struct IperfRunner;
+pub struct IperfManager {
+    app: tauri::AppHandle,
+}
 
-impl IperfRunner {
-    pub async fn run_tcp(
+impl IperfManager {
+    /// TCP-Upload-Test (10s, 4 Streams)
+    pub async fn run_tcp_upload(
         &self,
         server_ip: &str,
         duration: u32,
         streams: u32,
-        reverse: bool,
-        app_handle: &tauri::AppHandle,
-    ) -> Result<IperfTcpResult, AppError> {
-        let mut args = vec![
-            "-c".to_string(), server_ip.to_string(),
-            "-t".to_string(), duration.to_string(),
-            "-P".to_string(), streams.to_string(),
-            "-J".to_string(),
-            "--omit".to_string(), "2".to_string(),
-            "--connect-timeout".to_string(), "5000".to_string(),
-        ];
-        if reverse { args.push("-R".to_string()); }
+    ) -> Result<IperfTcpResult, MeasurementError> {
+        let command = self.app.shell().sidecar("iperf3").map_err(/* ... */)?
+            .args(["-c", server_ip, "-t", &duration.to_string(),
+                   "-P", &streams.to_string(), "-J", "--omit", "2"]);
 
-        let (mut rx, _child) = app_handle.shell()
-            .sidecar("iperf3")?
-            .args(&args)
-            .spawn()?;
-
-        let mut output = String::new();
-        while let Some(event) = rx.recv().await {
-            match event {
-                tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
-                    output.push_str(&String::from_utf8_lossy(&line));
-                }
-                tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
-                    // Log stderr
-                }
-                _ => {}
-            }
-        }
-
-        let result: serde_json::Value = serde_json::from_str(&output)?;
-        parse_tcp_result(&result)
+        let output = command.output().await?;
+        let json: serde_json::Value = serde_json::from_str(&output.stdout)?;
+        Ok(parse_tcp_result(&json)?)
     }
 
-    pub async fn run_udp(
+    /// TCP-Download-Test (Reverse Mode)
+    pub async fn run_tcp_download(
         &self,
         server_ip: &str,
         duration: u32,
-        app_handle: &tauri::AppHandle,
-    ) -> Result<IperfUdpResult, AppError> {
-        let args = vec![
-            "-c".to_string(), server_ip.to_string(),
-            "-u".to_string(),
-            "-b".to_string(), "0".to_string(),
-            "-t".to_string(), duration.to_string(),
-            "-J".to_string(),
-        ];
-        // ... analog zu run_tcp
-        todo!()
+        streams: u32,
+    ) -> Result<IperfTcpResult, MeasurementError> {
+        let command = self.app.shell().sidecar("iperf3").map_err(/* ... */)?
+            .args(["-c", server_ip, "-t", &duration.to_string(),
+                   "-P", &streams.to_string(), "-R", "-J", "--omit", "2"]);
+
+        let output = command.output().await?;
+        let json: serde_json::Value = serde_json::from_str(&output.stdout)?;
+        Ok(parse_tcp_result(&json)?)
     }
 
-    pub async fn check_server(
+    /// UDP-Qualitaetstest (5s, unbegrenzte Bitrate)
+    pub async fn run_udp_quality(
         &self,
         server_ip: &str,
-        app_handle: &tauri::AppHandle,
-    ) -> Result<bool, AppError> {
-        // Kurzer 1s TCP-Test um Erreichbarkeit zu pruefen
-        todo!()
+        duration: u32,
+    ) -> Result<IperfUdpResult, MeasurementError> {
+        let command = self.app.shell().sidecar("iperf3").map_err(/* ... */)?
+            .args(["-c", server_ip, "-u", "-b", "0",
+                   "-t", &duration.to_string(), "-J"]);
+
+        let output = command.output().await?;
+        let json: serde_json::Value = serde_json::from_str(&output.stdout)?;
+        Ok(parse_udp_result(&json)?)
+    }
+
+    /// Server-Erreichbarkeit pruefen
+    pub async fn check_server(&self, server_ip: &str) -> Result<bool, MeasurementError> {
+        let command = self.app.shell().sidecar("iperf3").map_err(/* ... */)?
+            .args(["-c", server_ip, "-t", "1", "-J", "--connect-timeout", "3000"]);
+
+        match command.output().await {
+            Ok(output) => Ok(output.status.success()),
+            Err(_) => Ok(false),
+        }
     }
 }
 ```
+
+**RSSI-Messung (plattformspezifisch):**
 
 ```rust
-// src-tauri/src/measurement/wifi_scanner.rs
-
-pub trait WifiScanner: Send + Sync {
-    fn get_current_info(&self) -> Result<WifiInfo, AppError>;
-    fn scan_networks(&self) -> Result<Vec<NetworkInfo>, AppError>;
+/// Plattform-unabhaengiges Trait fuer WLAN-Messung
+pub trait WifiMeasurement: Send + Sync {
+    fn get_rssi(&self) -> Result<i32, PlatformError>;
+    fn get_noise(&self) -> Result<i32, PlatformError>;
+    fn get_ssid(&self) -> Result<String, PlatformError>;
+    fn get_bssid(&self) -> Result<String, PlatformError>;
+    fn get_tx_rate(&self) -> Result<f64, PlatformError>;
+    fn get_frequency(&self) -> Result<u32, PlatformError>;
+    fn scan_networks(&self) -> Result<Vec<NetworkInfo>, PlatformError>;
 }
 
-// src-tauri/src/measurement/macos.rs
+// macOS-Implementierung (MVP)
+#[cfg(target_os = "macos")]
+pub struct MacOSWifi;
 
 #[cfg(target_os = "macos")]
-pub struct MacOSWifiScanner;
-
-#[cfg(target_os = "macos")]
-impl WifiScanner for MacOSWifiScanner {
-    fn get_current_info(&self) -> Result<WifiInfo, AppError> {
-        // objc2-core-wlan: CWWiFiClient -> CWInterface
-        // rssiValue(), noiseMeasurement(), ssid(), bssid(), transmitRate()
-        todo!()
+impl WifiMeasurement for MacOSWifi {
+    fn get_rssi(&self) -> Result<i32, PlatformError> {
+        // CoreWLAN via objc2-core-wlan
+        unsafe {
+            let client = CWWiFiClient::sharedWiFiClient();
+            let interface = client.interface()
+                .ok_or(PlatformError::NoWifiInterface)?;
+            Ok(interface.rssiValue() as i32)
+        }
     }
-
-    fn scan_networks(&self) -> Result<Vec<NetworkInfo>, AppError> {
-        // scanForNetworksWithName (erfordert Location Services)
-        todo!()
-    }
+    // ... weitere Methoden
 }
 ```
 
-### 3.5 Datenbank-Schema (rusqlite)
+### 3.5 Datenbank: rusqlite mit Migrations
 
-Basierend auf der Tech-Stack-Evaluation (Abschnitt 4) mit Erweiterungen fuer D-08 (Multi-Floor) und D-09 (6 GHz).
+**Schema-Uebersicht:**
 
-```sql
--- Migration 001: Initial Schema
+```mermaid
+erDiagram
+    projects ||--o{ floors : "hat"
+    floors ||--o{ walls : "hat"
+    floors ||--o{ access_points : "hat"
+    floors ||--o{ measurements : "hat"
+    access_points ||--o| ap_models : "basiert auf"
+    measurements }o--o| access_points : "verbunden mit"
 
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
+    projects {
+        text id PK "UUID"
+        text name
+        text created_at
+        text updated_at
+        text settings "JSON"
+    }
 
--- Projekte
-CREATE TABLE projects (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    settings TEXT  -- JSON: { colorScheme, defaultBand, ... }
-);
+    floors {
+        text id PK "UUID"
+        text project_id FK
+        text name
+        int floor_number
+        blob background_image
+        real scale_px_per_meter
+        real width_meters
+        real height_meters
+    }
 
--- Stockwerke (Multi-Floor vorbereitet, MVP: nur 1 Floor)
-CREATE TABLE floors (
-    id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name TEXT NOT NULL DEFAULT 'Erdgeschoss',
-    floor_number INTEGER NOT NULL DEFAULT 0,
-    background_image BLOB,
-    image_mime_type TEXT,  -- 'image/png', 'image/jpeg'
-    scale_px_per_meter REAL,
-    width_meters REAL,
-    height_meters REAL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+    walls {
+        text id PK "UUID"
+        text floor_id FK
+        real x1
+        real y1
+        real x2
+        real y2
+        text material
+        real thickness_cm
+        real attenuation_24ghz_db
+        real attenuation_5ghz_db
+        real custom_attenuation_24ghz_db "NULL = Tabellenwert"
+        real custom_attenuation_5ghz_db "NULL = Tabellenwert"
+    }
 
--- Waende
-CREATE TABLE walls (
-    id TEXT PRIMARY KEY,
-    floor_id TEXT NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
-    x1 REAL NOT NULL,
-    y1 REAL NOT NULL,
-    x2 REAL NOT NULL,
-    y2 REAL NOT NULL,
-    material_id TEXT NOT NULL REFERENCES materials(id),
-    thickness_cm REAL NOT NULL DEFAULT 24.0,
-    -- Berechnete Werte (aus Material + optionale Ueberschreibung)
-    attenuation_24ghz_db REAL,
-    attenuation_5ghz_db REAL,
-    attenuation_6ghz_db REAL,  -- 6 GHz vorbereitet (D-09)
-    -- Optionale per-Wand-Ueberschreibung (D-07)
-    custom_attenuation_24ghz_db REAL,
-    custom_attenuation_5ghz_db REAL,
-    custom_attenuation_6ghz_db REAL
-);
+    access_points {
+        text id PK "UUID"
+        text floor_id FK
+        text model_id FK "optional"
+        real x
+        real y
+        real height_meters "Default 2.5"
+        text mounting "ceiling/wall/desk"
+        real tx_power_24ghz_dbm
+        real tx_power_5ghz_dbm
+        int channel_24ghz
+        int channel_5ghz
+        text channel_width "20/40/80/160"
+        text connection_config "JSON: IP, Credentials (encrypted)"
+    }
 
--- Materialien (user-editierbar, D-07)
-CREATE TABLE materials (
-    id TEXT PRIMARY KEY,
-    name_en TEXT NOT NULL,
-    name_de TEXT NOT NULL,
-    category TEXT NOT NULL CHECK(category IN ('light', 'medium', 'heavy')),
-    attenuation_24ghz_db REAL NOT NULL,
-    attenuation_5ghz_db REAL NOT NULL,
-    attenuation_6ghz_db REAL,  -- 6 GHz vorbereitet
-    is_default INTEGER NOT NULL DEFAULT 1,  -- System-Material vs. Custom
-    sort_order INTEGER NOT NULL DEFAULT 0
-);
+    ap_models {
+        text id PK "UUID"
+        text manufacturer
+        text model
+        text wifi_standard "wifi5/wifi6/wifi6e"
+        real max_tx_power_24ghz_dbm
+        real max_tx_power_5ghz_dbm
+        real antenna_gain_24ghz_dbi
+        real antenna_gain_5ghz_dbi
+        int mimo_streams
+        real max_tx_power_6ghz_dbm "NULL fuer V1.1"
+        real antenna_gain_6ghz_dbi "NULL fuer V1.1"
+    }
 
--- AP-Modell-Bibliothek
-CREATE TABLE ap_models (
-    id TEXT PRIMARY KEY,
-    manufacturer TEXT NOT NULL,
-    model TEXT NOT NULL,
-    wifi_standard TEXT NOT NULL,  -- 'wifi5', 'wifi6', 'wifi6e'
-    max_tx_power_24ghz_dbm REAL NOT NULL,
-    max_tx_power_5ghz_dbm REAL NOT NULL,
-    max_tx_power_6ghz_dbm REAL,  -- 6 GHz vorbereitet
-    antenna_gain_24ghz_dbi REAL NOT NULL,
-    antenna_gain_5ghz_dbi REAL NOT NULL,
-    antenna_gain_6ghz_dbi REAL,
-    mimo_streams INTEGER NOT NULL DEFAULT 2,
-    is_default INTEGER NOT NULL DEFAULT 1,  -- System-Modell vs. Custom
-    adapter_type TEXT  -- 'dlink_dapx2810', 'generic', NULL
-);
+    measurements {
+        text id PK "UUID"
+        text floor_id FK
+        int run_number "1, 2, 3"
+        text run_type "Baseline/PostOptimization/Verification"
+        real x
+        real y
+        text timestamp
+        real rssi_dbm
+        real noise_dbm
+        real snr_db
+        real throughput_upload_bps
+        real throughput_download_bps
+        real latency_ms
+        real jitter_ms
+        real packet_loss_pct
+        text connected_ap_id FK
+        text connected_bssid
+        text band "2.4ghz/5ghz"
+        int channel
+        int retransmits
+        text quality "good/fair/poor/failed"
+        text raw_iperf_json "Vollstaendiger iPerf3 JSON Output"
+    }
 
--- Access Points (platziert im Grundriss)
-CREATE TABLE access_points (
-    id TEXT PRIMARY KEY,
-    floor_id TEXT NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
-    model_id TEXT NOT NULL REFERENCES ap_models(id),
-    name TEXT NOT NULL DEFAULT 'AP-1',
-    x REAL NOT NULL,
-    y REAL NOT NULL,
-    height_meters REAL NOT NULL DEFAULT 2.5,
-    mounting TEXT NOT NULL DEFAULT 'ceiling'
-        CHECK(mounting IN ('ceiling', 'wall', 'desk')),
-    -- Aktuelle Konfiguration (kann vom Modell-Maximum abweichen)
-    tx_power_24ghz_dbm REAL,
-    tx_power_5ghz_dbm REAL,
-    tx_power_6ghz_dbm REAL,
-    channel_24ghz INTEGER,
-    channel_5ghz INTEGER,
-    channel_6ghz INTEGER,
-    channel_width_24ghz TEXT DEFAULT '20',
-    channel_width_5ghz TEXT DEFAULT '80',
-    channel_width_6ghz TEXT,
-    ssid TEXT,
-    ip_address TEXT,
-    -- AP-Steuerung
-    adapter_config TEXT  -- JSON: { username, ip, snmpCommunity, ... }
-);
+    materials {
+        text id PK "W01-W27 F01-F04"
+        text name_en
+        text name_de
+        text category "leicht/mittel/schwer"
+        real attenuation_24ghz_db
+        real attenuation_5ghz_db
+        real attenuation_6ghz_db "fuer V1.1"
+        real thickness_cm_default
+        text source "ITU-R P.1238 / P.2040 / NIST"
+        int user_editable "1 = ja"
+    }
 
--- Messungen
-CREATE TABLE measurements (
-    id TEXT PRIMARY KEY,
-    floor_id TEXT NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
-    point_label TEXT NOT NULL,  -- 'MP-01', 'MP-02'
-    x REAL NOT NULL,
-    y REAL NOT NULL,
-    run_number INTEGER NOT NULL CHECK(run_number IN (1, 2, 3)),
-    run_type TEXT NOT NULL CHECK(run_type IN ('baseline', 'post_optimization', 'verification')),
-    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-    -- WLAN-Signalwerte
-    rssi_dbm REAL,
-    noise_dbm REAL,
-    snr_db REAL,
-    connected_bssid TEXT,
-    connected_ssid TEXT,
-    frequency_mhz INTEGER,
-    tx_rate_mbps REAL,
-    band TEXT CHECK(band IN ('2.4ghz', '5ghz', '6ghz')),
-    -- iPerf3-Ergebnisse
-    tcp_upload_bps REAL,
-    tcp_upload_retransmits INTEGER,
-    tcp_download_bps REAL,
-    tcp_download_retransmits INTEGER,
-    udp_throughput_bps REAL,
-    udp_jitter_ms REAL,
-    udp_packet_loss_pct REAL,
-    -- Qualitaet
-    quality TEXT CHECK(quality IN ('good', 'fair', 'poor', 'failed')),
-    notes TEXT,
-    auto_generated INTEGER NOT NULL DEFAULT 0
-);
-
--- Kalibrierungsparameter (pro Floor + Band)
-CREATE TABLE calibration (
-    id TEXT PRIMARY KEY,
-    floor_id TEXT NOT NULL REFERENCES floors(id) ON DELETE CASCADE,
-    band TEXT NOT NULL CHECK(band IN ('2.4ghz', '5ghz', '6ghz')),
-    path_loss_exponent REAL NOT NULL DEFAULT 3.5,
-    wall_correction_factor REAL NOT NULL DEFAULT 1.0,
-    offset_db REAL NOT NULL DEFAULT 0.0,
-    rmse_db REAL,
-    r_squared REAL,
-    num_measurements INTEGER NOT NULL DEFAULT 0,
-    calibrated_at TEXT,
-    UNIQUE(floor_id, band)
-);
-
--- App-Einstellungen
-CREATE TABLE settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
+    user_materials {
+        text id PK "UUID"
+        text base_material_id FK "optional"
+        text name
+        real attenuation_24ghz_db
+        real attenuation_5ghz_db
+        real thickness_cm_default
+    }
 ```
 
-**Seed-Daten:** Die 10-12 Kern-Materialien (D-07) und der DAP-X2810 AP-Modell-Eintrag werden bei Erststart via Migration eingefuegt.
+**Migrations-Strategie:**
 
-### 3.6 Error Handling
+Migrations werden als nummerierte SQL-Dateien in `src-tauri/src/db/migrations/` verwaltet und beim App-Start automatisch angewendet:
 
-```rust
-// src-tauri/src/error.rs
-
-use serde::Serialize;
-use thiserror::Error;
-
-#[derive(Error, Debug, Serialize)]
-#[serde(tag = "kind", content = "message")]
-pub enum AppError {
-    // Datenbank
-    #[error("Datenbankfehler: {0}")]
-    Database(String),
-
-    // Projekt
-    #[error("Projekt nicht gefunden: {0}")]
-    ProjectNotFound(String),
-
-    #[error("Stockwerk nicht gefunden: {0}")]
-    FloorNotFound(String),
-
-    // AP-Steuerung
-    #[error("AP nicht erreichbar: {0}")]
-    APUnreachable(String),
-
-    #[error("AP-Login fehlgeschlagen: {0}")]
-    APAuthFailed(String),
-
-    #[error("AP-Konfiguration konnte nicht gelesen werden: {0}")]
-    APConfigReadFailed(String),
-
-    #[error("AP-Aenderung fehlgeschlagen: {0}")]
-    APApplyFailed(String),
-
-    // Messung
-    #[error("iPerf3-Server nicht erreichbar: {0}")]
-    IperfServerUnreachable(String),
-
-    #[error("iPerf3-Sidecar nicht gefunden")]
-    IperfBinaryMissing,
-
-    #[error("Messung abgebrochen")]
-    MeasurementCancelled,
-
-    #[error("WLAN nicht verbunden")]
-    WifiDisconnected,
-
-    #[error("RSSI-Messung fehlgeschlagen: {0}")]
-    RssiReadFailed(String),
-
-    // Export/Import
-    #[error("Export fehlgeschlagen: {0}")]
-    ExportFailed(String),
-
-    #[error("Importdatei ungueltig: {0}")]
-    ImportInvalid(String),
-
-    // Allgemein
-    #[error("Dateizugriff verweigert: {0}")]
-    FileAccessDenied(String),
-
-    #[error("Unerwarteter Fehler: {0}")]
-    Internal(String),
-}
-
-// Konvertierung von rusqlite::Error
-impl From<rusqlite::Error> for AppError {
-    fn from(e: rusqlite::Error) -> Self {
-        AppError::Database(e.to_string())
-    }
-}
-
-// Konvertierung von serde_json::Error
-impl From<serde_json::Error> for AppError {
-    fn from(e: serde_json::Error) -> Self {
-        AppError::Internal(format!("JSON-Fehler: {}", e))
-    }
-}
-
-// Tauri erwartet, dass der Error Serialize implementiert.
-// thiserror + serde::Serialize reicht aus.
+```
+migrations/
+├── 001_initial_schema.sql
+├── 002_materials_seed.sql
+├── 003_ap_models_seed.sql
+└── 004_user_materials.sql
 ```
 
 ---
@@ -1028,176 +806,178 @@ impl From<serde_json::Error> for AppError {
 
 ```
 wlan-optimizer/
-├── src/                           # Svelte 5 Frontend
-│   ├── app.html                   # HTML-Einstiegspunkt
-│   ├── app.css                    # Globale Styles (Tailwind)
-│   ├── App.svelte                 # Root-Komponente
+├── src/                        # Svelte 5 Frontend
 │   ├── lib/
-│   │   ├── components/
-│   │   │   ├── layout/
-│   │   │   │   ├── Layout.svelte
-│   │   │   │   ├── Sidebar.svelte
-│   │   │   │   ├── TabBar.svelte
-│   │   │   │   └── StatusBar.svelte
-│   │   │   ├── canvas/
-│   │   │   │   ├── CanvasView.svelte        # Konva Stage Container
-│   │   │   │   ├── FloorplanLayer.svelte    # Layer 1: Grundriss
-│   │   │   │   ├── HeatmapLayer.svelte      # Layer 2: Heatmap-Bild
-│   │   │   │   ├── UILayer.svelte           # Layer 3: UI-Overlay
-│   │   │   │   ├── BackgroundImage.svelte
-│   │   │   │   ├── WallGroup.svelte
-│   │   │   │   ├── DoorGroup.svelte
-│   │   │   │   ├── APMarker.svelte
-│   │   │   │   ├── MeasurementPointMarker.svelte
-│   │   │   │   ├── ScaleReference.svelte
-│   │   │   │   ├── GridOverlay.svelte
-│   │   │   │   └── SelectionRect.svelte
-│   │   │   ├── panels/
-│   │   │   │   ├── ProjectPanel.svelte
-│   │   │   │   ├── ToolPanel.svelte
-│   │   │   │   ├── PropertiesPanel.svelte
-│   │   │   │   ├── WallProperties.svelte
-│   │   │   │   ├── APProperties.svelte
-│   │   │   │   └── MaterialSelector.svelte
-│   │   │   ├── measurement/
-│   │   │   │   ├── MeasurementWizard.svelte
-│   │   │   │   ├── WizardStep.svelte
-│   │   │   │   ├── MeasurementProgress.svelte
-│   │   │   │   ├── ResultCard.svelte
-│   │   │   │   └── RunOverview.svelte
-│   │   │   ├── mixing-console/
-│   │   │   │   ├── MixingConsole.svelte
-│   │   │   │   ├── APSliderGroup.svelte
-│   │   │   │   ├── ForecastHeatmap.svelte
-│   │   │   │   ├── ChangeList.svelte
-│   │   │   │   └── AssistSteps.svelte
-│   │   │   ├── settings/
-│   │   │   │   ├── SettingsView.svelte
-│   │   │   │   ├── MaterialEditor.svelte
-│   │   │   │   └── LanguageSelector.svelte
-│   │   │   └── ui/                           # shadcn-svelte Basis
-│   │   │       ├── Button.svelte
-│   │   │       ├── Slider.svelte
-│   │   │       ├── Dialog.svelte
-│   │   │       ├── Toast.svelte
-│   │   │       ├── Tooltip.svelte
-│   │   │       └── ...
-│   │   ├── stores/
-│   │   │   ├── project.svelte.ts             # Projekt-State
-│   │   │   ├── canvas.svelte.ts              # Canvas/Editor-State
-│   │   │   ├── measurement.svelte.ts         # Mess-State
-│   │   │   ├── mixing-console.svelte.ts      # Mixing-Console-State
-│   │   │   └── settings.svelte.ts            # App-Einstellungen
-│   │   ├── services/
-│   │   │   ├── tauri-commands.ts             # Typisierte invoke() Wrapper
-│   │   │   ├── heatmap-service.ts            # Worker-Management
-│   │   │   └── canvas-utils.ts               # Zoom, Pan, Koordinaten
-│   │   ├── types/
-│   │   │   ├── index.ts                      # Re-Exports
-│   │   │   ├── project.ts                    # Project, Floor, Wall, AP
-│   │   │   ├── measurement.ts                # MeasurementRun, MeasurementResult
-│   │   │   ├── mixing-console.ts             # APParameterOverride, ChangeEntry
-│   │   │   ├── heatmap.ts                    # HeatmapRequest, HeatmapResponse
-│   │   │   ├── ap-control.ts                 # APConfig, APStatus, AssistStep
-│   │   │   └── settings.ts                   # AppSettings, Material
-│   │   ├── utils/
-│   │   │   ├── geometry.ts                   # Linie-Schnitt, Distanz, Polygon
-│   │   │   ├── color-schemes.ts              # Viridis, Jet, Inferno LUTs
-│   │   │   └── format.ts                     # Einheiten, Zahlen formatieren
-│   │   └── i18n/
-│   │       └── messages/
-│   │           ├── en.json
-│   │           └── de.json
-│   └── workers/
-│       ├── heatmap.worker.ts                 # RF-Berechnung + ImageData
-│       └── rf-engine.ts                      # ITU-R P.1238, Wand-Intersection
-├── src-tauri/                                # Rust Backend
-│   ├── Cargo.toml
-│   ├── tauri.conf.json
-│   ├── capabilities/
-│   │   └── default.json                      # Tauri Permissions
-│   ├── binaries/                             # iPerf3 Sidecars
+│   │   ├── components/         # UI-Komponenten
+│   │   │   ├── layout/         # Layout, Sidebar, Toolbar, StatusBar
+│   │   │   ├── project/        # Projektliste, Import-Dialog
+│   │   │   ├── editor/         # MaterialPicker, APLibrary, HeatmapControls
+│   │   │   ├── measurement/    # RunOverview, ServerSetup, ProgressBar
+│   │   │   ├── mixing/         # MixingSliders, ChangeList, AssistSteps
+│   │   │   ├── results/        # ComparisonChart, ExportDialog
+│   │   │   └── common/         # Button, Dialog, Toast, Slider, Input
+│   │   │
+│   │   ├── canvas/             # Konva.js Canvas-Komponenten
+│   │   │   ├── CanvasEditor.svelte
+│   │   │   ├── BackgroundImage.svelte
+│   │   │   ├── GridOverlay.svelte
+│   │   │   ├── WallDrawingTool.svelte
+│   │   │   ├── AccessPointMarker.svelte
+│   │   │   ├── HeatmapOverlay.svelte
+│   │   │   ├── MeasurementPoints.svelte
+│   │   │   └── ScaleIndicator.svelte
+│   │   │
+│   │   ├── heatmap/            # Heatmap-Berechnung
+│   │   │   ├── heatmap-worker.ts       # Web Worker Entry
+│   │   │   ├── rf-engine.ts            # ITU-R P.1238 Modell
+│   │   │   ├── spatial-grid.ts         # Uniform Grid fuer Wand-Lookup
+│   │   │   ├── color-schemes.ts        # Viridis, Jet, Inferno LUTs
+│   │   │   ├── interpolation.ts        # Bilineare Interpolation
+│   │   │   └── types.ts               # Worker Message Types
+│   │   │
+│   │   ├── stores/             # Svelte 5 Runes Stores
+│   │   │   ├── projectStore.svelte.ts
+│   │   │   ├── canvasStore.svelte.ts
+│   │   │   ├── measurementStore.svelte.ts
+│   │   │   ├── mixingStore.svelte.ts
+│   │   │   └── settingsStore.svelte.ts
+│   │   │
+│   │   ├── models/             # TypeScript Interfaces / Types
+│   │   │   ├── project.ts
+│   │   │   ├── floor.ts
+│   │   │   ├── wall.ts
+│   │   │   ├── access-point.ts
+│   │   │   ├── measurement.ts
+│   │   │   ├── material.ts
+│   │   │   ├── heatmap.ts
+│   │   │   └── mixing.ts
+│   │   │
+│   │   ├── i18n/               # Paraglide-js
+│   │   │   └── messages/
+│   │   │       ├── en.json
+│   │   │       └── de.json
+│   │   │
+│   │   ├── utils/              # Hilfsfunktionen
+│   │   │   ├── geometry.ts     # Punkt-/Linien-Berechnungen
+│   │   │   ├── units.ts        # Pixel/Meter-Umrechnung
+│   │   │   ├── validation.ts   # Input-Validierung
+│   │   │   ├── debounce.ts
+│   │   │   └── format.ts       # Zahlen-/Einheiten-Formatierung
+│   │   │
+│   │   └── api/                # Tauri IPC Wrapper
+│   │       ├── project.ts
+│   │       ├── floor.ts
+│   │       ├── wall.ts
+│   │       ├── accessPoint.ts
+│   │       ├── measurement.ts
+│   │       ├── apControl.ts
+│   │       ├── export.ts
+│   │       └── settings.ts
+│   │
+│   ├── routes/                 # SvelteKit Seiten
+│   │   ├── +layout.svelte
+│   │   ├── +page.svelte                # Startseite / Projektliste
+│   │   ├── project/
+│   │   │   ├── [id]/
+│   │   │   │   ├── +layout.svelte      # Projekt-Layout
+│   │   │   │   ├── +page.svelte        # Redirect zu Editor
+│   │   │   │   ├── editor/+page.svelte
+│   │   │   │   ├── measure/+page.svelte
+│   │   │   │   ├── mixing/+page.svelte
+│   │   │   │   └── results/+page.svelte
+│   │   │   └── new/+page.svelte
+│   │   └── settings/+page.svelte
+│   │
+│   └── app.html
+│
+├── src-tauri/                  # Rust Backend
+│   ├── src/
+│   │   ├── main.rs             # Tauri Setup, Command-Registry, Plugin-Init
+│   │   ├── state.rs            # AppState (DB-Connection, Config)
+│   │   ├── error.rs            # AppError Enum, Serialisierung
+│   │   │
+│   │   ├── db/
+│   │   │   ├── mod.rs
+│   │   │   ├── connection.rs   # DB-Initialisierung, Migration-Runner
+│   │   │   ├── project.rs      # Project CRUD
+│   │   │   ├── floor.rs        # Floor CRUD + Bild-Handling
+│   │   │   ├── wall.rs         # Wall CRUD
+│   │   │   ├── access_point.rs # AP CRUD
+│   │   │   ├── measurement.rs  # Measurement CRUD + Aggregation
+│   │   │   ├── material.rs     # Material-Katalog
+│   │   │   ├── ap_model.rs     # AP-Modell-Katalog
+│   │   │   └── migrations/     # SQL-Dateien
+│   │   │       ├── 001_initial_schema.sql
+│   │   │       ├── 002_materials_seed.sql
+│   │   │       └── 003_ap_models_seed.sql
+│   │   │
+│   │   ├── ap_control/
+│   │   │   ├── mod.rs          # APControllerTrait + Factory
+│   │   │   ├── webgui_adapter.rs
+│   │   │   ├── snmp_adapter.rs
+│   │   │   ├── cli_adapter.rs
+│   │   │   └── custom_adapter.rs
+│   │   │
+│   │   ├── measurement/
+│   │   │   ├── mod.rs
+│   │   │   ├── iperf.rs        # IperfManager (Sidecar)
+│   │   │   ├── rssi.rs         # WifiMeasurementTrait + Dispatch
+│   │   │   └── calibration.rs  # Least-Squares Kalibrierung
+│   │   │
+│   │   ├── export/
+│   │   │   ├── mod.rs
+│   │   │   ├── pdf.rs          # PDF-Report-Generierung
+│   │   │   ├── image.rs        # PNG/JPEG Heatmap-Export
+│   │   │   └── project.rs      # JSON-Projektexport
+│   │   │
+│   │   └── platform/
+│   │       ├── mod.rs          # Plattform-Detection + Dispatch
+│   │       ├── macos.rs        # CoreWLAN via objc2-core-wlan
+│   │       ├── windows.rs      # WlanApi (V1.1)
+│   │       └── linux.rs        # nl80211 (V1.2)
+│   │
+│   ├── binaries/               # iPerf3 Sidecar-Binaries
 │   │   ├── iperf3-aarch64-apple-darwin
 │   │   ├── iperf3-x86_64-apple-darwin
 │   │   ├── iperf3-x86_64-pc-windows-msvc.exe
 │   │   └── iperf3-x86_64-unknown-linux-gnu
-│   ├── icons/
-│   ├── src/
-│   │   ├── main.rs                           # Tauri-Einstiegspunkt
-│   │   ├── lib.rs                            # Modul-Deklarationen
-│   │   ├── models.rs                         # Shared DTOs (serde Structs)
-│   │   ├── error.rs                          # AppError (thiserror)
-│   │   ├── state.rs                          # AppState (Managed State)
-│   │   ├── commands/
-│   │   │   ├── mod.rs
-│   │   │   ├── project.rs
-│   │   │   ├── floor.rs
-│   │   │   ├── wall.rs
-│   │   │   ├── access_point.rs
-│   │   │   ├── heatmap.rs
-│   │   │   ├── measurement.rs
-│   │   │   ├── ap_control.rs
-│   │   │   ├── settings.rs
-│   │   │   └── export.rs
-│   │   ├── db/
-│   │   │   ├── mod.rs                        # Connection, Migrations
-│   │   │   ├── schema.rs                     # CREATE TABLE SQL
-│   │   │   ├── project.rs
-│   │   │   ├── floor.rs
-│   │   │   ├── wall.rs
-│   │   │   ├── access_point.rs
-│   │   │   ├── measurement.rs
-│   │   │   ├── material.rs
-│   │   │   └── ap_model.rs
-│   │   ├── ap_control/
-│   │   │   ├── mod.rs                        # APControllerTrait
-│   │   │   ├── types.rs                      # APConfig, APStatus, APChangeSet
-│   │   │   ├── webgui_adapter.rs             # HTTP/Cookie, HTML-Parsing
-│   │   │   ├── snmp_adapter.rs               # SNMP v2c
-│   │   │   └── generic_adapter.rs            # Custom AP (nur Assist-Steps)
-│   │   ├── measurement/
-│   │   │   ├── mod.rs                        # MeasurementManager
-│   │   │   ├── types.rs                      # IperfResult, WifiInfo
-│   │   │   ├── iperf.rs                      # iPerf3 Sidecar-Steuerung
-│   │   │   ├── wifi_scanner.rs               # WifiScannerTrait
-│   │   │   ├── macos.rs                      # CoreWLAN-Implementierung
-│   │   │   └── calibration.rs                # Least-Squares-Fitting
-│   │   └── export/
-│   │       ├── mod.rs
-│   │       ├── json.rs                       # Projekt-Serialisierung
-│   │       └── image.rs                      # Heatmap-PNG
-│   └── migrations/
-│       └── 001_initial_schema.sql
+│   │
+│   ├── capabilities/
+│   │   └── default.json        # Tauri Permissions
+│   │
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+│
 ├── tests/
-│   ├── unit/                                 # Vitest Unit-Tests
+│   ├── unit/                   # Vitest Unit Tests
 │   │   ├── rf-engine.test.ts
-│   │   ├── geometry.test.ts
+│   │   ├── spatial-grid.test.ts
+│   │   ├── interpolation.test.ts
 │   │   ├── color-schemes.test.ts
-│   │   └── stores/
-│   │       ├── project.test.ts
-│   │       └── canvas.test.ts
-│   ├── component/                            # @testing-library/svelte
-│   │   ├── WallProperties.test.ts
-│   │   ├── MaterialSelector.test.ts
-│   │   └── APSliderGroup.test.ts
-│   └── e2e/                                  # WebdriverIO + tauri-driver
-│       ├── wdio.conf.ts
-│       ├── floorplan-import.test.ts
-│       ├── wall-drawing.test.ts
+│   │   └── geometry.test.ts
+│   │
+│   ├── component/              # @testing-library/svelte
+│   │   ├── WallDrawingTool.test.ts
+│   │   ├── MaterialPicker.test.ts
+│   │   └── MixingSliders.test.ts
+│   │
+│   └── e2e/                    # WebdriverIO + tauri-driver
+│       ├── create-project.test.ts
+│       ├── draw-walls.test.ts
+│       ├── heatmap-render.test.ts
 │       └── measurement-flow.test.ts
-├── docs/
+│
+├── docs/                       # Dokumentation (Deutsch)
 │   ├── prd/
 │   ├── research/
 │   ├── architecture/
 │   ├── plans/
 │   └── archive/
-├── .claude/
+│
+├── .claude/                    # Claude Code Konfiguration
 │   └── rules/
-│       ├── phasenmodell.md
-│       └── rf-modell.md
-├── CLAUDE.md
-├── biome.json
-├── eslint.config.js                          # eslint-plugin-svelte
+│
+├── biome.json                  # Biome Lint + Format
 ├── vite.config.ts
 ├── svelte.config.js
 ├── tsconfig.json
@@ -1209,242 +989,315 @@ wlan-optimizer/
 
 ## 5. Datenfluss-Diagramme
 
-### 5.1 Grundriss erstellen und Heatmap berechnen
+### 5.1 Grundriss erstellen + Waende zeichnen
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant UI as Svelte UI
-    participant Store as projectStore
-    participant Canvas as Konva Canvas
-    participant Worker as Heatmap Worker
-    participant Backend as Rust Backend
+    participant U as Benutzer
+    participant FE as Svelte Frontend
+    participant C as CanvasEditor (Konva)
+    participant S as canvasStore
+    participant BE as Rust Backend
     participant DB as SQLite
 
-    User->>UI: Projekt erstellen
-    UI->>Backend: invoke('create_project', { name })
-    Backend->>DB: INSERT INTO projects
-    DB-->>Backend: Project
-    Backend-->>UI: Project
+    U->>FE: Neues Projekt erstellen
+    FE->>BE: invoke('create_project', {name})
+    BE->>DB: INSERT INTO projects
+    DB-->>BE: project_id
+    BE-->>FE: Project
+    FE->>S: projectStore.loadProject(id)
 
-    User->>UI: Grundriss-Bild importieren
-    UI->>Backend: invoke('import_background_image', { floorId, imageData })
-    Backend->>DB: UPDATE floors SET background_image
-    Backend-->>UI: Floor (mit Massstab-Aufforderung)
+    U->>FE: Grundriss-Bild importieren (PNG/JPG/PDF)
+    FE->>BE: invoke('import_floor_image', {projectId, imageData, name})
+    BE->>DB: INSERT INTO floors (background_image)
+    BE-->>FE: Floor
 
-    User->>Canvas: Referenzlinie zeichnen + Laenge eingeben
-    UI->>Backend: invoke('set_scale', { floorId, pxPerMeter })
-    Backend->>DB: UPDATE floors SET scale_px_per_meter
+    U->>C: Referenzlinie zeichnen + Laenge eingeben
+    FE->>S: floor.scale_px_per_meter = berechnet
+    FE->>BE: invoke('update_floor_scale', {floorId, scale})
+    BE->>DB: UPDATE floors SET scale_px_per_meter
 
-    User->>Canvas: Waende zeichnen (Klick-Klick)
-    UI->>Store: wall hinzufuegen
-    Store->>Backend: invoke('create_wall', { floorId, x1, y1, x2, y2, materialId })
-    Backend->>DB: INSERT INTO walls
-    Store->>Worker: postMessage({ type: 'calculate', ... })
-    Worker-->>UI: postMessage({ type: 'result', imageData })
-    UI->>Canvas: HeatmapLayer aktualisieren
+    Note over U,C: Wand-Zeichenmodus aktiviert
 
-    User->>Canvas: AP platzieren (Drag-and-Drop)
-    UI->>Store: AP hinzufuegen
-    Store->>Backend: invoke('create_access_point', { floorId, modelId, x, y })
-    Backend->>DB: INSERT INTO access_points
-    Store->>Worker: postMessage (neu berechnen)
-    Worker-->>UI: Neue Heatmap
-```
-
-### 5.2 Messung durchfuehren und Kalibrierung
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant UI as Svelte UI
-    participant Store as measurementStore
-    participant Backend as Rust Backend
-    participant WiFi as CoreWLAN
-    participant iPerf as iPerf3 Sidecar
-    participant DB as SQLite
-
-    User->>UI: Mess-Modus starten
-    UI->>Backend: invoke('check_iperf_server', { ip })
-    Backend->>iPerf: iperf3 -c SERVER -t 1
-    iPerf-->>Backend: Erreichbar / Nicht erreichbar
-    Backend-->>UI: { reachable: true }
-
-    UI->>Backend: invoke('get_wifi_info')
-    Backend->>WiFi: CWInterface.rssiValue(), ssid(), bssid()
-    WiFi-->>Backend: WifiInfo
-    Backend-->>UI: { rssi: -55, ssid: "TestNetz", bssid: "AA:BB:..." }
-
-    User->>UI: "Messung starten" (an Messpunkt MP-01)
-    UI->>Store: isRunning = true
-    UI->>Backend: invoke('start_measurement', { floorId, x, y, runNumber: 1, serverIp })
-
-    Note over Backend: RSSI auslesen
-    Backend->>WiFi: get_current_info()
-    WiFi-->>Backend: WifiInfo
-
-    Note over Backend: TCP Upload (10s)
-    Backend->>iPerf: iperf3 -c SERVER -t 10 -P 4 -J --omit 2
-    Backend-->>UI: emit('measurement-progress', { step: 'tcp_upload', percent: 50 })
-    iPerf-->>Backend: JSON-Result
-
-    Note over Backend: TCP Download (10s)
-    Backend->>iPerf: iperf3 -c SERVER -t 10 -P 4 -R -J --omit 2
-    iPerf-->>Backend: JSON-Result
-
-    Note over Backend: UDP Test (5s)
-    Backend->>iPerf: iperf3 -c SERVER -u -b 0 -t 5 -J
-    iPerf-->>Backend: JSON-Result
-
-    Backend->>DB: INSERT INTO measurements
-    Backend-->>UI: MeasurementResult
-    UI->>Store: Update Messpunkt-Status
-
-    Note over User: Alle Messpunkte abgeschlossen
-
-    User->>UI: "Kalibrierung starten"
-    UI->>Backend: invoke('calibrate', { floorId, band: '5ghz' })
-    Backend->>DB: SELECT measurements + walls + access_points
-    Note over Backend: Least Squares Fitting (n, k)
-    Backend->>DB: UPDATE calibration SET path_loss_exponent, rmse_db
-    Backend-->>UI: CalibrationResult { n: 3.2, rmse: 4.1, confidence: 'good' }
-```
-
-### 5.3 Mixing Console: Forecast und Assist-Mode
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Console as MixingConsole.svelte
-    participant Store as mixingConsoleStore
-    participant Worker as Heatmap Worker
-    participant Canvas as Konva Canvas
-    participant Backend as Rust Backend
-
-    User->>Console: TX Power Slider (AP-1, 5GHz) aendern: 26 -> 20 dBm
-    Console->>Store: setTxPower('ap-1', '5ghz', 20)
-    Store->>Store: overrides aktualisieren, forecastDirty = true
-    Store->>Worker: postMessage mit ueberschriebenen AP-Parametern
-    Worker-->>Canvas: Neue Forecast-Heatmap (ImageData)
-    Canvas->>Canvas: HeatmapLayer aktualisieren
-
-    User->>Console: Kanal aendern (AP-2, 5GHz): 36 -> 44
-    Console->>Store: setChannel('ap-2', '5ghz', 44)
-    Store->>Worker: Erneute Berechnung
-    Worker-->>Canvas: Aktualisierte Forecast-Heatmap
-
-    Note over Console: ChangeList zeigt 2 Aenderungen
-
-    User->>Console: "Apply" klicken
-    Console->>Store: mode = 'assist'
-
-    alt AP hat spezifischen Adapter (D-Link)
-        Console->>Console: Zeige "Auto-Apply moeglich (nach Verifizierung)"
-        Note over Console: MVP: Nur Assist-Steps
+    loop Fuer jede Wand
+        U->>C: Klick (Startpunkt) + Klick (Endpunkt)
+        C->>C: Grid-Snapping + Endpunkt-Snapping
+        C->>S: canvasStore.walls = [...walls, newWall]
+        FE->>BE: invoke('create_wall', {floorId, x1, y1, x2, y2, material, thickness})
+        BE->>DB: INSERT INTO walls
+        Note over FE: Heatmap-Neuberechnung triggern (auto)
     end
 
-    Console->>Console: AssistSteps anzeigen
-    Note over Console: Schritt 1: "Oeffnen Sie http://192.168.0.50"
-    Note over Console: Schritt 2: "Navigieren Sie zu Wireless > 5 GHz"
-    Note over Console: Schritt 3: "Setzen Sie TX Power auf 20 dBm"
-    Note over Console: Schritt 4: "Setzen Sie Kanal auf 44"
-    Note over Console: Schritt 5: "Klicken Sie Save and Activate"
-
-    User->>Console: "Aenderungen angewendet" bestaetigen
-    Console->>Backend: invoke('update_access_point', { id: 'ap-1', txPower5ghz: 20 })
-    Console->>Backend: invoke('update_access_point', { id: 'ap-2', channel5ghz: 44 })
-    Backend->>Backend: DB aktualisieren
-    Store->>Store: overrides zuruecksetzen
+    U->>FE: Projekt speichern
+    FE->>BE: invoke('save_project', {projectId})
+    BE->>DB: Transaction: UPDATE alle geaenderten Entitaeten
 ```
 
-### 5.4 Projekt speichern und laden
+### 5.2 Heatmap berechnen (Frontend Worker)
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant UI as Svelte UI
-    participant Store as projectStore
-    participant Backend as Rust Backend
+    participant S as canvasStore
+    participant FE as HeatmapOverlay
+    participant W as Web Worker (RF-Engine)
+    participant C as Konva Layer 3
+
+    Note over S: AP verschoben oder Wand geaendert
+
+    S->>FE: $effect() - AP/Wall-Aenderung erkannt
+    FE->>FE: lastCalcId++
+
+    Note over FE: Progressive Rendering - Phase 1: Grob
+
+    FE->>W: postMessage({id, resolution: 'low', gridStep: 0.20, aps, walls, bounds, band})
+
+    Note over W: Spatial Grid aufbauen
+    Note over W: Fuer jeden Gridpunkt (20cm Raster):
+    Note over W: 1. Distanz zu jedem AP
+    Note over W: 2. Wand-Intersections zaehlen
+    Note over W: 3. PL = PL(1m) + 10*n*log10(d) + Sum(L_w)
+    Note over W: 4. RSSI = TX + Gain - 3dBi - PL
+    Note over W: 5. Bester AP = max(RSSI)
+    Note over W: 6. RSSI -> Farbe (LUT)
+    Note over W: 7. Bilinear auf Ausgabe-Aufloesung
+
+    W-->>FE: {id, buffer, width, height, stats} -- Transferable (~15ms)
+
+    FE->>FE: if (id === lastCalcId) then update
+    FE->>C: heatmapImage.image(tempCanvas)
+    FE->>C: heatmapLayer.batchDraw()
+
+    Note over FE: 150ms Debounce abgelaufen - Phase 2: Fein
+
+    FE->>W: postMessage({id: lastCalcId, resolution: 'high', gridStep: 0.05, ...})
+
+    Note over W: Gleicher Algorithmus, feineres Grid (~100ms)
+
+    W-->>FE: {id, buffer, width, height, stats} -- Transferable
+    FE->>C: heatmapImage.image(tempCanvas)
+    FE->>C: heatmapLayer.batchDraw()
+
+    Note over C: Heatmap-Overlay aktualisiert
+```
+
+### 5.3 Messung durchfuehren (3 Runs)
+
+```mermaid
+sequenceDiagram
+    participant U as Benutzer
+    participant FE as MeasurementWizard
+    participant BE as Rust Backend
+    participant IP as iPerf3 Sidecar
+    participant WF as WLAN-Interface (CoreWLAN)
     participant DB as SQLite
-    participant FS as Dateisystem
 
-    Note over User: Speichern (Cmd+S oder Auto-Save)
-    UI->>Backend: invoke('save_project', { project })
-    Backend->>DB: BEGIN TRANSACTION
-    Backend->>DB: UPDATE projects SET updated_at = now()
-    Backend->>DB: UPSERT floors, walls, access_points
-    Backend->>DB: COMMIT
-    Backend-->>UI: { success: true }
-    UI->>Store: isDirty = false
+    Note over U,FE: Schritt 1: Vorbereitung
 
-    Note over User: Projekt exportieren
-    UI->>Backend: invoke('export_project', { projectId, path })
-    Backend->>DB: SELECT alle Projekt-Daten
-    Backend->>FS: JSON-Datei schreiben (.wlanopt)
-    Backend-->>UI: { path: '/Users/.../project.wlanopt' }
+    U->>FE: iPerf-Server-IP eingeben
+    FE->>BE: invoke('check_iperf_server', {ip})
+    BE->>IP: iperf3 -c IP -t 1 -J --connect-timeout 3000
+    IP-->>BE: Ergebnis (success/failure)
+    BE-->>FE: {reachable: true/false}
 
-    Note over User: Projekt importieren
-    UI->>Backend: invoke('import_project', { path })
-    Backend->>FS: JSON-Datei lesen
-    Backend->>Backend: Validierung (Schema-Check)
-    Backend->>DB: INSERT Projekt + alle Unterobjekte
-    Backend-->>UI: Project (importiert)
-    UI->>Store: project = importiertes Projekt
+    FE->>BE: invoke('get_wifi_status')
+    BE->>WF: get_rssi(), get_ssid(), get_bssid()
+    WF-->>BE: RSSI, SSID, BSSID
+    BE-->>FE: WifiStatus
+
+    Note over U,FE: Schritt 2: Messpunkte platzieren (min. 5)
+    U->>FE: Klick auf Canvas = Messpunkt erstellen
+    FE->>BE: invoke('create_measurement_point', {floorId, x, y, label})
+    BE->>DB: (gespeichert)
+
+    Note over U,FE: Schritt 3: Messung durchfuehren
+
+    loop Fuer jeden Messpunkt (MP-01, MP-02, ...)
+        FE->>FE: Messpunkt hervorheben + Anweisung anzeigen
+        U->>FE: "Messung starten" druecken
+
+        FE->>FE: 3-Sekunden-Countdown
+
+        par RSSI sofort auslesen
+            FE->>BE: invoke('measure_rssi')
+            BE->>WF: get_rssi(), get_noise(), get_bssid(), get_frequency()
+            WF-->>BE: Messwerte
+            BE-->>FE: RSSIMeasurement
+        and TCP Upload (10s)
+            FE->>BE: invoke('run_iperf_tcp_upload', {serverIp, duration: 10, streams: 4})
+            BE->>IP: iperf3 -c IP -t 10 -P 4 -J --omit 2
+            Note over IP: 10 Sekunden Test...
+            IP-->>BE: JSON Output
+            BE-->>FE: IperfTcpResult
+        end
+
+        FE->>BE: invoke('run_iperf_tcp_download', {serverIp, duration: 10, streams: 4})
+        BE->>IP: iperf3 -c IP -t 10 -P 4 -R -J --omit 2
+        IP-->>BE: JSON Output
+        BE-->>FE: IperfTcpResult
+
+        FE->>BE: invoke('run_iperf_udp', {serverIp, duration: 5})
+        BE->>IP: iperf3 -c IP -u -b 0 -t 5 -J
+        IP-->>BE: JSON Output
+        BE-->>FE: IperfUdpResult
+
+        FE->>FE: Qualitaet bewerten (RSSI-Schwankung, Retransmits, Packet Loss)
+        FE->>BE: invoke('save_measurement', {pointId, runNumber, ...allResults})
+        BE->>DB: INSERT INTO measurements
+
+        FE->>FE: Ergebnis anzeigen (RSSI, Upload, Download, Jitter, Qualitaet)
+        U->>FE: "Naechster Messpunkt"
+    end
+
+    Note over FE: Run abgeschlossen
+
+    FE->>BE: invoke('calibrate_rf_model', {floorId, runNumber: 1})
+    BE->>DB: SELECT measurements + walls + access_points
+    Note over BE: Least Squares: n_kalibriert bestimmen
+    Note over BE: RMSE berechnen, Confidence bewerten
+    BE-->>FE: CalibrationResult {n: 3.2, rmse: 4.1, confidence: 'medium'}
+    FE->>FE: measurementStore.calibratedN = 3.2
+    Note over FE: Heatmap mit kalibriertem n neu berechnen
+```
+
+### 5.4 Mixing Console: Forecast + Apply (Assist-Mode)
+
+```mermaid
+sequenceDiagram
+    participant U as Benutzer
+    participant MC as MixingConsole
+    participant S as mixingStore
+    participant W as Web Worker
+    participant C as Konva Heatmap
+    participant BE as Rust Backend
+
+    Note over MC: Mixing Console geoeffnet
+
+    MC->>BE: invoke('get_ap_configs', {floorId})
+    BE-->>MC: Vec<APConfig> (aktuelle Werte)
+    MC->>S: mixingStore.apConfigs = configs
+
+    Note over U,MC: Forecast-Mode: Slider aendern Simulation
+
+    loop Slider-Aenderung
+        U->>MC: TX-Power Slider von AP-1 auf 20 dBm gezogen
+        MC->>S: mixingStore.applyChange('ap1', 'tx_power_5ghz', 20)
+
+        S->>W: postMessage({aps: modifiedConfigs, walls, bounds, ...})
+        Note over W: Heatmap neu berechnen mit geaenderten Werten
+        W-->>C: Forecast-Heatmap (Transferable Buffer)
+        C->>C: Layer 3 aktualisiert
+
+        MC->>MC: Aenderungsliste anzeigen:
+        Note over MC: AP-1: TX 5GHz: 26 -> 20 dBm
+    end
+
+    U->>MC: Kanal von AP-2 aendern: 36 -> 44
+    MC->>S: mixingStore.applyChange('ap2', 'channel_5ghz', 44)
+    Note over MC: Kanalwechsel hat keine Auswirkung auf Heatmap
+    Note over MC: Wird in Aenderungsliste aufgenommen
+
+    Note over U,MC: Apply = Assist-Mode (MVP)
+
+    U->>MC: "Aenderungen anwenden" druecken
+    MC->>BE: invoke('generate_assist_steps', {changes: changeList})
+
+    Note over BE: Schritt-fuer-Schritt-Anleitung generieren
+
+    BE-->>MC: Vec<AssistStep>
+
+    MC->>MC: Assist-Dialog anzeigen:
+    Note over MC: Schritt 1: Oeffnen Sie das Web-Interface von AP-1
+    Note over MC: Schritt 2: TX Power 5GHz von Full auf 20 dBm aendern
+    Note over MC: Schritt 3: Save and Activate
+    Note over MC: Schritt 4: Oeffnen Sie das Web-Interface von AP-2
+    Note over MC: Schritt 5: Kanal 5GHz von 36 auf 44 aendern
+    Note over MC: Schritt 6: Save and Activate
+
+    U->>MC: Schritte manuell am AP durchfuehren
+    U->>MC: "Fertig" druecken
+
+    MC->>MC: "Run 3 (Verifikation) empfohlen" anzeigen
 ```
 
 ---
 
 ## 6. IPC-API Design
 
-Alle Tauri Commands sind gruppiert nach Modul. Jeder Command gibt `Result<T, AppError>` zurueck.
-
 ### 6.1 Projekt-Commands
 
-```rust
-// src-tauri/src/commands/project.rs
+```typescript
+// TypeScript (Frontend)
+interface ProjectAPI {
+  create_project(params: { name: string }): Promise<Project>;
+  get_project(params: { id: string }): Promise<Project>;
+  list_projects(): Promise<Project[]>;
+  delete_project(params: { id: string }): Promise<void>;
+  save_project(params: { id: string }): Promise<void>;
+  export_project(params: { id: string; path: string }): Promise<void>;
+  import_project(params: { path: string }): Promise<Project>;
+}
+```
 
+```rust
+// Rust (Backend)
 #[tauri::command]
-pub fn create_project(
+async fn create_project(
     state: tauri::State<'_, AppState>,
     name: String,
-    description: Option<String>,
 ) -> Result<Project, AppError>;
 
 #[tauri::command]
-pub fn get_project(
+async fn get_project(
     state: tauri::State<'_, AppState>,
     id: String,
 ) -> Result<Project, AppError>;
 
 #[tauri::command]
-pub fn list_projects(
+async fn list_projects(
     state: tauri::State<'_, AppState>,
-) -> Result<Vec<ProjectSummary>, AppError>;
-// ProjectSummary: { id, name, updatedAt, floorCount }
+) -> Result<Vec<Project>, AppError>;
 
 #[tauri::command]
-pub fn update_project(
-    state: tauri::State<'_, AppState>,
-    id: String,
-    name: Option<String>,
-    description: Option<String>,
-    settings: Option<String>,  // JSON
-) -> Result<Project, AppError>;
-
-#[tauri::command]
-pub fn delete_project(
+async fn delete_project(
     state: tauri::State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError>;
+
+#[tauri::command]
+async fn save_project(
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> Result<(), AppError>;
+
+#[tauri::command]
+async fn export_project(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    path: String,
+) -> Result<(), AppError>;
+
+#[tauri::command]
+async fn import_project(
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<Project, AppError>;
 ```
 
 ### 6.2 Floor-Commands
 
-```rust
-// src-tauri/src/commands/floor.rs
+```typescript
+interface FloorAPI {
+  create_floor(params: { projectId: string; name: string; floorNumber: number }): Promise<Floor>;
+  get_floors(params: { projectId: string }): Promise<Floor[]>;
+  import_floor_image(params: { floorId: string; imageData: number[]; mimeType: string }): Promise<void>;
+  update_floor_scale(params: { floorId: string; scalePxPerMeter: number; widthMeters: number; heightMeters: number }): Promise<void>;
+  delete_floor(params: { floorId: string }): Promise<void>;
+}
+```
 
+```rust
 #[tauri::command]
-pub fn create_floor(
+async fn create_floor(
     state: tauri::State<'_, AppState>,
     project_id: String,
     name: String,
@@ -1452,846 +1305,856 @@ pub fn create_floor(
 ) -> Result<Floor, AppError>;
 
 #[tauri::command]
-pub fn get_floor(
+async fn get_floors(
     state: tauri::State<'_, AppState>,
-    id: String,
-) -> Result<FloorWithChildren, AppError>;
-// FloorWithChildren: Floor + Vec<Wall> + Vec<AccessPoint> + Vec<Measurement>
+    project_id: String,
+) -> Result<Vec<Floor>, AppError>;
 
 #[tauri::command]
-pub fn update_floor(
+async fn import_floor_image(
     state: tauri::State<'_, AppState>,
-    id: String,
-    name: Option<String>,
-    floor_number: Option<i32>,
-    width_meters: Option<f64>,
-    height_meters: Option<f64>,
-) -> Result<Floor, AppError>;
-
-#[tauri::command]
-pub fn delete_floor(
-    state: tauri::State<'_, AppState>,
-    id: String,
+    floor_id: String,
+    image_data: Vec<u8>,
+    mime_type: String,
 ) -> Result<(), AppError>;
 
 #[tauri::command]
-pub fn import_background_image(
+async fn update_floor_scale(
     state: tauri::State<'_, AppState>,
     floor_id: String,
-    image_data: Vec<u8>,      // Raw image bytes
-    mime_type: String,         // "image/png" oder "image/jpeg"
-) -> Result<Floor, AppError>;
-
-#[tauri::command]
-pub fn set_scale(
-    state: tauri::State<'_, AppState>,
-    floor_id: String,
-    px_per_meter: f64,
+    scale_px_per_meter: f64,
     width_meters: f64,
     height_meters: f64,
-) -> Result<Floor, AppError>;
+) -> Result<(), AppError>;
+
+#[tauri::command]
+async fn delete_floor(
+    state: tauri::State<'_, AppState>,
+    floor_id: String,
+) -> Result<(), AppError>;
 ```
 
 ### 6.3 Wall-Commands
 
-```rust
-// src-tauri/src/commands/wall.rs
+```typescript
+interface WallAPI {
+  create_wall(params: {
+    floorId: string; x1: number; y1: number; x2: number; y2: number;
+    material: string; thicknessCm: number;
+    customAttenuation24ghz?: number; customAttenuation5ghz?: number;
+  }): Promise<Wall>;
+  get_walls(params: { floorId: string }): Promise<Wall[]>;
+  update_wall(params: { wallId: string; material?: string; thicknessCm?: number;
+    customAttenuation24ghz?: number; customAttenuation5ghz?: number }): Promise<Wall>;
+  delete_wall(params: { wallId: string }): Promise<void>;
+  batch_create_walls(params: { walls: CreateWallParams[] }): Promise<Wall[]>;
+}
+```
 
+```rust
 #[tauri::command]
-pub fn create_wall(
+async fn create_wall(
     state: tauri::State<'_, AppState>,
     floor_id: String,
-    x1: f64, y1: f64,
-    x2: f64, y2: f64,
-    material_id: String,
+    x1: f64, y1: f64, x2: f64, y2: f64,
+    material: String,
     thickness_cm: f64,
+    custom_attenuation_24ghz: Option<f64>,
+    custom_attenuation_5ghz: Option<f64>,
 ) -> Result<Wall, AppError>;
 
 #[tauri::command]
-pub fn update_wall(
+async fn get_walls(
     state: tauri::State<'_, AppState>,
-    id: String,
-    x1: Option<f64>, y1: Option<f64>,
-    x2: Option<f64>, y2: Option<f64>,
-    material_id: Option<String>,
+    floor_id: String,
+) -> Result<Vec<Wall>, AppError>;
+
+#[tauri::command]
+async fn update_wall(
+    state: tauri::State<'_, AppState>,
+    wall_id: String,
+    material: Option<String>,
     thickness_cm: Option<f64>,
-    custom_attenuation_24ghz_db: Option<f64>,
-    custom_attenuation_5ghz_db: Option<f64>,
+    custom_attenuation_24ghz: Option<f64>,
+    custom_attenuation_5ghz: Option<f64>,
 ) -> Result<Wall, AppError>;
 
 #[tauri::command]
-pub fn delete_wall(
+async fn delete_wall(
     state: tauri::State<'_, AppState>,
-    id: String,
+    wall_id: String,
 ) -> Result<(), AppError>;
 
 #[tauri::command]
-pub fn batch_create_walls(
+async fn batch_create_walls(
     state: tauri::State<'_, AppState>,
-    floor_id: String,
-    walls: Vec<WallInput>,
+    walls: Vec<CreateWallParams>,
 ) -> Result<Vec<Wall>, AppError>;
-// WallInput: { x1, y1, x2, y2, materialId, thicknessCm }
 ```
 
-### 6.4 Access-Point-Commands
+### 6.4 Access Point Commands
+
+```typescript
+interface AccessPointAPI {
+  create_access_point(params: {
+    floorId: string; x: number; y: number;
+    modelId?: string; heightMeters?: number; mounting?: string;
+    txPower24ghz?: number; txPower5ghz?: number;
+    channel24ghz?: number; channel5ghz?: number; channelWidth?: string;
+  }): Promise<AccessPoint>;
+  get_access_points(params: { floorId: string }): Promise<AccessPoint[]>;
+  update_access_point(params: { apId: string; [key: string]: any }): Promise<AccessPoint>;
+  delete_access_point(params: { apId: string }): Promise<void>;
+  get_ap_models(): Promise<APModel[]>;
+  create_custom_ap_model(params: {
+    manufacturer: string; model: string; wifiStandard: string;
+    maxTxPower24ghz: number; maxTxPower5ghz: number;
+    antennaGain24ghz: number; antennaGain5ghz: number; mimoStreams: number;
+  }): Promise<APModel>;
+}
+```
 
 ```rust
-// src-tauri/src/commands/access_point.rs
-
 #[tauri::command]
-pub fn create_access_point(
+async fn create_access_point(
     state: tauri::State<'_, AppState>,
     floor_id: String,
-    model_id: String,
-    name: String,
     x: f64, y: f64,
-    height_meters: f64,
-    mounting: String,          // "ceiling" | "wall" | "desk"
-) -> Result<AccessPoint, AppError>;
-
-#[tauri::command]
-pub fn update_access_point(
-    state: tauri::State<'_, AppState>,
-    id: String,
-    name: Option<String>,
-    x: Option<f64>, y: Option<f64>,
+    model_id: Option<String>,
     height_meters: Option<f64>,
     mounting: Option<String>,
-    tx_power_24ghz_dbm: Option<f64>,
-    tx_power_5ghz_dbm: Option<f64>,
+    tx_power_24ghz: Option<f64>,
+    tx_power_5ghz: Option<f64>,
     channel_24ghz: Option<i32>,
     channel_5ghz: Option<i32>,
-    channel_width_24ghz: Option<String>,
-    channel_width_5ghz: Option<String>,
-    ssid: Option<String>,
-    ip_address: Option<String>,
-    adapter_config: Option<String>,   // JSON
+    channel_width: Option<String>,
 ) -> Result<AccessPoint, AppError>;
 
 #[tauri::command]
-pub fn delete_access_point(
+async fn get_access_points(
     state: tauri::State<'_, AppState>,
-    id: String,
+    floor_id: String,
+) -> Result<Vec<AccessPoint>, AppError>;
+
+#[tauri::command]
+async fn update_access_point(
+    state: tauri::State<'_, AppState>,
+    ap_id: String,
+    x: Option<f64>, y: Option<f64>,
+    tx_power_24ghz: Option<f64>, tx_power_5ghz: Option<f64>,
+    channel_24ghz: Option<i32>, channel_5ghz: Option<i32>,
+    channel_width: Option<String>,
+    height_meters: Option<f64>, mounting: Option<String>,
+) -> Result<AccessPoint, AppError>;
+
+#[tauri::command]
+async fn delete_access_point(
+    state: tauri::State<'_, AppState>,
+    ap_id: String,
 ) -> Result<(), AppError>;
 
 #[tauri::command]
-pub fn list_ap_models(
+async fn get_ap_models(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<APModel>, AppError>;
-
-#[tauri::command]
-pub fn get_ap_model(
-    state: tauri::State<'_, AppState>,
-    id: String,
-) -> Result<APModel, AppError>;
 ```
 
-### 6.5 Heatmap-Commands (Kalibrierungsparameter)
+### 6.5 Measurement Commands
 
-```rust
-// src-tauri/src/commands/heatmap.rs
+```typescript
+interface MeasurementAPI {
+  // iPerf3
+  check_iperf_server(params: { ip: string; port?: number }): Promise<{ reachable: boolean }>;
+  run_iperf_tcp_upload(params: { serverIp: string; duration: number; streams: number }): Promise<IperfTcpResult>;
+  run_iperf_tcp_download(params: { serverIp: string; duration: number; streams: number }): Promise<IperfTcpResult>;
+  run_iperf_udp(params: { serverIp: string; duration: number }): Promise<IperfUdpResult>;
 
-#[tauri::command]
-pub fn get_calibration_params(
-    state: tauri::State<'_, AppState>,
-    floor_id: String,
-    band: String,              // "2.4ghz" | "5ghz"
-) -> Result<CalibrationParams, AppError>;
-// CalibrationParams: { pathLossExponent, wallCorrectionFactor, offsetDb, rmseDb, rSquared }
+  // RSSI
+  get_wifi_status(): Promise<WifiStatus>;
+  measure_rssi(): Promise<RSSIMeasurement>;
 
-#[tauri::command]
-pub fn update_calibration_params(
-    state: tauri::State<'_, AppState>,
-    floor_id: String,
-    band: String,
-    path_loss_exponent: Option<f64>,
-    wall_correction_factor: Option<f64>,
-    offset_db: Option<f64>,
-) -> Result<CalibrationParams, AppError>;
+  // Messdaten
+  create_measurement_point(params: { floorId: string; x: number; y: number; label: string }): Promise<MeasurementPoint>;
+  save_measurement(params: {
+    pointId: string; runNumber: number; runType: string;
+    rssiDbm: number; noiseDbm?: number; connectedBssid: string;
+    band: string; channel: number;
+    iperfTcpUpload?: IperfTcpResult; iperfTcpDownload?: IperfTcpResult;
+    iperfUdp?: IperfUdpResult;
+  }): Promise<Measurement>;
+  get_measurements(params: { floorId: string; runNumber?: number }): Promise<Measurement[]>;
+
+  // Kalibrierung
+  calibrate_rf_model(params: { floorId: string; runNumber: number }): Promise<CalibrationResult>;
+}
 ```
 
-### 6.6 Measurement-Commands
-
 ```rust
-// src-tauri/src/commands/measurement.rs
+#[tauri::command]
+async fn check_iperf_server(
+    state: tauri::State<'_, AppState>,
+    ip: String,
+    port: Option<u16>,
+) -> Result<CheckResult, AppError>;
 
 #[tauri::command]
-pub async fn start_measurement(
-    state: tauri::State<'_, AppState>,
-    app_handle: tauri::AppHandle,
-    floor_id: String,
-    x: f64, y: f64,
-    point_label: String,
-    run_number: u8,            // 1, 2 oder 3
-    run_type: String,          // "baseline" | "post_optimization" | "verification"
+async fn run_iperf_tcp_upload(
+    app: tauri::AppHandle,
     server_ip: String,
-) -> Result<MeasurementResult, AppError>;
-// MeasurementResult: { wifiInfo, tcpUpload, tcpDownload, udpResult, quality }
-// Waehrend der Messung: Tauri Events emittieren (measurement-progress)
+    duration: u32,
+    streams: u32,
+) -> Result<IperfTcpResult, AppError>;
 
 #[tauri::command]
-pub fn cancel_measurement(
-    state: tauri::State<'_, AppState>,
-) -> Result<(), AppError>;
-
-#[tauri::command]
-pub fn get_measurement_results(
-    state: tauri::State<'_, AppState>,
-    floor_id: String,
-    run_number: Option<u8>,
-) -> Result<Vec<MeasurementResult>, AppError>;
-
-#[tauri::command]
-pub async fn check_iperf_server(
-    state: tauri::State<'_, AppState>,
-    app_handle: tauri::AppHandle,
+async fn run_iperf_tcp_download(
+    app: tauri::AppHandle,
     server_ip: String,
-) -> Result<bool, AppError>;
+    duration: u32,
+    streams: u32,
+) -> Result<IperfTcpResult, AppError>;
 
 #[tauri::command]
-pub fn get_wifi_info(
+async fn run_iperf_udp(
+    app: tauri::AppHandle,
+    server_ip: String,
+    duration: u32,
+) -> Result<IperfUdpResult, AppError>;
+
+#[tauri::command]
+async fn get_wifi_status(
     state: tauri::State<'_, AppState>,
-) -> Result<WifiInfo, AppError>;
-// WifiInfo: { rssiDbm, noiseDbm, ssid, bssid, frequencyMhz, txRateMbps }
+) -> Result<WifiStatus, AppError>;
 
 #[tauri::command]
-pub fn calibrate(
+async fn measure_rssi(
+    state: tauri::State<'_, AppState>,
+) -> Result<RSSIMeasurement, AppError>;
+
+#[tauri::command]
+async fn calibrate_rf_model(
     state: tauri::State<'_, AppState>,
     floor_id: String,
-    band: String,
+    run_number: i32,
 ) -> Result<CalibrationResult, AppError>;
-// CalibrationResult: { nOriginal, nCalibrated, wallCorrectionFactor, rmseDb, rSquared, confidence }
 ```
 
-### 6.7 AP-Control-Commands
+### 6.6 Optimization / Mixing Console Commands
+
+```typescript
+interface OptimizationAPI {
+  generate_recommendations(params: { floorId: string }): Promise<Recommendation[]>;
+  generate_assist_steps(params: { changes: ParameterChange[] }): Promise<AssistStep[]>;
+
+  // AP-Steuerung (nur fuer registrierte APs mit Verbindungsdaten)
+  connect_ap(params: { apId: string; ip: string; username: string; password: string }): Promise<APConnectionResult>;
+  get_ap_live_config(params: { apId: string }): Promise<WirelessConfig>;
+  verify_ap_capabilities(params: { apId: string }): Promise<APVerificationResult>;
+}
+```
 
 ```rust
-// src-tauri/src/commands/ap_control.rs
+#[tauri::command]
+async fn generate_recommendations(
+    state: tauri::State<'_, AppState>,
+    floor_id: String,
+) -> Result<Vec<Recommendation>, AppError>;
 
 #[tauri::command]
-pub async fn discover_ap(
+async fn generate_assist_steps(
     state: tauri::State<'_, AppState>,
-    ip_address: String,
+    changes: Vec<ParameterChange>,
+) -> Result<Vec<AssistStep>, AppError>;
+
+#[tauri::command]
+async fn connect_ap(
+    state: tauri::State<'_, AppState>,
+    ap_id: String,
+    ip: String,
     username: String,
     password: String,
-) -> Result<APDiscoveryResult, AppError>;
-// APDiscoveryResult: { reachable, firmwareVersion, modelDetected, snmpAvailable, capabilities }
+) -> Result<APConnectionResult, AppError>;
 
 #[tauri::command]
-pub async fn get_ap_config(
+async fn get_ap_live_config(
     state: tauri::State<'_, AppState>,
-    access_point_id: String,
-) -> Result<APConfig, AppError>;
-// APConfig: { txPower24ghz, txPower5ghz, channel24ghz, channel5ghz, channelWidth, ssids, ... }
+    ap_id: String,
+) -> Result<WirelessConfig, AppError>;
 
 #[tauri::command]
-pub async fn apply_ap_changes(
+async fn verify_ap_capabilities(
     state: tauri::State<'_, AppState>,
-    access_point_id: String,
-    changes: APChangeSet,
-) -> Result<APApplyResult, AppError>;
-// APChangeSet: { txPower24ghz?, txPower5ghz?, channel24ghz?, channel5ghz?, ... }
-// APApplyResult: { success, assistSteps?: Vec<AssistStep>, errors?: Vec<String> }
-// AssistStep: { stepNumber, instruction, url?, screenshot? }
-
-#[tauri::command]
-pub async fn verify_ap(
-    state: tauri::State<'_, AppState>,
-    access_point_id: String,
+    ap_id: String,
 ) -> Result<APVerificationResult, AppError>;
-// APVerificationResult: { ipReachable, webUiLogin, snmpAvailable, sshAvailable, firmwareVersion, autoApplyPossible }
 ```
 
-### 6.8 Settings-Commands
+### 6.7 Settings Commands
+
+```typescript
+interface SettingsAPI {
+  get_settings(): Promise<AppSettings>;
+  update_settings(params: { settings: Partial<AppSettings> }): Promise<AppSettings>;
+  get_materials(): Promise<Material[]>;
+  update_material(params: { materialId: string; attenuation24ghz?: number; attenuation5ghz?: number }): Promise<Material>;
+  reset_material(params: { materialId: string }): Promise<Material>;
+  create_user_material(params: { name: string; attenuation24ghz: number; attenuation5ghz: number; thicknessCm: number }): Promise<Material>;
+  get_system_language(): Promise<string>;
+}
+```
 
 ```rust
-// src-tauri/src/commands/settings.rs
-
 #[tauri::command]
-pub fn get_settings(
+async fn get_settings(
     state: tauri::State<'_, AppState>,
 ) -> Result<AppSettings, AppError>;
-// AppSettings: { language, colorScheme, defaultBand, iperfServerIp, gridStep, ... }
 
 #[tauri::command]
-pub fn update_settings(
+async fn update_settings(
     state: tauri::State<'_, AppState>,
     settings: AppSettings,
 ) -> Result<AppSettings, AppError>;
 
 #[tauri::command]
-pub fn get_materials(
+async fn get_materials(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<Material>, AppError>;
-// Material: { id, nameEn, nameDe, category, attenuation24ghz, attenuation5ghz, isDefault }
 
 #[tauri::command]
-pub fn update_material(
+async fn update_material(
     state: tauri::State<'_, AppState>,
-    id: String,
-    attenuation_24ghz_db: Option<f64>,
-    attenuation_5ghz_db: Option<f64>,
+    material_id: String,
+    attenuation_24ghz: Option<f64>,
+    attenuation_5ghz: Option<f64>,
 ) -> Result<Material, AppError>;
-```
-
-### 6.9 Export-Commands
-
-```rust
-// src-tauri/src/commands/export.rs
 
 #[tauri::command]
-pub fn export_project(
+async fn reset_material(
     state: tauri::State<'_, AppState>,
-    project_id: String,
-    path: String,
-    format: String,            // "json" | "json_with_images"
-) -> Result<String, AppError>; // Pfad der exportierten Datei
+    material_id: String,
+) -> Result<Material, AppError>;
 
 #[tauri::command]
-pub fn import_project(
-    state: tauri::State<'_, AppState>,
-    path: String,
-) -> Result<Project, AppError>;
-```
-
-### 6.10 Tauri Events (Backend -> Frontend)
-
-Neben den Commands (Request-Response) nutzt die App Tauri Events fuer asynchrone Benachrichtigungen:
-
-```rust
-// Emittiert waehrend einer Messung
-app_handle.emit("measurement-progress", MeasurementProgress {
-    step: "tcp_upload".to_string(),   // "tcp_upload" | "tcp_download" | "udp"
-    percent: 50,
-    live_throughput_bps: Some(245_000_000.0),
-})?;
-
-// Emittiert wenn sich RSSI aendert (Live-Monitoring)
-app_handle.emit("wifi-rssi-update", WifiRssiUpdate {
-    rssi_dbm: -58,
-    noise_dbm: -92,
-    bssid: "AA:BB:CC:DD:EE:FF".to_string(),
-})?;
-
-// Emittiert bei AP-Steuerung
-app_handle.emit("ap-control-progress", APControlProgress {
-    step: "applying_changes".to_string(),
-    message: "TX Power wird geaendert...".to_string(),
-})?;
-```
-
-Frontend-Listener:
-
-```typescript
-import { listen } from '@tauri-apps/api/event';
-
-const unlisten = await listen<MeasurementProgress>('measurement-progress', (event) => {
-    measurementStore.progress = event.payload.percent;
-    measurementStore.liveThroughput = event.payload.live_throughput_bps;
-});
+async fn get_system_language() -> Result<String, AppError>;
 ```
 
 ---
 
-## 7. Fehlerbehandlung
+## 7. Fehlerbehandlung & Sicherheit
 
-### 7.1 Frontend: Error Boundaries und Toast Notifications
+### 7.1 Tauri Capability-Modell (Restriktive Permissions)
 
-**Error Boundary Pattern (Svelte 5):**
-
-```svelte
-<!-- src/lib/components/ui/ErrorBoundary.svelte -->
-<script>
-  import { onMount } from 'svelte';
-  let { children } = $props();
-  let error = $state(null);
-
-  // Svelte 5: $effect fuer globale Error-Listener
-</script>
-
-{#if error}
-  <div class="error-panel">
-    <p>Ein unerwarteter Fehler ist aufgetreten.</p>
-    <button onclick={() => error = null}>Erneut versuchen</button>
-  </div>
-{:else}
-  {@render children()}
-{/if}
-```
-
-**Toast Notifications fuer IPC-Fehler:**
-
-```typescript
-// src/lib/services/tauri-commands.ts
-import { invoke } from '@tauri-apps/api/core';
-import { toastStore } from '$lib/stores/toast.svelte';
-import type { AppError } from '$lib/types';
-
-export async function safeInvoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-    try {
-        return await invoke<T>(command, args);
-    } catch (err) {
-        const appError = err as AppError;
-        toastStore.show({
-            kind: 'error',
-            title: appError.kind,
-            message: appError.message,
-        });
-        throw err;
-    }
-}
-```
-
-**Fehler-Mapping (Backend-Kind -> Frontend-Aktion):**
-
-| Backend AppError Kind | Frontend-Behandlung |
-|----------------------|---------------------|
-| `Database` | Toast + Log (Bug-Report-Link) |
-| `ProjectNotFound` | Redirect zu Projektliste |
-| `APUnreachable` | Toast + Retry-Button |
-| `APAuthFailed` | Dialog: Credentials pruefen |
-| `IperfServerUnreachable` | Toast + Setup-Hinweis |
-| `IperfBinaryMissing` | Kritisch: Reinstall-Hinweis |
-| `MeasurementCancelled` | Stille Behandlung (User-Aktion) |
-| `WifiDisconnected` | Toast + "WLAN verbinden" Link |
-| `ExportFailed` | Toast + Pfad pruefen |
-| `ImportInvalid` | Dialog: Datei ungueltig |
-| `Internal` | Toast + Log |
-
-### 7.2 Backend: thiserror + serde
-
-Wie in Abschnitt 3.6 definiert. Kernprinzipien:
-
-1. **Alle Fehler sind typisiert** -- kein `String`-basiertes Error-Handling.
-2. **Fehler sind serialisierbar** -- `#[derive(Serialize)]` fuer IPC-Transport.
-3. **From-Implementierungen** fuer automatische Konvertierung (`rusqlite::Error`, `serde_json::Error`, `reqwest::Error`).
-4. **Keine Panics** -- alle `unwrap()` durch `?` oder explizites Error-Handling ersetzen.
-
-### 7.3 IPC-Fehler-Vertrag
-
-Jeder Tauri Command gibt `Result<T, AppError>` zurueck. Das Frontend erhaelt bei Fehler:
+Die App fordert nur die minimal benoetigten Berechtigungen an. Die Capability-Datei definiert, welche Tauri-APIs und Sidecar-Aufrufe erlaubt sind.
 
 ```json
 {
-    "kind": "APUnreachable",
-    "message": "AP nicht erreichbar: Connection timeout nach 10s (192.168.0.50)"
-}
-```
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "WLAN-Optimizer Default Capabilities",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
 
----
-
-## 8. Sicherheit
-
-### 8.1 Tauri Permissions (Capabilities)
-
-```json
-// src-tauri/capabilities/default.json
-{
-    "$schema": "../gen/schemas/desktop-schema.json",
-    "identifier": "default",
-    "description": "WLAN-Optimizer Default Capabilities",
-    "windows": ["main"],
-    "permissions": [
-        "core:default",
-        "dialog:default",
-        "dialog:allow-open",
-        "dialog:allow-save",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
         {
-            "identifier": "fs:default",
-            "allow": [
-                { "path": "$APPDATA/**" },
-                { "path": "$DOWNLOAD/**" },
-                { "path": "$DOCUMENT/**" }
-            ]
-        },
-        {
-            "identifier": "shell:allow-spawn",
-            "allow": [
-                {
-                    "name": "binaries/iperf3",
-                    "sidecar": true,
-                    "args": [
-                        "-c", { "validator": "\\S+" },
-                        "-t", { "validator": "\\d+" },
-                        "-P", { "validator": "\\d+" },
-                        "-J",
-                        "-R",
-                        "-u",
-                        "-b", { "validator": "\\d+" },
-                        "--omit", { "validator": "\\d+" },
-                        "--connect-timeout", { "validator": "\\d+" }
-                    ]
-                }
-            ]
-        },
-        "http:default"
-    ]
-}
-```
-
-**Minimale Berechtigungen:**
-- **Dateisystem:** Nur `$APPDATA` (DB-Speicherort), `$DOWNLOAD` und `$DOCUMENT` (Export/Import).
-- **Shell:** Nur iPerf3-Sidecar mit validierten Argumenten (Regex-Validierung).
-- **HTTP:** Fuer AP-Web-GUI-Zugriff (lokales Netzwerk). Kein Internet-Zugriff noetig.
-- **Kein `shell:allow-execute`** -- keine beliebigen Befehle ausfuehrbar.
-- **Kein `fs:allow-write-all`** -- kein Schreibzugriff ausserhalb der erlaubten Pfade.
-
-### 8.2 Content Security Policy
-
-```json
-// In tauri.conf.json
-{
-    "app": {
-        "security": {
-            "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' ipc: http://tauri.localhost; worker-src 'self' blob:"
+          "name": "binaries/iperf3",
+          "sidecar": true,
+          "args": [
+            "-c", { "validator": "\\S+" },
+            "-t", { "validator": "\\d+" },
+            "-P", { "validator": "\\d+" },
+            "-J",
+            "-R",
+            "-u",
+            "-b", { "validator": "\\d+" },
+            "--omit", { "validator": "\\d+" },
+            "--connect-timeout", { "validator": "\\d+" }
+          ]
         }
+      ]
+    },
+
+    "dialog:allow-open",
+    "dialog:allow-save",
+
+    {
+      "identifier": "fs:allow-read",
+      "allow": [
+        { "path": "$APPDATA/**" },
+        { "path": "$DOCUMENT/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write",
+      "allow": [
+        { "path": "$APPDATA/**" }
+      ]
+    },
+
+    "http:default",
+    "network:default"
+  ]
+}
+```
+
+**Eingeschraenkte Permissions:**
+
+| Bereich | Erlaubt | Nicht erlaubt |
+|---------|---------|---------------|
+| **Filesystem** | AppData lesen/schreiben, Documents lesen | Zugriff auf System-Verzeichnisse |
+| **Shell** | Nur iPerf3-Sidecar mit validierten Argumenten | Beliebige Shell-Befehle |
+| **Netzwerk** | HTTP/HTTPS Requests (fuer AP Web-GUI) | Beliebige Socket-Verbindungen |
+| **Dialog** | Datei-Oeffnen/Speichern Dialoge | Benachrichtigungen, Tray |
+
+### 7.2 Input-Validierung an der IPC-Grenze
+
+Jede IPC-Command validiert ihre Parameter, bevor sie verarbeitet werden:
+
+```rust
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct CreateWallParams {
+    floor_id: String,
+    x1: f64, y1: f64,
+    x2: f64, y2: f64,
+    material: String,
+    thickness_cm: f64,
+}
+
+impl CreateWallParams {
+    fn validate(&self) -> Result<(), AppError> {
+        // UUID-Format pruefen
+        uuid::Uuid::parse_str(&self.floor_id)
+            .map_err(|_| AppError::Validation("Invalid floor_id format".into()))?;
+
+        // Koordinaten muessen endlich sein
+        if !self.x1.is_finite() || !self.y1.is_finite()
+            || !self.x2.is_finite() || !self.y2.is_finite() {
+            return Err(AppError::Validation("Coordinates must be finite".into()));
+        }
+
+        // Material muss bekannt sein
+        if !KNOWN_MATERIALS.contains(&self.material.as_str()) {
+            return Err(AppError::Validation(
+                format!("Unknown material: {}", self.material)
+            ));
+        }
+
+        // Dicke muss positiv und sinnvoll sein
+        if self.thickness_cm <= 0.0 || self.thickness_cm > 200.0 {
+            return Err(AppError::Validation("Wall thickness out of range".into()));
+        }
+
+        // Wand darf nicht null-Laenge haben
+        let length = ((self.x2 - self.x1).powi(2) + (self.y2 - self.y1).powi(2)).sqrt();
+        if length < 0.01 {
+            return Err(AppError::Validation("Wall too short".into()));
+        }
+
+        Ok(())
     }
 }
 ```
 
-**Erklaerung:**
-- `script-src 'self'` -- Nur eigene Scripts, kein Inline-JS, kein eval().
-- `img-src 'self' blob: data:` -- Hintergrundbilder und Heatmaps (als Blob/Data-URL).
-- `connect-src` -- Nur lokale IPC und Tauri-localhost.
-- `worker-src 'self' blob:` -- Fuer den Heatmap Web Worker.
+### 7.3 Fehler-Propagation: Rust Result -> Tauri -> Frontend
 
-### 8.3 Datenschutz
+```mermaid
+flowchart LR
+    subgraph Rust
+        R1["rusqlite::Error"] --> AE["AppError"]
+        R2["reqwest::Error"] --> AE
+        R3["serde_json::Error"] --> AE
+        R4["io::Error"] --> AE
+        R5["Validation Error"] --> AE
+    end
 
-1. **Keine Cloud-Verbindung** -- alle Daten bleiben lokal auf dem Rechner.
-2. **Keine Telemetrie** -- kein Analytics, kein Crash-Reporting (MVP).
-3. **AP-Credentials** -- werden in der lokalen SQLite-DB gespeichert (`adapter_config` JSON-Feld). Keine Verschluesselung im MVP; spaeter: OS-Keychain-Integration moeglich.
-4. **Keine Secrets im Frontend** -- AP-Passwort wird nur im Rust-Backend verarbeitet, nie an das Frontend zurueckgegeben.
-5. **iPerf3-Daten** -- Netzwerk-Metriken bleiben lokal, werden nie extern gesendet.
+    subgraph Tauri
+        AE --> TIPC["Tauri IPC Serialization"]
+        TIPC --> JSON["JSON Error Response"]
+    end
 
-### 8.4 Netzwerksicherheit
+    subgraph Frontend
+        JSON --> INV["invoke() throws"]
+        INV --> TRY["try/catch"]
+        TRY --> TOAST["Toast-Notification"]
+        TRY --> DIALOG["Error-Dialog (kritisch)"]
+        TRY --> LOG["Console + Error-Log"]
+    end
+```
 
-- **AP-Kommunikation:** HTTPS bevorzugt (Self-Signed-Certs akzeptiert via `danger_accept_invalid_certs`). HTTP als Fallback.
-- **SNMP:** Community Strings nur lokal gespeichert. SNMP v2c (kein v3 im MVP -- D-Link DAP-X2810 unterstuetzt kein SNMPv3).
-- **iPerf3:** Kommunikation im lokalen Netzwerk. Keine Authentifizierung (iPerf3-Standard). Kein Sicherheitsrisiko bei lokalem Betrieb.
-
----
-
-## Anhang: Typen-Referenz (Shared DTOs)
-
-### Rust (src-tauri/src/models.rs)
+**Rust-seitiger Fehler-Typ:**
 
 ```rust
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use thiserror::Error;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Project {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub settings: Option<String>,
-    pub floors: Vec<Floor>,
+#[derive(Error, Debug, Serialize)]
+pub enum AppError {
+    #[error("Database error: {0}")]
+    Database(String),
+
+    #[error("Validation error: {0}")]
+    Validation(String),
+
+    #[error("Network error: {0}")]
+    Network(String),
+
+    #[error("AP connection error: {0}")]
+    APConnection(String),
+
+    #[error("Measurement error: {0}")]
+    Measurement(String),
+
+    #[error("iPerf3 error: {0}")]
+    IPerf(String),
+
+    #[error("Platform error: {0}")]
+    Platform(String),
+
+    #[error("Export error: {0}")]
+    Export(String),
+
+    #[error("File I/O error: {0}")]
+    FileIO(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ProjectSummary {
-    pub id: String,
-    pub name: String,
-    pub updated_at: String,
-    pub floor_count: u32,
+// Automatische Konvertierung
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        AppError::Database(e.to_string())
+    }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Floor {
-    pub id: String,
-    pub project_id: String,
-    pub name: String,
-    pub floor_number: i32,
-    pub scale_px_per_meter: Option<f64>,
-    pub width_meters: Option<f64>,
-    pub height_meters: Option<f64>,
-    pub has_background_image: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct FloorWithChildren {
-    pub floor: Floor,
-    pub walls: Vec<Wall>,
-    pub access_points: Vec<AccessPoint>,
-    pub measurements: Vec<Measurement>,
-    pub calibration: Option<CalibrationParams>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Wall {
-    pub id: String,
-    pub floor_id: String,
-    pub x1: f64,
-    pub y1: f64,
-    pub x2: f64,
-    pub y2: f64,
-    pub material_id: String,
-    pub material_name: String,
-    pub thickness_cm: f64,
-    pub attenuation_24ghz_db: f64,
-    pub attenuation_5ghz_db: f64,
-    pub custom_attenuation_24ghz_db: Option<f64>,
-    pub custom_attenuation_5ghz_db: Option<f64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AccessPoint {
-    pub id: String,
-    pub floor_id: String,
-    pub model_id: String,
-    pub model: APModel,
-    pub name: String,
-    pub x: f64,
-    pub y: f64,
-    pub height_meters: f64,
-    pub mounting: String,
-    pub tx_power_24ghz_dbm: Option<f64>,
-    pub tx_power_5ghz_dbm: Option<f64>,
-    pub channel_24ghz: Option<i32>,
-    pub channel_5ghz: Option<i32>,
-    pub channel_width_24ghz: Option<String>,
-    pub channel_width_5ghz: Option<String>,
-    pub ssid: Option<String>,
-    pub ip_address: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct APModel {
-    pub id: String,
-    pub manufacturer: String,
-    pub model: String,
-    pub wifi_standard: String,
-    pub max_tx_power_24ghz_dbm: f64,
-    pub max_tx_power_5ghz_dbm: f64,
-    pub antenna_gain_24ghz_dbi: f64,
-    pub antenna_gain_5ghz_dbi: f64,
-    pub mimo_streams: i32,
-    pub adapter_type: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Material {
-    pub id: String,
-    pub name_en: String,
-    pub name_de: String,
-    pub category: String,
-    pub attenuation_24ghz_db: f64,
-    pub attenuation_5ghz_db: f64,
-    pub is_default: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Measurement {
-    pub id: String,
-    pub floor_id: String,
-    pub point_label: String,
-    pub x: f64,
-    pub y: f64,
-    pub run_number: u8,
-    pub run_type: String,
-    pub timestamp: String,
-    pub rssi_dbm: Option<f64>,
-    pub noise_dbm: Option<f64>,
-    pub snr_db: Option<f64>,
-    pub connected_bssid: Option<String>,
-    pub connected_ssid: Option<String>,
-    pub frequency_mhz: Option<u32>,
-    pub tx_rate_mbps: Option<f64>,
-    pub band: Option<String>,
-    pub tcp_upload_bps: Option<f64>,
-    pub tcp_download_bps: Option<f64>,
-    pub udp_throughput_bps: Option<f64>,
-    pub udp_jitter_ms: Option<f64>,
-    pub udp_packet_loss_pct: Option<f64>,
-    pub quality: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct CalibrationParams {
-    pub floor_id: String,
-    pub band: String,
-    pub path_loss_exponent: f64,
-    pub wall_correction_factor: f64,
-    pub offset_db: f64,
-    pub rmse_db: Option<f64>,
-    pub r_squared: Option<f64>,
-    pub num_measurements: u32,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct CalibrationResult {
-    pub n_original: f64,
-    pub n_calibrated: f64,
-    pub wall_correction_factor: f64,
-    pub rmse_db: f64,
-    pub r_squared: f64,
-    pub num_measurements: usize,
-    pub confidence: String,  // "good" | "fair" | "poor"
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct MeasurementResult {
-    pub wifi_info: WifiInfo,
-    pub tcp_upload: IperfTcpResult,
-    pub tcp_download: IperfTcpResult,
-    pub udp_result: IperfUdpResult,
-    pub quality: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct WifiInfo {
-    pub rssi_dbm: i32,
-    pub noise_dbm: Option<i32>,
-    pub ssid: Option<String>,
-    pub bssid: Option<String>,
-    pub frequency_mhz: Option<u32>,
-    pub tx_rate_mbps: Option<f64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct IperfTcpResult {
-    pub throughput_bps: f64,
-    pub retransmits: u32,
-    pub duration_secs: f64,
-    pub rtt_mean_us: Option<f64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct IperfUdpResult {
-    pub throughput_bps: f64,
-    pub jitter_ms: f64,
-    pub lost_packets: u32,
-    pub total_packets: u32,
-    pub lost_percent: f64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct APConfig {
-    pub tx_power_24ghz_dbm: Option<f64>,
-    pub tx_power_5ghz_dbm: Option<f64>,
-    pub channel_24ghz: Option<i32>,
-    pub channel_5ghz: Option<i32>,
-    pub channel_width_24ghz: Option<String>,
-    pub channel_width_5ghz: Option<String>,
-    pub ssids: Vec<SSIDConfig>,
-    pub firmware_version: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SSIDConfig {
-    pub ssid: String,
-    pub band: String,
-    pub security: String,
-    pub enabled: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct APChangeSet {
-    pub tx_power_24ghz_dbm: Option<f64>,
-    pub tx_power_5ghz_dbm: Option<f64>,
-    pub channel_24ghz: Option<i32>,
-    pub channel_5ghz: Option<i32>,
-    pub channel_width_24ghz: Option<String>,
-    pub channel_width_5ghz: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct APApplyResult {
-    pub success: bool,
-    pub assist_steps: Option<Vec<AssistStep>>,
-    pub errors: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AssistStep {
-    pub step_number: u32,
-    pub instruction_en: String,
-    pub instruction_de: String,
-    pub url: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct APVerificationResult {
-    pub ip_reachable: bool,
-    pub web_ui_login: bool,
-    pub snmp_available: bool,
-    pub ssh_available: bool,
-    pub firmware_version: Option<String>,
-    pub auto_apply_possible: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct APDiscoveryResult {
-    pub reachable: bool,
-    pub firmware_version: Option<String>,
-    pub model_detected: Option<String>,
-    pub snmp_available: bool,
-    pub capabilities: APCapabilities,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct APCapabilities {
-    pub can_set_tx_power: bool,
-    pub can_set_channel: bool,
-    pub can_set_channel_width: bool,
-    pub can_set_ssid: bool,
-    pub supports_auto_apply: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AppSettings {
-    pub language: String,           // "en" | "de"
-    pub color_scheme: String,       // "viridis" | "jet" | "inferno"
-    pub default_band: String,       // "2.4ghz" | "5ghz"
-    pub iperf_server_ip: String,
-    pub grid_step_meters: f64,      // 0.05 oder 0.10
-    pub heatmap_opacity: f64,       // 0.0 - 1.0
-    pub snap_to_grid: bool,
-    pub grid_size_cm: f64,          // 10
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct MeasurementProgress {
-    pub step: String,               // "tcp_upload" | "tcp_download" | "udp"
-    pub percent: u32,
-    pub live_throughput_bps: Option<f64>,
+impl From<reqwest::Error> for AppError {
+    fn from(e: reqwest::Error) -> Self {
+        AppError::Network(e.to_string())
+    }
 }
 ```
 
-### TypeScript (src/lib/types/)
-
-Die TypeScript-Typen spiegeln die Rust-Structs 1:1 wider. Die Generierung kann spaeter automatisiert werden (z.B. via `specta` Crate fuer Tauri).
+**Frontend-seitige Fehlerbehandlung:**
 
 ```typescript
-// src/lib/types/project.ts
-export interface Project {
-    id: string;
-    name: string;
-    description?: string;
-    createdAt: string;
-    updatedAt: string;
-    settings?: string;
-    floors: Floor[];
+// api/helpers.ts
+import { invoke } from '@tauri-apps/api/core';
+import { addToast } from '$lib/stores/toastStore.svelte';
+
+export async function safeInvoke<T>(
+  command: string,
+  params?: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return await invoke<T>(command, params);
+  } catch (error: unknown) {
+    const message = typeof error === 'string' ? error : 'Unknown error';
+
+    // Benutzerfreundliche Fehlermeldung anzeigen
+    addToast({
+      type: 'error',
+      title: getErrorTitle(command),
+      message: translateError(message),
+    });
+
+    throw error; // Re-throw fuer Caller
+  }
+}
+```
+
+### 7.4 AP-Credentials: Verschluesselte Speicherung
+
+AP-Zugangsdaten (IP, Benutzername, Passwort) werden nicht im Klartext in der SQLite-Datenbank gespeichert.
+
+**Strategie:**
+
+1. **Betriebssystem-Keychain** (bevorzugt):
+   - macOS: Keychain via `security` CLI oder `keychain-services` Crate
+   - Windows: Windows Credential Manager
+   - Linux: Secret Service API (GNOME Keyring / KDE Wallet)
+
+2. **Fallback - Verschluesselung in SQLite:**
+   - AES-256-GCM Verschluesselung
+   - Schluessel aus Geraete-spezifischem Seed abgeleitet
+   - Passwort-Feld in `access_points.connection_config` als JSON-Blob mit verschluesseltem Wert
+
+```rust
+// Konzept: Credential-Management
+pub trait CredentialStore: Send + Sync {
+    fn store(&self, key: &str, username: &str, password: &str) -> Result<(), AppError>;
+    fn retrieve(&self, key: &str) -> Result<(String, String), AppError>;
+    fn delete(&self, key: &str) -> Result<(), AppError>;
 }
 
-// ... analog fuer alle Typen (camelCase statt snake_case)
+#[cfg(target_os = "macos")]
+pub struct KeychainStore;
+
+#[cfg(target_os = "macos")]
+impl CredentialStore for KeychainStore {
+    fn store(&self, key: &str, username: &str, password: &str) -> Result<(), AppError> {
+        // keychain-services Crate
+        // Service: "com.wlan-optimizer.ap-credentials"
+        // Account: key (z.B. "ap-192.168.1.10")
+        todo!()
+    }
+    // ...
+}
 ```
 
 ---
 
-## Entscheidungsprotokoll
+## 8. Erweiterbarkeit
 
-| ID | Architektur-Entscheidung | Begruendung | Referenz |
-|----|--------------------------|-------------|----------|
-| A-01 | Tab-basierte SPA statt URL-Routing | Desktop-App benoetigt kein URL-Routing; Tabs sind natuerlicher | D-04 |
-| A-02 | 3 Konva Layers (Grundriss, Heatmap, UI) | Unabhaengiges Neuzeichnen, Heatmap-Layer non-interactive | Canvas-Heatmap.md |
-| A-03 | Heatmap als ImageData in Web Worker | Nicht-blockierend, progressive Render, < 500ms Ziel | D-06 |
-| A-04 | rusqlite synchron im Backend | Kein IPC fuer DB, volle Kontrolle, Desktop-ideal | Tech-Stack-Evaluation.md |
-| A-05 | Managed State mit Mutex | Einfachstes Pattern fuer Single-Connection SQLite | Tauri 2 Docs |
-| A-06 | iPerf3 als Sidecar, nicht FFI | Bewaehrt, stabil, einfachste Integration | D-13, Messung-Kalibrierung.md |
-| A-07 | AP-Credentials in SQLite (unverschluesselt MVP) | Einfachheit; Keychain spaeter | Sicherheitsabwaegung |
-| A-08 | Typisierte AppError mit thiserror+serde | Strukturierte Fehler ueber IPC, Frontend kann reagieren | Rust Best Practices |
-| A-09 | Events fuer Mess-Fortschritt | Start_measurement ist langlebig (30s+); Events fuer Live-Updates | Tauri Events API |
-| A-10 | camelCase im Frontend, snake_case im Backend | Konvention der jeweiligen Sprache; Serde rename moeglich | Code-Standards |
+### 8.1 Plugin-artige AP-Adapter (neue Hersteller)
+
+Das Adapter-Pattern (Abschnitt 3.3) ermoeglicht das Hinzufuegen neuer AP-Hersteller ohne Aenderung des Kerns:
+
+```rust
+// Neuen Adapter registrieren
+pub fn create_adapter(ap: &AccessPoint) -> Box<dyn APControllerTrait> {
+    match ap.model.manufacturer.as_str() {
+        "D-Link" => Box::new(DLinkWebGUIAdapter::new(ap)),
+        "Ubiquiti" => Box::new(UnifiAdapter::new(ap)),     // Community
+        "TP-Link" => Box::new(TPLinkAdapter::new(ap)),     // Community
+        _ => Box::new(CustomAPAdapter::new(ap)),            // Generisch
+    }
+}
+```
+
+**Neue Adapter implementieren:**
+
+1. Neues Rust-Modul in `src-tauri/src/ap_control/` anlegen
+2. `APControllerTrait` implementieren
+3. In der Factory-Funktion registrieren
+4. AP-Modell in der Datenbank hinterlegen
+
+### 8.2 Material-Editor (benutzerdefinierbar)
+
+Materialwerte sind user-editierbar (D-07):
+
+- **Global**: Standardwerte in `materials`-Tabelle koennen vom Benutzer ueberschrieben werden
+- **Pro Wand**: Einzelne Waende koennen individuelle Daempfungswerte haben (`custom_attenuation_*` Felder)
+- **Benutzerdefinierte Materialien**: Neue Materialien in `user_materials`-Tabelle
+- **Reset**: Jeder Wert kann auf den Tabellenwert zurueckgesetzt werden
+
+```mermaid
+flowchart TD
+    WallSelect["Wand ausgewaehlt"]
+    WallSelect --> MaterialPanel["Material-Panel"]
+
+    MaterialPanel --> QuickCat["Quick-Kategorie<br/>Leicht / Mittel / Schwer"]
+    MaterialPanel --> DetailMat["Detail-Material<br/>10-12 Kernmaterialien MVP<br/>27 Materialien V1.1"]
+    MaterialPanel --> CustomVal["Benutzerdefinierter Wert<br/>Daempfung 2.4/5 GHz manuell"]
+
+    QuickCat --> Apply["Daempfungswerte setzen"]
+    DetailMat --> Apply
+    CustomVal --> Apply
+
+    Apply --> HeatmapRecalc["Heatmap neu berechnen"]
+```
+
+### 8.3 Multi-Floor (Datenmodell bereit, UI V1.1)
+
+Das Datenmodell ist Multi-Floor-faehig (D-08):
+
+- `floors`-Tabelle mit `floor_number` und `project_id` Foreign Key
+- Waende, APs, Messungen referenzieren `floor_id`
+- **MVP**: UI zeigt nur ein Stockwerk, nur eine Floor-Zeile pro Projekt
+- **V1.1**: Stockwerk-Tabs, Decken-Daempfung zwischen Stockwerken (F01-F04 Materialien)
+- **Datenmodell-Erweiterung V1.1**: `floor_connections`-Tabelle fuer vertikale Signal-Pfade
+
+### 8.4 6 GHz Band (Datenmodell bereit, UI spaeter)
+
+Das Datenmodell hat Felder fuer 6 GHz (D-09):
+
+- `ap_models`: `max_tx_power_6ghz_dbm`, `antenna_gain_6ghz_dbi` (aktuell NULL)
+- `materials`: `attenuation_6ghz_db` (Werte bereits recherchiert in RF-Materialien.md)
+- **MVP**: UI zeigt nur 2.4 GHz + 5 GHz Toggle
+- **Spaeter**: 6 GHz freischalten sobald ein Wi-Fi 6E AP zum Testen verfuegbar ist
+- **RF-Modell**: PL(1m) bei 6 GHz = 49.34 dB (berechnet: 20*log10(4*PI*6e9/c))
+
+### 8.5 WASM-Migrationspfad fuer Heatmap
+
+Die Heatmap-Berechnung ist im MVP als TypeScript Web Worker implementiert (D-06). Eine spaetere Migration auf WebAssembly ist moeglich ohne UI-Aenderung:
+
+```mermaid
+flowchart LR
+    subgraph MVP
+        TS["TypeScript<br/>Web Worker<br/>heatmap-worker.ts"]
+    end
+
+    subgraph PostMVP["V1.1 optional"]
+        WASM["Rust -> WASM<br/>Web Worker<br/>heatmap-worker.wasm"]
+    end
+
+    subgraph Interface["Gleiche Schnittstelle"]
+        MSG["postMessage aps walls bounds<br/>Transferable ArrayBuffer"]
+    end
+
+    TS --> MSG
+    WASM --> MSG
+```
+
+**Migrationsschritte:**
+
+1. RF-Engine in Rust implementieren (kann mit `cargo test` getestet werden)
+2. Via `wasm-pack` als WebAssembly kompilieren
+3. Worker austauschen: statt TypeScript-Datei die `.wasm`-Datei laden
+4. Gleiche `postMessage`/`onmessage`-Schnittstelle beibehalten
+5. Erwarteter Performance-Gewinn: 2-5x schneller (besonders bei grossen Grundrissen)
+
+### 8.6 Weitere geplante Erweiterungen
+
+| Feature | Version | Datenmodell-Bereit | UI-Bereit |
+|---------|---------|-------------------|-----------|
+| SVG-Import fuer Grundrisse | V1.1 | - | Nein |
+| Auto-Mode (AP live steuern) | V1.1 | Ja (Adapter-Pattern) | Nein |
+| Run 2 (gemeinsame SSID, Roaming) | V1.1 | Ja (run_number = 2) | Nein |
+| Greedy-Optimierung | V1.1 | - | Nein |
+| 27 Materialien (statt 10-12) | V1.1 | Ja (materials-Tabelle) | Nein |
+| Multi-Floor UI | V1.1 | Ja (floors-Tabelle) | Nein |
+| Windows-Plattform (RSSI) | V1.1 | Ja (WifiMeasurement Trait) | Nein |
+| Linux-Plattform (RSSI) | V1.2 | Ja (WifiMeasurement Trait) | Nein |
+| 6 GHz Band | Wenn Test-AP vorhanden | Ja (DB-Felder) | Nein |
+| Code-Signing (macOS) | V1.0 Release | - | - |
+| DXF-Import | V1.2+ | - | Nein |
+| Bayesian Kalibrierung | V1.2+ | - | Nein |
+
+---
+
+## Anhang A: Referenz-AP Parameter (D-Link DAP-X2810)
+
+| Parameter | 2.4 GHz | 5 GHz |
+|-----------|---------|-------|
+| Max. TX Power | 23 dBm | 26 dBm |
+| Antennengewinn | 3.2 dBi | 4.3 dBi |
+| MIMO | 2x2 | 2x2 |
+| Wi-Fi Standard | 802.11ax (Wi-Fi 6) | 802.11ax (Wi-Fi 6) |
+| Max. Datenrate | 574 Mbps | 1200 Mbps |
+| EIRP | 26.2 dBm | 30.3 dBm |
+
+## Anhang B: Signal-Schwellen (Default)
+
+| Bewertung | RSSI-Bereich | UI-Farbe | Typische Nutzung |
+|-----------|-------------|----------|------------------|
+| Excellent | > -50 dBm | Dunkelgruen | HD-Streaming, VoIP, Gaming |
+| Good | -50 bis -65 dBm | Hellgruen | Standard-Nutzung |
+| Fair | -65 bis -75 dBm | Gelb | Web-Browsing, E-Mail |
+| Poor | -75 bis -85 dBm | Orange | Verbindungsprobleme moeglich |
+| No Signal | < -85 dBm | Rot | Keine zuverlaessige Verbindung |
+
+## Anhang C: Kernmaterialien (MVP - 10 Stueck)
+
+| ID | Material | Daempfung 2.4 GHz | Daempfung 5 GHz | Kategorie |
+|----|----------|-------------------|-----------------|-----------|
+| W01 | Gipskarton / Rigips | 4 dB | 6 dB | Leicht |
+| W02 | Holz (duenn) | 4 dB | 6 dB | Leicht |
+| W04 | Innentuer (Holz) | 4 dB | 6 dB | Leicht |
+| W06 | Poroton / Mauerwerk (17cm) | 10 dB | 18 dB | Mittel |
+| W07 | Poroton / Mauerwerk (36cm) | 15 dB | 25 dB | Mittel |
+| W09 | Beton (15cm) | 12 dB | 20 dB | Mittel |
+| W10 | Stahlbeton (20cm+) | 25 dB | 45 dB | Schwer |
+| W12 | Normales Glas | 3 dB | 5 dB | Leicht |
+| W13 | Low-E Isolierglas | 22 dB | 28 dB | Schwer |
+| W15 | Metalltuer | 12 dB | 18 dB | Mittel |
+
+## Anhang D: Abhaengigkeiten (Dependencies)
+
+### Frontend (npm)
+
+| Paket | Version | Lizenz | Zweck |
+|-------|---------|--------|-------|
+| svelte | ^5.x | MIT | Frontend-Framework |
+| @sveltejs/kit | ^2.x | MIT | Meta-Framework |
+| konva | ^10.x | MIT | Canvas-Library |
+| svelte-konva | ^1.x | MIT | Svelte-Konva-Bindings |
+| @inlang/paraglide-js | latest | MIT | i18n (compile-time) |
+| @flatten-js/core | ^1.6.x | MIT | Geometrie, Intersections |
+| @tauri-apps/api | ^2.x | MIT | Tauri Frontend-API |
+| @tauri-apps/plugin-shell | ^2.x | MIT | Sidecar-Aufrufe |
+| @tauri-apps/plugin-dialog | ^2.x | MIT | Datei-Dialoge |
+
+### Backend (Cargo.toml)
+
+| Crate | Version | Lizenz | Zweck |
+|-------|---------|--------|-------|
+| tauri | 2.x | MIT | Desktop-Framework |
+| tauri-plugin-shell | 2.x | MIT | Sidecar (iPerf3) |
+| tauri-plugin-dialog | 2.x | MIT | Datei-Dialoge |
+| tauri-plugin-http | 2.x | MIT | HTTP-Requests |
+| rusqlite | 0.32.x | MIT | SQLite-Zugriff |
+| serde | 1.x | MIT/Apache-2.0 | Serialisierung |
+| serde_json | 1.x | MIT/Apache-2.0 | JSON-Parsing |
+| uuid | 1.x | MIT/Apache-2.0 | UUID-Generierung |
+| thiserror | 2.x | MIT/Apache-2.0 | Error-Handling |
+| reqwest | 0.12.x | MIT/Apache-2.0 | HTTP-Client (AP Web-GUI) |
+| rasn-snmp | 0.28.x | MIT/Apache-2.0 | SNMP (AP-Steuerung) |
+| objc2-core-wlan | latest | MIT | macOS WLAN-API |
+
+### Entwicklung
+
+| Tool | Version | Zweck |
+|------|---------|-------|
+| Vite | 6.x | Bundler |
+| Vitest | latest | Unit-Tests |
+| @testing-library/svelte | latest | Component-Tests |
+| WebdriverIO | latest | E2E-Tests |
+| Biome | latest | Linting + Formatting |
+| eslint-plugin-svelte | latest | Svelte-spezifische Lint-Regeln |
+
+---
+
+## Anhang E: Entscheidungsreferenz
+
+Dieses Dokument basiert auf folgenden bestaetigten Entscheidungen (vollstaendige Details in `docs/architecture/Entscheidungen.md`):
+
+| ID | Titel | Kern |
+|----|-------|------|
+| D-01 | Direkter AP-Zugriff | Kein Nuclias Connect, Adapter-Pattern |
+| D-02 | Mixing Console MVP | Forecast-Only + Assist-Mode |
+| D-03 | Kein Paywall | Alle Features sofort, gestuftes Onboarding |
+| D-04 | Tech-Stack | Svelte 5 + Tauri 2 + Konva.js + rusqlite |
+| D-05 | macOS-First | Volle Funktionalitaet zuerst auf macOS |
+| D-06 | Heatmap im Frontend | TypeScript Web Worker, WASM spaeter |
+| D-07 | Kernmaterialien + Quick-Kategorien | 10-12 MVP, user-editierbar |
+| D-08 | Multi-Floor vorbereiten | Datenstruktur ready, UI V1.1 |
+| D-09 | 6 GHz vorbereiten | Datenfelder ready, UI spaeter |
+| D-10 | Herstellerunabhaengigkeit | Custom AP-Profil, Community-Adapter |
+| D-11 | AP-Verifizierung als PoC | Nicht blockierend fuer MVP |
+| D-12 | iPerf3-Server | Kabelgebundenes Ziel, Same-Host-Fallback |
+| D-13 | iPerf3 als Sidecar | BSD-3-Clause, ~2 MB pro Plattform |
+| D-14 | Regelbasierter Optimierungsalgorithmus | Heuristiken, Mixing Console anpassbar |
+| D-15 | Messpunkte empfehlen | Adaptive Empfehlung, kein Zwang |
+| D-16 | Grundriss-Import | PNG, JPG, PDF (MVP), SVG (V1.1) |
+| D-17 | 3 Heatmap-Farbschemata | Viridis, Jet, Inferno |
+| D-18 | System-Sprache erkennen | Auto-Detection, Fallback-Dialog |
+| D-19 | Code-Signing spaeter | MVP unsigned, V1.0 Apple Dev Account |
+
+---
+
+## Anhang F: Terminologie
+
+| Begriff | Definition |
+|---------|-----------|
+| **Mixing Console** | Interaktive Slider-Oberflaeche zur Anpassung von AP-Parametern |
+| **Forecast-Mode** | Slider aendern nur die berechnete Heatmap (Simulation) |
+| **Assist-Mode** | Erzeugt Schritt-fuer-Schritt-Anleitung fuer manuelle AP-Aenderungen (MVP) |
+| **Auto-Mode** | Sendet Aenderungen direkt an den AP (Post-MVP, nach Verifizierung) |
+| **Run 1 (Baseline)** | Erste Messung vor Optimierung |
+| **Run 2 (Post-Optimierung)** | Messung nach angewendeten Aenderungen |
+| **Run 3 (Verifikation)** | Abschliessende Verifikations-Messung |
+| **Confidence** | Vertrauensniveau der Vorhersage (UI-Begriff) |
+| **RMSE** | Root Mean Square Error der Kalibrierung (technischer Begriff) |
+| **Path Loss Exponent (n)** | Daempfungsfaktor im RF-Modell (Default: 3.5) |
+| **Sidecar** | Externe Binaerdatei (iPerf3), die mit der App gebundelt wird |
+| **Custom AP** | Benutzerdefinierter AP ohne registrierten Adapter |
+
+---
+
+> **Dieses Dokument ist die verbindliche Referenz fuer die Implementierung in Phase 8.**
+> Aenderungen muessen als ADR (Architecture Decision Record) dokumentiert werden.

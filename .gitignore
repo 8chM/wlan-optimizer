@@ -21,6 +21,12 @@ dist/
 build/
 .next/
 out/
+.svelte-kit/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+*.rs.bk
 
 # Environment
 .env

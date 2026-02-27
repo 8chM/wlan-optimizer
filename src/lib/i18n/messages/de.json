@@ -1,0 +1,48 @@
+{
+  "app": {
+    "title": "WLAN-Optimizer",
+    "description": "WLAN-Planungs- und Optimierungstool"
+  },
+  "nav": {
+    "projects": "Projekte",
+    "editor": "Editor",
+    "measure": "Messen",
+    "mixing": "Mixing Console",
+    "results": "Ergebnisse",
+    "settings": "Einstellungen"
+  },
+  "menu": {
+    "file": "Datei",
+    "newProject": "Neues Projekt",
+    "openProject": "Projekt oeffnen",
+    "save": "Speichern",
+    "export": "Exportieren",
+    "settings": "Einstellungen"
+  },
+  "project": {
+    "create": "Projekt erstellen",
+    "delete": "Projekt loeschen",
+    "name": "Projektname",
+    "noProjects": "Noch keine Projekte. Erstelle dein erstes Projekt."
+  },
+  "action": {
+    "addWall": "Wand hinzufuegen",
+    "addAp": "Access Point hinzufuegen",
+    "undo": "Rueckgaengig",
+    "redo": "Wiederherstellen"
+  },
+  "label": {
+    "material": "Material",
+    "thickness": "Dicke",
+    "txPower": "Sendeleistung",
+    "channel": "Kanal",
+    "band": "Band"
+  },
+  "signal": {
+    "excellent": "Ausgezeichnet",
+    "good": "Gut",
+    "fair": "Ausreichend",
+    "poor": "Schwach",
+    "none": "Kein Signal"
+  }
+}

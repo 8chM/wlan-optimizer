@@ -14,6 +14,34 @@
 // License: iperf3 is BSD-3-Clause, compatible with MIT.
 //
 // See also: Architecture Doc section 3.4, D-13.
+//
+// ## Security: sidecar argument validation
+//
+// The capabilities config (capabilities/default.json) uses `"args": true` for the
+// iperf3 sidecar, which permits any argument list. A strict positional allowlist is
+// not feasible because:
+//
+// 1. The Tauri v2 shell plugin only supports a SINGLE fixed-length positional arg
+//    pattern per command name. It finds the first matching entry by name and
+//    validates position-by-position; there is no alternative/fallback matching.
+//
+// 2. This module invokes iperf3 with 4 different arg patterns of varying lengths:
+//    - TCP upload:    -c <ip> -t <dur> -P <streams> -J --omit 2         (9 args)
+//    - TCP download:  -c <ip> -t <dur> -P <streams> -R -J --omit 2     (10 args)
+//    - UDP test:      -c <ip> -u -b 0 -t <dur> -J                      (8 args)
+//    - Server check:  -c <ip> -t 1 -J --connect-timeout 3000           (7 args)
+//
+// 3. The capability scope is only enforced for JavaScript-side calls via
+//    `Command.create()`. All iperf3 invocations in this app go through Rust-side
+//    `app.shell().sidecar()` (ShellExt), which bypasses scope validation entirely.
+//    The frontend never calls the shell plugin directly for iperf3.
+//
+// Security mitigations enforced on the Rust side:
+//   - `validate_server_ip()` rejects any character outside [a-zA-Z0-9.:-] in the
+//     server IP, preventing command injection on the only user-supplied value.
+//   - All other arguments (flags, duration, streams) are constructed from validated
+//     Rust types (u32, enum), not from raw user strings.
+//   - The sidecar binary itself is bundled at build time, not user-replaceable.
 
 use serde::{Deserialize, Serialize};
 use tauri_plugin_shell::ShellExt;

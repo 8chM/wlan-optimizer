@@ -114,6 +114,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{t('nav.measure')} - {t('app.title')}</title>
+</svelte:head>
+
 <div class="measure-page">
   <!-- Left sidebar with measurement wizard -->
   <aside class="measure-sidebar">

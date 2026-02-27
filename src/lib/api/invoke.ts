@@ -339,7 +339,7 @@ export interface CommandMap {
 
   // ── Export Commands ──────────────────────────────────────────
   export_project: {
-    params: { project_id: string };
+    params: { project_id: string; format: 'json' | 'csv' };
     result: string;
   };
 

@@ -2,12 +2,13 @@
   ExportDialog.svelte - Modal dialog for exporting measurement results.
 
   Supports:
-  - JSON export (full measurement data)
-  - CSV export (tabular measurement data)
-  Uses browser download API (Blob + URL.createObjectURL) for MVP.
+  - JSON export (full structured project data via backend)
+  - CSV export (flat measurement table via backend)
+  Uses browser download API (Blob + URL.createObjectURL) for file saving.
 -->
 <script lang="ts">
   import { t } from '$lib/i18n';
+  import { safeInvoke } from '$lib/api/invoke';
   import type { MeasurementRunResponse, MeasurementResponse } from '$lib/api/invoke';
 
   // ─── Props ─────────────────────────────────────────────────────
@@ -15,9 +16,11 @@
   interface ExportDialogProps {
     /** Whether the dialog is open */
     open: boolean;
+    /** Project ID for backend export */
+    projectId: string;
     /** All measurement runs to export */
     runs: MeasurementRunResponse[];
-    /** All measurements grouped by run ID */
+    /** All measurements grouped by run ID (kept for display/count) */
     measurementsByRun: Record<string, MeasurementResponse[]>;
     /** Callback to close the dialog */
     onClose: () => void;
@@ -25,10 +28,14 @@
 
   let {
     open,
+    projectId,
     runs,
     measurementsByRun,
     onClose,
   }: ExportDialogProps = $props();
+
+  let isExporting = $state(false);
+  let exportError = $state<string | null>(null);
 
   // ─── Export Functions ──────────────────────────────────────────
 
@@ -48,97 +55,31 @@
   }
 
   /**
-   * Export measurement data as JSON.
+   * Export project data via the backend in the specified format.
    */
-  function exportJson(): void {
-    const exportData = {
-      exportedAt: new Date().toISOString(),
-      runs: runs.map((run) => ({
-        ...run,
-        measurements: measurementsByRun[run.id] ?? [],
-      })),
-    };
+  async function exportData(format: 'json' | 'csv'): Promise<void> {
+    isExporting = true;
+    exportError = null;
 
-    const json = JSON.stringify(exportData, null, 2);
-    const timestamp = new Date().toISOString().slice(0, 10);
-    downloadFile(`wlan-optimizer-results-${timestamp}.json`, json, 'application/json');
-    onClose();
-  }
+    try {
+      const data = await safeInvoke('export_project', {
+        project_id: projectId,
+        format,
+      });
 
-  /**
-   * Export measurement data as CSV.
-   */
-  function exportCsv(): void {
-    const headers = [
-      'run_number',
-      'run_type',
-      'run_status',
-      'measurement_id',
-      'point_id',
-      'timestamp',
-      'frequency_band',
-      'rssi_dbm',
-      'noise_dbm',
-      'snr_db',
-      'connected_bssid',
-      'connected_ssid',
-      'frequency_mhz',
-      'tx_rate_mbps',
-      'tcp_upload_bps',
-      'tcp_download_bps',
-      'tcp_retransmits',
-      'udp_throughput_bps',
-      'udp_jitter_ms',
-      'udp_lost_packets',
-      'udp_total_packets',
-      'udp_lost_percent',
-      'quality',
-    ];
-
-    const rows: string[] = [headers.join(',')];
-
-    for (const run of runs) {
-      const measurements = measurementsByRun[run.id] ?? [];
-      for (const m of measurements) {
-        const row = [
-          run.run_number,
-          run.run_type,
-          run.status,
-          m.id,
-          m.measurement_point_id,
-          m.timestamp,
-          m.frequency_band,
-          m.rssi_dbm ?? '',
-          m.noise_dbm ?? '',
-          m.snr_db ?? '',
-          m.connected_bssid ?? '',
-          m.connected_ssid ?? '',
-          m.frequency_mhz ?? '',
-          m.tx_rate_mbps ?? '',
-          m.iperf_tcp_upload_bps ?? '',
-          m.iperf_tcp_download_bps ?? '',
-          m.iperf_tcp_retransmits ?? '',
-          m.iperf_udp_throughput_bps ?? '',
-          m.iperf_udp_jitter_ms ?? '',
-          m.iperf_udp_lost_packets ?? '',
-          m.iperf_udp_total_packets ?? '',
-          m.iperf_udp_lost_percent ?? '',
-          m.quality,
-        ];
-        // Escape values that may contain commas
-        rows.push(row.map((v) => {
-          const str = String(v);
-          return str.includes(',') || str.includes('"') || str.includes('\n')
-            ? `"${str.replace(/"/g, '""')}"`
-            : str;
-        }).join(','));
-      }
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const mimeType = format === 'json' ? 'application/json' : 'text/csv';
+      const extension = format;
+      downloadFile(`wlan-optimizer-export-${timestamp}.${extension}`, data, mimeType);
+      onClose();
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err
+        ? (err as { message: string }).message
+        : 'Export failed';
+      exportError = message;
+    } finally {
+      isExporting = false;
     }
-
-    const csv = rows.join('\n');
-    const timestamp = new Date().toISOString().slice(0, 10);
-    downloadFile(`wlan-optimizer-results-${timestamp}.csv`, csv, 'text/csv');
-    onClose();
   }
 
   /**
@@ -186,19 +127,31 @@
           {runs.length} {runs.length === 1 ? t('measurement.run') : t('measurement.runs')}
         </p>
 
+        {#if exportError}
+          <p class="export-error">{exportError}</p>
+        {/if}
+
         <div class="export-buttons">
-          <button class="export-btn json-btn" onclick={exportJson}>
+          <button
+            class="export-btn json-btn"
+            onclick={() => exportData('json')}
+            disabled={isExporting}
+          >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H4zm8 10a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L12 15.586V12z"/>
             </svg>
-            <span>{t('results.exportJson')}</span>
+            <span>{isExporting ? '...' : t('results.exportJson')}</span>
           </button>
 
-          <button class="export-btn csv-btn" onclick={exportCsv}>
+          <button
+            class="export-btn csv-btn"
+            onclick={() => exportData('csv')}
+            disabled={isExporting}
+          >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
             </svg>
-            <span>{t('results.exportCsv')}</span>
+            <span>{isExporting ? '...' : t('results.exportCsv')}</span>
           </button>
         </div>
       </div>
@@ -269,6 +222,16 @@
     color: #808090;
   }
 
+  .export-error {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    background: rgba(255, 80, 80, 0.1);
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #ff8080;
+  }
+
   .export-buttons {
     display: flex;
     flex-direction: column;
@@ -293,10 +256,15 @@
     text-align: left;
   }
 
-  .export-btn:hover {
+  .export-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.15);
     color: #e0e0f0;
+  }
+
+  .export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .export-btn svg {

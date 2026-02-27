@@ -65,6 +65,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{t('nav.settings')} - {t('app.title')}</title>
+</svelte:head>
+
 <Layout showSidebar={false} showEditorTools={false}>
   <div class="settings-page">
     <div class="settings-container">

@@ -217,6 +217,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{t('nav.results')} - {t('app.title')}</title>
+</svelte:head>
+
 <div class="results-page">
   {#if isLoading}
     <div class="loading-state">
@@ -367,6 +371,7 @@
 <!-- Export Dialog -->
 <ExportDialog
   open={exportDialogOpen}
+  projectId={projectStore.currentProject?.id ?? ''}
   {runs}
   {measurementsByRun}
   onClose={() => (exportDialogOpen = false)}

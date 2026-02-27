@@ -110,6 +110,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{t('nav.mixing')} - {t('app.title')}</title>
+</svelte:head>
+
 <!-- Headless forecast heatmap renderer -->
 {#if floor}
   <ForecastHeatmap

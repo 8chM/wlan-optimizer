@@ -84,6 +84,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>{t('nav.editor')} - {t('app.title')}</title>
+</svelte:head>
+
 <div class="editor-container" bind:clientWidth={containerWidth} bind:clientHeight={containerHeight}>
   {#if floor}
     <FloorplanEditor

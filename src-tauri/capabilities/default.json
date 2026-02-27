@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicobao/tauri-v2-schema/refs/heads/main/capability.json",
   "identifier": "default",
-  "description": "Default capability set for WLAN-Optimizer",
+  "description": "Default capability set for WLAN-Optimizer. Note: iperf3 sidecar uses args:true because multiple variable-length arg patterns cannot be expressed as a single positional allowlist. Security is enforced Rust-side via validate_server_ip() in src/measurement/iperf.rs.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -22,8 +22,8 @@
         {
           "name": "binaries/iperf3",
           "cmd": "binaries/iperf3",
-          "args": true,
-          "sidecar": true
+          "sidecar": true,
+          "args": true
         }
       ]
     }

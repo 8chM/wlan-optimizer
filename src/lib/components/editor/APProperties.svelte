@@ -95,9 +95,10 @@
     <h4 class="section-title">{t('label.txPower')}</h4>
 
     <div class="slider-row">
-      <span class="prop-label">2.4 GHz</span>
+      <label for="tx-power-24" class="prop-label">2.4 GHz</label>
       <div class="slider-group">
         <input
+          id="tx-power-24"
           type="range"
           class="slider"
           min="1"
@@ -105,15 +106,19 @@
           step="1"
           bind:value={txPower24}
           onchange={handleTxPower24Change}
+          aria-valuemin={1}
+          aria-valuemax={23}
+          aria-valuenow={txPower24}
         />
         <span class="slider-value">{txPower24} dBm</span>
       </div>
     </div>
 
     <div class="slider-row">
-      <span class="prop-label">5 GHz</span>
+      <label for="tx-power-5" class="prop-label">5 GHz</label>
       <div class="slider-group">
         <input
+          id="tx-power-5"
           type="range"
           class="slider"
           min="1"
@@ -121,6 +126,9 @@
           step="1"
           bind:value={txPower5}
           onchange={handleTxPower5Change}
+          aria-valuemin={1}
+          aria-valuemax={26}
+          aria-valuenow={txPower5}
         />
         <span class="slider-value">{txPower5} dBm</span>
       </div>
@@ -159,14 +167,16 @@
   <!-- Delete -->
   <div class="prop-section delete-section">
     {#if confirmingDelete}
-      <p class="confirm-text">{t('properties.deleteConfirmAp')}</p>
-      <div class="confirm-actions">
-        <button class="btn-danger" onclick={handleConfirmDelete}>
-          {t('action.confirm')}
-        </button>
-        <button class="btn-cancel" onclick={handleCancelDelete}>
-          {t('project.cancel')}
-        </button>
+      <div role="alertdialog" aria-label={t('properties.deleteConfirmAp')}>
+        <p class="confirm-text">{t('properties.deleteConfirmAp')}</p>
+        <div class="confirm-actions">
+          <button class="btn-danger" onclick={handleConfirmDelete}>
+            {t('action.confirm')}
+          </button>
+          <button class="btn-cancel" onclick={handleCancelDelete}>
+            {t('project.cancel')}
+          </button>
+        </div>
       </div>
     {:else}
       <button class="btn-delete" onclick={handleDeleteClick}>

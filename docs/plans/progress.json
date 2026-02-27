@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 8,
+  "currentPhase": 9,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -81,8 +81,9 @@
     },
     "8": {
       "name": "Autonome Entwicklung",
-      "status": "in_progress",
-      "gate": "pending",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
       "subtasks": {
         "8a": { "name": "Scaffolding + PoC", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8a-01..09: Tauri2+Svelte5 Scaffolding, Biome, Vitest, 16 DB-Tabellen (3 Migrationen), Rust module stubs (commands, db, ap_control, measurement, export, platform), TypeScript types, i18n, SvelteKit routes" },
         "8b": { "name": "Kernmodul Planung", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8b-01..16: 14 neue Backend-Commands (CRUD+Batch), N+1 fix, FrequencyBand Enum. Frontend: Layout, Stores (Svelte 5 Runes), Canvas Editor, WallDrawingTool, APMarker, MaterialPicker, AutoSave, GridOverlay. Code-Review: 5 CRITICAL + 23 WARNING behoben." },
@@ -90,10 +91,10 @@
         "8d": { "name": "Modul Messung", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8d-01..10: iPerf3 Sidecar (TCP up/down, UDP, validate_server_ip), WiFi-Scanner macOS (airport CLI, RSSI/noise/BSSID/SSID/channel), RF-Kalibrierung (Grid Search coarse+fine, RMSE, R², wall_correction, confidence), 8 Tauri Commands, DB measurement.rs CRUD, MeasurementStore (Svelte 5 Runes), API Layer, MeasurementWizard (4-Schritt), ServerSetup, RunOverview, MeasurementProgress, ResultCard, CalibrationResult, MeasurementPoints Konva (quality-colors, run-shapes), Measure Page Layout. Code-Review: 3 CRITICAL + 10 WARNING behoben. 208 Tests (85 neu)." },
         "8e": { "name": "Modul Optimierung", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8e-01..09: Regelbasierter Optimizer (3 Heuristiken: Channel, TX Power, Width), 5 Tauri Commands, DB CRUD mit Transaktionen, CustomAPAdapter (Assist-Steps DE+EN), MixingConsoleStore (Svelte 5 Runes), MixingConsole + Slider + APSliderGroup + ChangeList + AssistSteps + ForecastHeatmap, Mixing Page (320px Sidebar), 103 Store-Tests (311 gesamt). Code-Review: 3 CRITICAL + 7 WARNING behoben." },
         "8f": { "name": "UI/UX & i18n", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8f-01..10: i18n komplett (alle Keys EN+DE), Dark/Light/System Theme (CSS Custom Props, themeStore), Keyboard Shortcuts (Registry, ShortcutHelp ?-Taste), einklappbare Sidebar (Breakpoint <1024px), PropertiesPanel (WallProperties, APProperties), Toast-Notifications (toastStore), OnboardingDialog (3 Schritte), ResultsDashboard (RunComparisonCard, ExportDialog JSON/CSV), Settings Page (Sprache, Theme, Heatmap, iPerf). Code-Review: 3 CRITICAL + 4 WARNING behoben. 27 Dateien, 4279 Zeilen." },
-        "8g": { "name": "Integration", "status": "pending" }
+        "8g": { "name": "Integration", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8g-01..08: IPC-Audit (FloorData flatten, params wrapping, Response-Types vervollstaendigt, 3 fehlende Commands), Security (http-plugin+reqwest entfernt, Status-Validierung), keyboard.ts Complexity refactored, heatmap-worker.ts postMessage fix. 170 Integration-Tests + 16 Performance-Benchmarks. Code-Review bestanden. 497 Tests gesamt." }
       }
     },
-    "9": { "name": "Qualitaetskontrolle & Verbesserungsidentifikation", "status": "pending", "gate": "pending" },
+    "9": { "name": "Qualitaetskontrolle & Verbesserungsidentifikation", "status": "in_progress", "gate": "pending" },
     "10": { "name": "Produktverbesserungen", "status": "pending", "gate": "pending" },
     "11": { "name": "Dokumentation & Uebergabe", "status": "pending", "gate": "pending" }
   },

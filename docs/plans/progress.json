@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 4,
+  "currentPhase": 5,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -47,7 +47,14 @@
       },
       "notes": "6 Recherche-Dokumente (6.681 Zeilen). Tech-Stack: Svelte 5 + Tauri 2 + Konva.js + rusqlite + Vitest + Biome. AP: Web-Interface-Scraping primaer, SNMP sekundaer. Heatmap: Konva.js + eigene ImageData + WebWorker. RF: 27 Wandmaterialien + 4 Decken. Messung: iPerf3 Sidecar + RSSI pro Plattform. Open-Source: flatten-js, simpleheat, paraglide-js empfohlen."
     },
-    "4": { "name": "Klaerung mit Benutzer", "status": "in_progress", "gate": "pending" },
+    "4": {
+      "name": "Klaerung mit Benutzer",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "deliverable": "docs/architecture/Entscheidungen.md",
+      "notes": "19 Fragen geklaert. Kern: Mixing Console Forecast+Assist MVP, kein Paywall, Svelte5+Tauri2+Rust bestaetigt (mit PoC-Bedingung), macOS-first, Heatmap im Frontend Worker, 10-12 Materialien user-editierbar, Multi-Floor+6GHz in Datenstruktur vorbereiten"
+    },
     "5": { "name": "Architektur & Tech-Stack", "status": "pending", "gate": "pending" },
     "6": { "name": "Orchestrierungsstrategie", "status": "pending", "gate": "pending" },
     "7": { "name": "Detailplanung", "status": "pending", "gate": "pending" },
@@ -57,11 +64,19 @@
   },
   "blockers": [],
   "decisions": [
-    {
-      "id": "D-01",
-      "description": "Direkter AP-Zugriff statt Nuclias Connect - AP muss ueber unser Tool gesteuert werden",
-      "date": "2026-02-27",
-      "status": "confirmed"
-    }
+    { "id": "D-01", "description": "Direkter AP-Zugriff statt Nuclias Connect", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-02", "description": "Mixing Console MVP: Forecast-Only + Assist-Mode Apply", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-03", "description": "Kein Paywall, gestuftes Onboarding", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-04", "description": "Tech-Stack: Svelte 5 + Tauri 2 + Rust + Konva.js + rusqlite + Vitest + Biome (mit PoC-Bedingung)", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-05", "description": "macOS-First, Windows V1.1, Linux V1.2", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-06", "description": "Heatmap-Berechnung im Frontend (TypeScript + Web Worker), Progressive Render", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-07", "description": "10-12 Kernmaterialien + 3 Quick-Kategorien, user-editierbar", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-08", "description": "Multi-Floor in Datenstruktur, UI nur 1 Floor MVP", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-09", "description": "6 GHz in Datenstruktur, UI nur 2.4+5 GHz MVP", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-10", "description": "DAP-X2810 + Custom AP Profil, Assist-Steps fuer Custom", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-13", "description": "iPerf3 als Sidecar bundlen (BSD-3)", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-14", "description": "Regelbasierter Optimierungsalgorithmus MVP", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-17", "description": "3 Heatmap-Farbschemata (Viridis default)", "date": "2026-02-27", "status": "confirmed" },
+    { "id": "D-19", "description": "MVP unsigned, Code-Signing ab V1.0", "date": "2026-02-27", "status": "confirmed" }
   ]
 }

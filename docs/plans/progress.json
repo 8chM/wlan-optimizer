@@ -61,13 +61,21 @@
       "gate": "passed",
       "completedAt": "2026-02-27",
       "deliverable": "docs/architecture/Architektur.md",
-      "notes": "Komponentenarchitektur mit 8 Abschnitten: System-Ueberblick (Mermaid), Frontend (Svelte-Komponentenbaum, 4 Stores, 3 Konva-Layers, Web Worker), Backend (5 Rust-Module: commands, db, ap_control, measurement, export), Verzeichnisstruktur (70+ Dateien), 4 Datenfluss-Diagramme, IPC-API (37 Tauri Commands in 9 Gruppen + 3 Events), Fehlerbehandlung (thiserror + Toast), Sicherheit (Tauri Permissions, CSP). DB-Schema mit 8 Tabellen (Multi-Floor + 6GHz vorbereitet). 10 Architektur-Entscheidungen dokumentiert (A-01 bis A-10)."
+      "notes": "4280 Zeilen: Architektur.md (Systemuebersicht, Frontend, Backend, IPC-API, Sicherheit) + Datenmodell.md (16 Tabellen, Seed-Daten, TypeScript/Rust-Typen, Undo/Redo)"
     },
-    "6": { "name": "Orchestrierungsstrategie", "status": "pending", "gate": "pending" },
+    "6": {
+      "name": "Orchestrierungsstrategie",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "deliverable": "docs/plans/Orchestrierung.md",
+      "notes": "1074 Zeilen: Modell-Matrix, 6 Agenten-Rollen, Sub-Phasen-Plan, Quality Gates, Session-Management"
+    },
     "7": { "name": "Detailplanung", "status": "pending", "gate": "pending" },
     "8": { "name": "Autonome Entwicklung", "status": "pending", "gate": "pending" },
-    "9": { "name": "Qualitaetssicherung", "status": "pending", "gate": "pending" },
-    "10": { "name": "Uebergabe & Demo", "status": "pending", "gate": "pending" }
+    "9": { "name": "Qualitaetskontrolle & Verbesserungsidentifikation", "status": "pending", "gate": "pending" },
+    "10": { "name": "Produktverbesserungen", "status": "pending", "gate": "pending" },
+    "11": { "name": "Dokumentation & Uebergabe", "status": "pending", "gate": "pending" }
   },
   "blockers": [],
   "decisions": [

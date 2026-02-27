@@ -16,8 +16,14 @@ Grundriss + Waende + APs -> Heatmap via RF-Modell (ITU-R P.1238).
 - Regelmaessig committen und zu GitHub pushen
 - Quality Gates einhalten - keine Phase ueberspringen
 
+## Autonomie (ab Phase 7)
+- Entscheidungen SELBST treffen, als ADR dokumentieren (`docs/architecture/ADR-*.md`)
+- Bei Unklarheiten: konservativste Option waehlen
+- Session-Grenzen planen: progress.json + MEMORY.md am Ende aktualisieren
+- AP-Anbindungen als Provider-Pattern (austauschbare Adapter pro Hersteller)
+
 ## NICHT
-- Keine Annahmen - recherchieren oder Benutzer fragen
+- Keine Annahmen ohne ADR-Dokumentation
 - Keine neuen Abhaengigkeiten ohne Begruendung
 - Keine Phase ueberspringen (siehe `.claude/rules/phasenmodell.md`)
 - Keine hardcodierten UI-Strings - immer i18n-Keys verwenden

@@ -2,34 +2,60 @@
 
 Quality Gate pro Phase erfuellen bevor naechste Phase beginnt.
 Fortschritt in `docs/plans/progress.json`.
+Entscheidungen als ADR in `docs/architecture/` dokumentieren.
 
-## Phase 0: Autonomie-Recherche ✅
-## Phase 1: Projektsetup ✅
-## Phase 2: Deep Dive & Lueckenanalyse ✅
+## Autonomie-Prinzip
+Ab Phase 7 wird VOLLSTAENDIG AUTONOM gearbeitet.
+- Entscheidungen SELBST treffen und als ADR dokumentieren
+- Bei Unklarheiten: konservativste Option waehlen, ADR schreiben
+- Session-Grenzen planen: Jede Sub-Phase muss in einer Session abschliessbar sein
+- Zustand in progress.json + MEMORY.md persistieren fuer naechste Session
+- AP-Anbindungen als Provider-Pattern (austauschbare Adapter)
 
-## Phase 3: Recherche & Evaluation ✅
-## Phase 4: Klaerung mit Benutzer ✅
-## Phase 5: Architektur & Tech-Stack ✅
-- Deliverable: `docs/architecture/Architektur.md`
-
-## Phase 6: Orchestrierungsstrategie
-- Gate: Agenten-Plan, Modell-Matrix in `docs/plans/Orchestrierung.md`
+## Phase 0-6: ✅ Abgeschlossen
+- Recherche, Setup, Architektur, Orchestrierung fertig
+- Deliverables: docs/research/*, docs/architecture/*, docs/plans/Orchestrierung.md
 
 ## Phase 7: Detailplanung
 - BMAD: `/sprint-planning` + `/create-story`
 - Gate: Tasks mit Abhaengigkeiten in `docs/plans/Implementierungsplan.md`
 
 ## Phase 8: Autonome Entwicklung
-- 8a: Scaffolding | 8b: Planung | 8c: Heatmap | 8d: Messung
-- 8e: Optimierung | 8f: UI/UX & i18n | 8g: Integration
-- BMAD: `/dev-story` pro Modul, `/create-ux-design` fuer UI
-- Gate je Sub-Phase: Tests gruen, Review bestanden
+- 8a: Scaffolding + PoC-Benchmarks
+- 8b: Kernmodul Planung (Grundriss, Waende, APs)
+- 8c: Kernmodul Heatmap (RF-Modell, Web Worker, Rendering)
+- 8d: Modul Messung (iPerf3 Sidecar, RSSI, Messpunkt-Wizard)
+- 8e: Modul Optimierung (Mixing Console, Assist-Mode)
+- 8f: UI/UX & i18n (Layout, Themes, Paraglide-js)
+- 8g: Integration (E2E, Fehlerbehebung)
+- Gate je Sub-Phase: Tests gruen, Review bestanden, progress.json aktuell
 
-## Phase 9: Qualitaetssicherung
-- Gate: Alle Tests gruen, `docs/plans/Test-Report.md`
+## Phase 9: Qualitaetskontrolle & Verbesserungsidentifikation
+- Vollstaendiger Test-Report (Unit, Integration, E2E, Performance)
+- Code-Review aller Module
+- Verbesserungsliste erstellen: UX, Performance, Robustheit, fehlende Features
+- Gate: `docs/plans/Test-Report.md` + `docs/plans/Verbesserungen.md`
 
-## Phase 10: Uebergabe & Demo
-- Gate: App laeuft, README + Setup-Anleitung komplett
+## Phase 10: Produktverbesserungen
+- Identifizierte Verbesserungen umsetzen (ueber MVP hinaus)
+- Ziel: Perfektes, sofort nutzbares Tool
+- Provider-Pattern fuer AP-Hersteller verfeinern
+- Polish: Animationen, Feedback, Error-Recovery, Edge Cases
+- Gate: Alle Verbesserungen umgesetzt oder begruendet zurueckgestellt
+
+## Phase 11: Dokumentation & Uebergabe
+- README.md mit Quick-Start, Screenshots, Architektur-Uebersicht
+- Setup-Anleitung fuer Entwickler (Contributing Guide)
+- Benutzer-Handbuch (in-app oder separate Seite)
+- Gate: App laeuft, Dokumentation komplett, GitHub-Release vorbereitet
+
+## Session-Management
+- Jede Sub-Phase (8a-8g) = 1 Session
+- Phase 9 = 1-2 Sessions
+- Phase 10 = 2-3 Sessions (abhaengig von Verbesserungsliste)
+- Phase 11 = 1 Session
+- Bei Session-Start: progress.json + MEMORY.md lesen
+- Bei Session-Ende: progress.json aktualisieren, committen, pushen
 
 ## BMAD-Toolbox (global installiert: ~/.claude/commands/bmad/)
 | Command | Nutzen | Phase |

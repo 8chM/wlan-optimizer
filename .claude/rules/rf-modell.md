@@ -26,6 +26,16 @@ RSSI = TX_Power + Antenna_Gain - PL(d)
 - Poor: -75 bis -85 dBm (orange)
 - No signal: < -85 dBm (rot)
 
+## Materialdatenbank
+- Vollstaendige Referenz: `docs/research/RF-Materialien.md`
+- 27 Wandmaterialien (W01-W27) + 4 Deckenmaterialien (F01-F04)
+- 3 Kategorien: leicht (4/6 dB), mittel (12/20 dB), schwer (25/45 dB) @ 2.4/5 GHz
+- ACHTUNG Low-E Fenster: 22/28 dB - fast so stark wie Beton!
+- Stahlbeton: 35/55 dB - staerkste Daempfung
+- Quellen: ITU-R P.1238-13, P.2040-4, NIST, iBwave, COST 231
+
 ## Konservativ-Prinzip
 - Bei Daempfungsbereichen: immer oberen Wert verwenden
 - Lieber zu pessimistisch als zu optimistisch
+- Modell-Genauigkeit unkalibriert: RMSE 8-12 dB
+- Modell-Genauigkeit kalibriert: RMSE 3-5 dB

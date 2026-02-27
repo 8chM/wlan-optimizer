@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 3,
+  "currentPhase": 4,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -26,8 +26,28 @@
       "completedAt": "2026-02-27",
       "notes": "52 Wissensluecken identifiziert (22 HOCH, 19 MITTEL, 11 NIEDRIG). 10 Kategorien. 2 Widersprueche zwischen Dokumenten. Top-Prioritaet: AP-Zugriffsmethode (WL-AP-01), Tech-Stack-Entscheidungen, Canvas-Library, Heatmap-Performance."
     },
-    "3": { "name": "Recherche & Evaluation", "status": "pending", "gate": "pending" },
-    "4": { "name": "Klaerung mit Benutzer", "status": "pending", "gate": "pending" },
+    "3": {
+      "name": "Recherche & Evaluation",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "subtasks": {
+        "3a": {
+          "name": "Technische Recherche",
+          "status": "completed",
+          "deliverables": [
+            "docs/research/AP-Steuerung.md",
+            "docs/research/Canvas-Heatmap.md",
+            "docs/research/RF-Materialien.md",
+            "docs/research/Messung-Kalibrierung.md"
+          ]
+        },
+        "3b": { "name": "Open-Source-Evaluation", "status": "completed", "deliverable": "docs/research/Open-Source-Evaluation.md" },
+        "3c": { "name": "Tech-Stack-Evaluation", "status": "completed", "deliverable": "docs/research/Tech-Stack-Evaluation.md" }
+      },
+      "notes": "6 Recherche-Dokumente (6.681 Zeilen). Tech-Stack: Svelte 5 + Tauri 2 + Konva.js + rusqlite + Vitest + Biome. AP: Web-Interface-Scraping primaer, SNMP sekundaer. Heatmap: Konva.js + eigene ImageData + WebWorker. RF: 27 Wandmaterialien + 4 Decken. Messung: iPerf3 Sidecar + RSSI pro Plattform. Open-Source: flatten-js, simpleheat, paraglide-js empfohlen."
+    },
+    "4": { "name": "Klaerung mit Benutzer", "status": "in_progress", "gate": "pending" },
     "5": { "name": "Architektur & Tech-Stack", "status": "pending", "gate": "pending" },
     "6": { "name": "Orchestrierungsstrategie", "status": "pending", "gate": "pending" },
     "7": { "name": "Detailplanung", "status": "pending", "gate": "pending" },

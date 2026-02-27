@@ -1,40 +1,30 @@
-# WLAN-Optimizer - Projektregeln
+# WLAN-Optimizer
+
+WLAN-Planungs- und Optimierungstool fuer Heimnetzwerke (lokal, Open Source, MIT).
+Grundriss + Waende + APs -> Heatmap via RF-Modell (ITU-R P.1238).
 
 ## Sprache
-- **Code**: Englisch (Variablen, Funktionen, Kommentare)
-- **Dokumentation**: Deutsch (PRD, Architektur, Plaene)
-- **Kommunikation**: Deutsch
-- **UI**: Zweisprachig (EN/DE), Key-basierte Uebersetzungen
+- Code: Englisch (Variablen, Funktionen, Kommentare)
+- Dokumentation & Kommunikation: Deutsch
+- UI: Zweisprachig (EN/DE), Key-basierte Uebersetzungen
 
-## Aktuelle Phase
-**Phase 3: Recherche & Evaluation** 🔄
-- Fortschritt: `docs/plans/progress.json`
-- Details: `.claude/rules/phasenmodell.md`
+## Arbeitsweise
+- IMMER `docs/plans/progress.json` lesen um aktuelle Phase zu ermitteln
+- Nicht-triviale Aenderungen: Erst planen, dann ausfuehren
+- Aenderungen durch Tests verifizieren
+- `docs/plans/progress.json` nach jedem Meilenstein aktualisieren
+- Regelmaessig committen und zu GitHub pushen
+- Quality Gates einhalten - keine Phase ueberspringen
 
-## Prinzipien
-- Vollstaendig autonom ab Phase 8
-- Quality Gates - keine Phase ueberspringen
-- Selbstkontrolle - eigene Arbeit pruefen
-- Keine Annahmen - recherchieren oder fragen
-- Einfachheit vor Komplexitaet
-- Entscheidungen als ADR dokumentieren
-- Regelmaessig zu GitHub pushen
+## NICHT
+- Keine Annahmen - recherchieren oder Benutzer fragen
+- Keine neuen Abhaengigkeiten ohne Begruendung
+- Keine Phase ueberspringen (siehe `.claude/rules/phasenmodell.md`)
+- Keine hardcodierten UI-Strings - immer i18n-Keys verwenden
 
-## Dokumentation
-```
-docs/
-├── prd/           # PRD, Funktionsliste
-├── research/      # Recherche, Evaluationen
-├── architecture/  # ADRs, Komponentendiagramm
-├── plans/         # Implementierungsplan, Backlog, progress.json
-└── archive/       # Originaldokumente
-```
-
-## Hardware-Kontext
-- Referenz-AP: D-Link DAP-X2810 (Wi-Fi 6, 2x2 MU-MIMO)
-- 2,4 GHz: 23 dBm TX, 3,2 dBi Gewinn
-- 5 GHz: 26 dBm TX, 4,3 dBi Gewinn
-- RF-Modell: `.claude/rules/rf-modell.md`
-
-## Tech-Stack
-(wird in Phase 5 festgelegt)
+## Verzeichnisse
+- `docs/prd/` - Anforderungen (PRD, Funktionsliste)
+- `docs/research/` - Recherche, Evaluationen, Wissensluecken
+- `docs/architecture/` - ADRs, Architektur
+- `docs/plans/` - Implementierungsplan, Backlog, progress.json
+- `.claude/rules/` - RF-Modell, Phasenmodell

@@ -7,9 +7,8 @@
 - **UI**: Zweisprachig (EN/DE), Key-basierte Uebersetzungen
 
 ## Aktuelle Phase
-**Phase 3: Recherche & Evaluation** 🔄
-- Fortschritt: `docs/plans/progress.json`
-- Details: `.claude/rules/phasenmodell.md`
+**Phase 0** 🔄
+- Recherche aus vorherigen Phasen war nicht ausreichend!
 
 ## Prinzipien
 - Vollstaendig autonom ab Phase 8

@@ -88,10 +88,10 @@
             : (ap.tx_power_5ghz_dbm ?? 26);
         }
 
-        // Get antenna gain for the selected band
+        // Get antenna gain from the AP model for the selected band
         const antennaGain = band === '2.4ghz'
-          ? (ap.antenna_gain_24ghz_dbi ?? 3.2)
-          : (ap.antenna_gain_5ghz_dbi ?? 4.3);
+          ? (ap.ap_model?.antenna_gain_24ghz_dbi ?? 3.2)
+          : (ap.ap_model?.antenna_gain_5ghz_dbi ?? 4.3);
 
         return {
           id: ap.id,

@@ -23,7 +23,33 @@
     "create": "Create Project",
     "delete": "Delete Project",
     "name": "Project Name",
-    "noProjects": "No projects yet. Create your first project to get started."
+    "description": "Description",
+    "noProjects": "No projects yet. Create your first project to get started.",
+    "deleteConfirm": "Are you sure you want to delete this project?",
+    "created": "Created",
+    "lastModified": "Last modified",
+    "open": "Open",
+    "newProject": "New Project",
+    "cancel": "Cancel"
+  },
+  "toolbar": {
+    "select": "Select",
+    "wall": "Wall",
+    "ap": "Access Point",
+    "measure": "Measure",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out",
+    "fitToScreen": "Fit to Screen",
+    "toggleGrid": "Toggle Grid",
+    "grid": "Grid"
+  },
+  "status": {
+    "saved": "Saved",
+    "saving": "Saving...",
+    "unsaved": "Unsaved changes",
+    "error": "Save error",
+    "zoom": "Zoom",
+    "grid": "Grid"
   },
   "action": {
     "addWall": "Add Wall",
@@ -44,5 +70,38 @@
     "fair": "Fair",
     "poor": "Poor",
     "none": "No Signal"
+  },
+  "editor": {
+    "wallDrawHint": "Click to place points. Double-click to finish. ESC to cancel.",
+    "apPlaceHint": "Click on the floor plan to place the access point.",
+    "scaleHint": "Click two points and enter the real distance to set the scale.",
+    "enterDistance": "Enter distance in meters",
+    "setScale": "Set Scale",
+    "deleteWall": "Delete Wall",
+    "deleteAp": "Delete Access Point",
+    "properties": "Properties",
+    "noFloorplan": "No floor plan image loaded.",
+    "uploadFloorplan": "Upload Floor Plan",
+    "setScaleFirst": "Please set the scale first."
+  },
+  "material": {
+    "light": "Light",
+    "medium": "Medium",
+    "heavy": "Heavy",
+    "blocking": "Blocking",
+    "drywall": "Drywall",
+    "glass": "Glass",
+    "woodDoor": "Wood Door",
+    "brick": "Brick",
+    "concrete": "Concrete",
+    "reinforcedConcrete": "Reinforced Concrete",
+    "metalDoor": "Metal Door",
+    "elevator": "Elevator Shaft",
+    "attenuation": "Attenuation"
+  },
+  "ap": {
+    "library": "AP Library",
+    "customAp": "Custom AP",
+    "dragOrClick": "Drag to canvas or select and click to place"
   }
 }

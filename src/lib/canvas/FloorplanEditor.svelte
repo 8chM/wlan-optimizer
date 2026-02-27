@@ -2,7 +2,7 @@
   FloorplanEditor.svelte - Main canvas component for the floorplan editor.
 
   Uses svelte-konva with 3 Konva layers:
-  - Background: non-interactive floorplan image
+  - Background: non-interactive floorplan image + grid
   - Heatmap: non-interactive heatmap overlay
   - UI: interactive elements (walls, APs, measurement points)
 
@@ -12,6 +12,8 @@
 <script lang="ts">
   import { Stage, Layer } from 'svelte-konva';
   import type Konva from 'konva';
+  import type { KonvaWheelEvent, KonvaDragTransformEvent } from 'svelte-konva';
+  import type { Snippet } from 'svelte';
 
   const MIN_SCALE = 0.1;
   const MAX_SCALE = 10;
@@ -31,6 +33,12 @@
     scalePxPerMeter?: number;
     /** Whether panning via drag is enabled */
     draggable?: boolean;
+    /** Snippet for background layer content */
+    background?: Snippet;
+    /** Snippet for heatmap layer content */
+    heatmap?: Snippet;
+    /** Snippet for UI layer content */
+    ui?: Snippet;
   }
 
   let {
@@ -40,6 +48,9 @@
     floorplanHeightM = 10,
     scalePxPerMeter = 50,
     draggable = true,
+    background,
+    heatmap,
+    ui,
   }: FloorplanEditorProps = $props();
 
   // Reactive stage configuration
@@ -47,21 +58,25 @@
   let stageX = $state(0);
   let stageY = $state(0);
 
-  // References to Konva nodes for external access
-  let stageRef = $state<Konva.Stage | null>(null);
-  let backgroundLayerRef = $state<Konva.Layer | null>(null);
-  let heatmapLayerRef = $state<Konva.Layer | null>(null);
-  let uiLayerRef = $state<Konva.Layer | null>(null);
+  // We obtain the stage reference from the first event that fires
+  let stageNode: Konva.Stage | null = null;
+
+  function captureStageRef(event: { target: Konva.Node }): void {
+    if (!stageNode) {
+      stageNode = event.target.getStage();
+    }
+  }
 
   /**
    * Handles mouse wheel events for pointer-relative zoom.
    * Zooms toward the current pointer position so that the point
    * under the cursor stays fixed on screen.
    */
-  export function handleWheel(event: Konva.KonvaEventObject<WheelEvent>): void {
+  export function handleWheel(event: KonvaWheelEvent): void {
     event.evt.preventDefault();
+    captureStageRef(event);
 
-    const stage = stageRef;
+    const stage = stageNode;
     if (!stage) return;
 
     const oldScale = stageScale;
@@ -153,47 +168,47 @@
   /**
    * Handles drag end events to update position state.
    */
-  function handleDragEnd(event: Konva.KonvaEventObject<DragEvent>): void {
-    const stage = event.target;
-    if (stage === stageRef) {
-      stageX = stage.x();
-      stageY = stage.y();
+  function handleDragEnd(event: KonvaDragTransformEvent): void {
+    captureStageRef(event);
+    const target = event.target;
+    // Only update if it's the stage that was dragged (not a child node)
+    const stage = target.getStage();
+    if (target === stage) {
+      stageX = target.x();
+      stageY = target.y();
     }
   }
 </script>
 
 <Stage
-  bind:handle={stageRef}
-  config={{
-    width,
-    height,
-    scaleX: stageScale,
-    scaleY: stageScale,
-    x: stageX,
-    y: stageY,
-    draggable,
-  }}
+  width={width}
+  height={height}
+  scaleX={stageScale}
+  scaleY={stageScale}
+  x={stageX}
+  y={stageY}
+  {draggable}
   onwheel={handleWheel}
   ondragend={handleDragEnd}
 >
-  <!-- Background layer: floorplan image (non-interactive) -->
-  <Layer
-    bind:handle={backgroundLayerRef}
-    config={{ listening: false }}
-  >
-    <slot name="background" />
+  <!-- Background layer: floorplan image + grid (non-interactive) -->
+  <Layer listening={false}>
+    {#if background}
+      {@render background()}
+    {/if}
   </Layer>
 
   <!-- Heatmap layer: signal overlay (non-interactive) -->
-  <Layer
-    bind:handle={heatmapLayerRef}
-    config={{ listening: false }}
-  >
-    <slot name="heatmap" />
+  <Layer listening={false}>
+    {#if heatmap}
+      {@render heatmap()}
+    {/if}
   </Layer>
 
   <!-- UI layer: interactive elements (walls, APs, measurement points) -->
-  <Layer bind:handle={uiLayerRef}>
-    <slot name="ui" />
+  <Layer>
+    {#if ui}
+      {@render ui()}
+    {/if}
   </Layer>
 </Stage>

@@ -33,7 +33,7 @@ export interface InvokeError {
 export interface CommandMap {
   // ── Project Commands ─────────────────────────────────────────
   create_project: {
-    params: { name: string; description?: string; locale?: string };
+    params: { params: { name: string; description?: string; locale?: string } };
     result: ProjectResponse;
   };
   get_project: {
@@ -43,6 +43,10 @@ export interface CommandMap {
   list_projects: {
     params: Record<string, never>;
     result: ProjectResponse[];
+  };
+  update_project: {
+    params: { params: { id: string; name?: string; description?: string; locale?: string } };
+    result: ProjectResponse;
   };
   delete_project: {
     params: { id: string };
@@ -55,7 +59,7 @@ export interface CommandMap {
     result: AppSettingsResponse;
   };
   update_settings: {
-    params: { settings: Partial<AppSettingsResponse> };
+    params: { params: Partial<AppSettingsResponse> };
     result: AppSettingsResponse;
   };
   get_system_language: {
@@ -64,28 +68,240 @@ export interface CommandMap {
   };
 
   // ── Floor Commands ───────────────────────────────────────────
+  create_floor: {
+    params: {
+      params: {
+        project_id: string;
+        name: string;
+        floor_number: number;
+        ceiling_height_m?: number;
+        floor_material_id?: string;
+      };
+    };
+    result: FloorResponse;
+  };
+  get_floors_by_project: {
+    params: { project_id: string };
+    result: FloorResponse[];
+  };
   get_floor_data: {
-    params: { floorId: string };
+    params: { floor_id: string };
     result: FloorDataResponse;
+  };
+  update_floor: {
+    params: {
+      params: {
+        id: string;
+        name?: string;
+        floor_number?: number;
+        ceiling_height_m?: number;
+        floor_material_id?: string;
+      };
+    };
+    result: FloorResponse;
+  };
+  set_floor_scale: {
+    params: {
+      floor_id: string;
+      px_per_meter: number;
+      width_meters: number;
+      height_meters: number;
+    };
+    result: FloorResponse;
+  };
+  import_floor_image: {
+    params: { floor_id: string; image_data: number[]; format: string };
+    result: FloorResponse;
+  };
+
+  // ── Wall Commands ──────────────────────────────────────────
+  create_wall: {
+    params: {
+      params: {
+        floor_id: string;
+        material_id: string;
+        segments: SegmentInput[];
+      };
+    };
+    result: WallResponse;
+  };
+  update_wall: {
+    params: {
+      params: {
+        wall_id: string;
+        material_id?: string;
+        segments?: SegmentInput[];
+        attenuation_override_24ghz?: number;
+        attenuation_override_5ghz?: number;
+        attenuation_override_6ghz?: number;
+      };
+    };
+    result: WallResponse;
+  };
+  delete_wall: {
+    params: { wall_id: string };
+    result: null;
+  };
+  create_walls_batch: {
+    params: {
+      params: {
+        floor_id: string;
+        walls: CreateWallEntry[];
+      };
+    };
+    result: WallResponse[];
+  };
+
+  // ── Access Point Commands ──────────────────────────────────
+  create_access_point: {
+    params: {
+      params: {
+        floor_id: string;
+        ap_model_id?: string;
+        label?: string;
+        x: number;
+        y: number;
+        height_m?: number;
+        mounting?: string;
+      };
+    };
+    result: AccessPointResponse;
+  };
+  update_access_point: {
+    params: {
+      params: {
+        access_point_id: string;
+        x?: number;
+        y?: number;
+        height_m?: number;
+        mounting?: string;
+        tx_power_24ghz_dbm?: number;
+        tx_power_5ghz_dbm?: number;
+        channel_24ghz?: number;
+        channel_5ghz?: number;
+        channel_width?: string;
+        enabled?: boolean;
+      };
+    };
+    result: AccessPointResponse;
+  };
+  delete_access_point: {
+    params: { access_point_id: string };
+    result: null;
+  };
+
+  // ── Material Commands ──────────────────────────────────────
+  list_materials: {
+    params: { is_floor?: boolean };
+    result: MaterialResponse[];
+  };
+  get_material: {
+    params: { id: string };
+    result: MaterialResponse;
+  };
+  create_user_material: {
+    params: {
+      params: {
+        name_de: string;
+        name_en: string;
+        category: string;
+        default_thickness_cm?: number;
+        attenuation_24ghz_db: number;
+        attenuation_5ghz_db: number;
+        attenuation_6ghz_db: number;
+        is_floor?: boolean;
+        icon?: string;
+      };
+    };
+    result: MaterialResponse;
+  };
+  update_material: {
+    params: {
+      params: {
+        id: string;
+        name_de?: string;
+        name_en?: string;
+        category?: string;
+        default_thickness_cm?: number;
+        attenuation_24ghz_db?: number;
+        attenuation_5ghz_db?: number;
+        attenuation_6ghz_db?: number;
+        is_floor?: boolean;
+        icon?: string;
+      };
+    };
+    result: MaterialResponse;
+  };
+
+  // ── AP Model Commands ──────────────────────────────────────
+  list_ap_models: {
+    params: Record<string, never>;
+    result: ApModelResponse[];
+  };
+  get_ap_model: {
+    params: { id: string };
+    result: ApModelResponse;
+  };
+  create_custom_ap_model: {
+    params: {
+      params: {
+        manufacturer: string;
+        model: string;
+        wifi_standard?: string;
+        max_tx_power_24ghz_dbm?: number;
+        max_tx_power_5ghz_dbm?: number;
+        max_tx_power_6ghz_dbm?: number;
+        antenna_gain_24ghz_dbi?: number;
+        antenna_gain_5ghz_dbi?: number;
+        antenna_gain_6ghz_dbi?: number;
+        mimo_streams?: number;
+        supported_channels_24ghz?: string;
+        supported_channels_5ghz?: string;
+        supported_channels_6ghz?: string;
+      };
+    };
+    result: ApModelResponse;
   };
 
   // ── Heatmap Settings Commands ────────────────────────────────
   get_heatmap_settings: {
-    params: { projectId: string };
+    params: { project_id: string };
     result: HeatmapSettingsResponse;
   };
   update_heatmap_settings: {
     params: {
-      projectId: string;
-      colorScheme?: string;
-      gridResolutionM?: number;
-      pathLossExponent?: number;
-      opacity?: number;
-      show24ghz?: boolean;
-      show5ghz?: boolean;
+      params: {
+        project_id: string;
+        color_scheme?: string;
+        grid_resolution_m?: number;
+        path_loss_exponent?: number;
+        opacity?: number;
+        show_24ghz?: boolean;
+        show_5ghz?: boolean;
+      };
     };
     result: HeatmapSettingsResponse;
   };
+}
+
+// ─── Input Types (match Rust serde snake_case) ──────────────────
+
+/** Segment input for wall creation/update (matches Rust SegmentParams) */
+export interface SegmentInput {
+  segment_order: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** A single wall entry within a batch-create operation (matches Rust CreateWallEntry) */
+export interface CreateWallEntry {
+  material_id: string;
+  segments: SegmentInput[];
+  attenuation_override_24ghz?: number;
+  attenuation_override_5ghz?: number;
+  attenuation_override_6ghz?: number;
 }
 
 // ─── Response Types ──────────────────────────────────────────────
@@ -110,6 +326,21 @@ export interface AppSettingsResponse {
   iperf_server_port: number;
   auto_save_enabled: boolean;
   auto_save_interval_s: number;
+}
+
+export interface FloorResponse {
+  id: string;
+  project_id: string;
+  name: string;
+  floor_number: number;
+  background_image_format: string | null;
+  scale_px_per_meter: number | null;
+  width_meters: number | null;
+  height_meters: number | null;
+  ceiling_height_m: number;
+  floor_material_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface FloorDataResponse {
@@ -155,6 +386,34 @@ export interface AccessPointResponse {
   antenna_gain_24ghz_dbi: number | null;
   antenna_gain_5ghz_dbi: number | null;
   enabled: boolean;
+}
+
+export interface MaterialResponse {
+  id: string;
+  name_de: string;
+  name_en: string;
+  category: 'light' | 'medium' | 'heavy' | 'blocking';
+  default_thickness_cm: number | null;
+  attenuation_24ghz_db: number;
+  attenuation_5ghz_db: number;
+  attenuation_6ghz_db: number;
+  is_floor: boolean;
+  is_user_defined: boolean;
+  is_quick_category: boolean;
+  icon: string | null;
+}
+
+export interface ApModelResponse {
+  id: string;
+  manufacturer: string;
+  model: string;
+  wifi_standard: string | null;
+  max_tx_power_24ghz_dbm: number | null;
+  max_tx_power_5ghz_dbm: number | null;
+  antenna_gain_24ghz_dbi: number | null;
+  antenna_gain_5ghz_dbi: number | null;
+  mimo_streams: number | null;
+  is_user_defined: boolean;
 }
 
 export interface HeatmapSettingsResponse {
@@ -245,11 +504,31 @@ export function getErrorTitle(command: string): string {
     create_project: 'Project creation failed',
     get_project: 'Could not load project',
     list_projects: 'Could not load project list',
+    update_project: 'Could not update project',
     delete_project: 'Could not delete project',
     get_settings: 'Could not load settings',
     update_settings: 'Could not save settings',
     get_system_language: 'Could not detect system language',
+    create_floor: 'Could not create floor',
+    get_floors_by_project: 'Could not load floors',
     get_floor_data: 'Could not load floor data',
+    update_floor: 'Could not update floor',
+    set_floor_scale: 'Could not update floor scale',
+    import_floor_image: 'Could not import floor image',
+    create_wall: 'Could not create wall',
+    update_wall: 'Could not update wall',
+    delete_wall: 'Could not delete wall',
+    create_walls_batch: 'Could not create walls batch',
+    create_access_point: 'Could not create access point',
+    update_access_point: 'Could not update access point',
+    delete_access_point: 'Could not delete access point',
+    list_materials: 'Could not load materials',
+    get_material: 'Could not load material',
+    create_user_material: 'Could not create material',
+    update_material: 'Could not update material',
+    list_ap_models: 'Could not load AP models',
+    get_ap_model: 'Could not load AP model',
+    create_custom_ap_model: 'Could not create AP model',
     get_heatmap_settings: 'Could not load heatmap settings',
     update_heatmap_settings: 'Could not save heatmap settings',
   };

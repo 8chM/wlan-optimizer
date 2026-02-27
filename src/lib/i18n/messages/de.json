@@ -23,7 +23,33 @@
     "create": "Projekt erstellen",
     "delete": "Projekt loeschen",
     "name": "Projektname",
-    "noProjects": "Noch keine Projekte. Erstelle dein erstes Projekt."
+    "description": "Beschreibung",
+    "noProjects": "Noch keine Projekte. Erstelle dein erstes Projekt.",
+    "deleteConfirm": "Moechtest du dieses Projekt wirklich loeschen?",
+    "created": "Erstellt",
+    "lastModified": "Zuletzt geaendert",
+    "open": "Oeffnen",
+    "newProject": "Neues Projekt",
+    "cancel": "Abbrechen"
+  },
+  "toolbar": {
+    "select": "Auswahl",
+    "wall": "Wand",
+    "ap": "Access Point",
+    "measure": "Messen",
+    "zoomIn": "Vergroessern",
+    "zoomOut": "Verkleinern",
+    "fitToScreen": "An Bildschirm anpassen",
+    "toggleGrid": "Raster umschalten",
+    "grid": "Raster"
+  },
+  "status": {
+    "saved": "Gespeichert",
+    "saving": "Speichert...",
+    "unsaved": "Ungespeicherte Aenderungen",
+    "error": "Speicherfehler",
+    "zoom": "Zoom",
+    "grid": "Raster"
   },
   "action": {
     "addWall": "Wand hinzufuegen",
@@ -44,5 +70,38 @@
     "fair": "Ausreichend",
     "poor": "Schwach",
     "none": "Kein Signal"
+  },
+  "editor": {
+    "wallDrawHint": "Klicke um Punkte zu setzen. Doppelklick zum Beenden. ESC zum Abbrechen.",
+    "apPlaceHint": "Klicke auf den Grundriss um den Access Point zu platzieren.",
+    "scaleHint": "Klicke zwei Punkte und gib die echte Distanz ein um den Massstab zu setzen.",
+    "enterDistance": "Distanz in Metern eingeben",
+    "setScale": "Massstab setzen",
+    "deleteWall": "Wand loeschen",
+    "deleteAp": "Access Point loeschen",
+    "properties": "Eigenschaften",
+    "noFloorplan": "Kein Grundrissbild geladen.",
+    "uploadFloorplan": "Grundriss hochladen",
+    "setScaleFirst": "Bitte zuerst den Massstab setzen."
+  },
+  "material": {
+    "light": "Leicht",
+    "medium": "Mittel",
+    "heavy": "Schwer",
+    "blocking": "Blockierend",
+    "drywall": "Trockenbau",
+    "glass": "Glas",
+    "woodDoor": "Holztuer",
+    "brick": "Ziegelstein",
+    "concrete": "Beton",
+    "reinforcedConcrete": "Stahlbeton",
+    "metalDoor": "Metalltuer",
+    "elevator": "Aufzugsschacht",
+    "attenuation": "Daempfung"
+  },
+  "ap": {
+    "library": "AP-Bibliothek",
+    "customAp": "Eigener AP",
+    "dragOrClick": "Auf Canvas ziehen oder auswaehlen und klicken zum Platzieren"
   }
 }

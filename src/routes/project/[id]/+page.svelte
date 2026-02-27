@@ -1,6 +1,12 @@
 <script lang="ts">
-  // Redirect to editor view by default
-  // TODO: Implement redirect in Phase 8b
-</script>
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
 
-<p>Redirecting to editor...</p>
+  // Redirect to editor view by default
+  $effect(() => {
+    const projectId = $page.params.id;
+    if (projectId) {
+      goto(`/project/${projectId}/editor`, { replaceState: true });
+    }
+  });
+</script>

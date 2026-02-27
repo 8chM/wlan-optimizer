@@ -1,16 +1,20 @@
 <script lang="ts">
-  // Measurement page: guided measurement workflow
-  // TODO: Implement in Phase 8d
+  import { t } from '$lib/i18n';
 </script>
 
-<div class="measure">
-  <h2>Measurement</h2>
+<div class="measure-page">
+  <h2>{t('nav.measure')}</h2>
   <p>Measurement workflow will be implemented in Phase 8d.</p>
 </div>
 
 <style>
-  .measure {
-    flex: 1;
-    padding: 1rem;
+  .measure-page {
+    padding: 2rem;
+    color: #4a4a6a;
+  }
+
+  h2 {
+    margin: 0 0 1rem;
+    color: #1a1a2e;
   }
 </style>

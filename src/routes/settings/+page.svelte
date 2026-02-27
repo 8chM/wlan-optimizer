@@ -1,17 +1,25 @@
 <script lang="ts">
-  // Application settings page
-  // TODO: Implement in Phase 8f
+  import { t } from '$lib/i18n';
+  import Layout from '$lib/components/layout/Layout.svelte';
 </script>
 
-<div class="settings">
-  <h2>Settings</h2>
-  <p>Application settings will be implemented in Phase 8f.</p>
-</div>
+<Layout showSidebar={false} showEditorTools={false}>
+  <div class="settings-page">
+    <h2>{t('nav.settings')}</h2>
+    <p>Application settings will be implemented in Phase 8f.</p>
+  </div>
+</Layout>
 
 <style>
-  .settings {
+  .settings-page {
     max-width: 600px;
     margin: 2rem auto;
-    padding: 1rem;
+    padding: 2rem;
+    color: #4a4a6a;
+  }
+
+  h2 {
+    margin: 0 0 1rem;
+    color: #1a1a2e;
   }
 </style>

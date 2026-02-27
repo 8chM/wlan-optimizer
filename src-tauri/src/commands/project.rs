@@ -1,6 +1,6 @@
 use tauri::State;
 
-use crate::db::models::{CreateProjectParams, Project};
+use crate::db::models::{CreateProjectParams, Project, UpdateProjectParams};
 use crate::error::AppError;
 use crate::state::AppState;
 
@@ -55,7 +55,7 @@ pub fn create_project(
     let floor_id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO floors (id, project_id, name, floor_number) VALUES (?1, ?2, ?3, 0)",
-        rusqlite::params![floor_id, project_id, "Erdgeschoss"],
+        rusqlite::params![floor_id, project_id, "Ground Floor"],
     )?;
 
     // Create default heatmap settings
@@ -70,6 +70,56 @@ pub fn create_project(
         [&project_id],
         |row| Project::from_row(row),
     )?;
+
+    Ok(project)
+}
+
+/// Updates a project's name, description, and/or locale.
+#[tauri::command]
+pub fn update_project(
+    params: UpdateProjectParams,
+    state: State<'_, AppState>,
+) -> Result<Project, AppError> {
+    let conn = state.db.lock().map_err(|e| AppError::Internal {
+        message: format!("Failed to acquire DB lock: {}", e),
+    })?;
+
+    // Validate locale if provided
+    if let Some(ref locale) = params.locale {
+        if locale != "de" && locale != "en" {
+            return Err(AppError::Validation {
+                message: format!("Invalid locale '{}'. Must be 'de' or 'en'.", locale),
+            });
+        }
+    }
+
+    // Validate name is not empty if provided
+    if let Some(ref name) = params.name {
+        if name.trim().is_empty() {
+            return Err(AppError::Validation {
+                message: "Project name must not be empty.".into(),
+            });
+        }
+    }
+
+    conn.execute(
+        "UPDATE projects SET
+            name = COALESCE(?1, name),
+            description = COALESCE(?2, description),
+            locale = COALESCE(?3, locale),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?4",
+        rusqlite::params![params.name, params.description, params.locale, params.id],
+    )?;
+
+    let project = conn.query_row(
+        "SELECT * FROM projects WHERE id = ?1",
+        [&params.id],
+        |row| Project::from_row(row),
+    ).map_err(|_| AppError::NotFound {
+        entity: "Project".into(),
+        id: params.id.clone(),
+    })?;
 
     Ok(project)
 }

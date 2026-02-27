@@ -21,26 +21,48 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Project commands
             commands::project::list_projects,
             commands::project::get_project,
             commands::project::create_project,
+            commands::project::update_project,
             commands::project::delete_project,
+            // Floor commands
+            commands::floor::create_floor,
+            commands::floor::import_floor_image,
+            commands::floor::set_floor_scale,
+            commands::floor::update_floor,
+            commands::floor::get_floors_by_project,
             commands::floor::get_floor_data,
+            commands::floor::get_floor_image,
+            // Wall commands
             commands::wall::create_wall,
             commands::wall::update_wall,
             commands::wall::delete_wall,
+            commands::wall::create_walls_batch,
+            // Access point commands
             commands::access_point::create_access_point,
             commands::access_point::update_access_point,
             commands::access_point::delete_access_point,
+            // Material commands
             commands::material::list_materials,
+            commands::material::get_material,
+            commands::material::create_user_material,
+            commands::material::update_material,
+            // AP model commands
             commands::ap_model::list_ap_models,
+            commands::ap_model::get_ap_model,
+            commands::ap_model::create_custom_ap_model,
+            // Measurement commands
             commands::measurement::start_measurement,
             commands::measurement::save_measurement,
+            // Settings commands
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::get_system_language,
             commands::settings::get_heatmap_settings,
             commands::settings::update_heatmap_settings,
+            // Export commands
             commands::export::export_project,
         ])
         .run(tauri::generate_context!())

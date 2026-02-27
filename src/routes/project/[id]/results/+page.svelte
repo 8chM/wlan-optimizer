@@ -1,16 +1,20 @@
 <script lang="ts">
-  // Results page: comparison charts + export
-  // TODO: Implement in Phase 8e
+  import { t } from '$lib/i18n';
 </script>
 
-<div class="results">
-  <h2>Results</h2>
-  <p>Results and export will be implemented in Phase 8e.</p>
+<div class="results-page">
+  <h2>{t('nav.results')}</h2>
+  <p>Results view will be implemented in Phase 8g.</p>
 </div>
 
 <style>
-  .results {
-    flex: 1;
-    padding: 1rem;
+  .results-page {
+    padding: 2rem;
+    color: #4a4a6a;
+  }
+
+  h2 {
+    margin: 0 0 1rem;
+    color: #1a1a2e;
   }
 </style>

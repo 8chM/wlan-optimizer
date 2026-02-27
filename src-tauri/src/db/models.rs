@@ -2,6 +2,34 @@ use rusqlite::{Result as SqlResult, Row};
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
+// Frequency band enum
+// =============================================================================
+
+/// Represents the supported Wi-Fi frequency bands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum FrequencyBand {
+    #[serde(rename = "2.4ghz")]
+    Band24Ghz,
+    #[serde(rename = "5ghz")]
+    Band5Ghz,
+    #[serde(rename = "6ghz")]
+    Band6Ghz,
+}
+
+impl FrequencyBand {
+    /// Parses a frequency band string into a `FrequencyBand`.
+    /// Returns `None` for unrecognized strings.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "2.4ghz" => Some(Self::Band24Ghz),
+            "5ghz" => Some(Self::Band5Ghz),
+            "6ghz" => Some(Self::Band6Ghz),
+            _ => None,
+        }
+    }
+}
+
+// =============================================================================
 // Core entities
 // =============================================================================
 
@@ -68,7 +96,41 @@ impl Floor {
             updated_at: row.get("updated_at")?,
         })
     }
+
+    /// Creates a Floor from a row that does NOT include the `background_image` column.
+    /// Used by queries that explicitly exclude the BLOB to avoid unnecessary memory usage.
+    pub fn from_row_without_image(row: &Row<'_>) -> SqlResult<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            project_id: row.get("project_id")?,
+            name: row.get("name")?,
+            floor_number: row.get("floor_number")?,
+            background_image: None,
+            background_image_format: row.get("background_image_format")?,
+            scale_px_per_meter: row.get("scale_px_per_meter")?,
+            width_meters: row.get("width_meters")?,
+            height_meters: row.get("height_meters")?,
+            ceiling_height_m: row.get("ceiling_height_m")?,
+            floor_material_id: row.get("floor_material_id")?,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
+        })
+    }
 }
+
+/// Lightweight struct for returning only the floor plan image data.
+#[derive(Debug, Clone, Serialize)]
+pub struct FloorImage {
+    pub id: String,
+    pub background_image: Option<Vec<u8>>,
+    pub background_image_format: Option<String>,
+}
+
+/// SQL column list for Floor queries that exclude the heavy `background_image` BLOB.
+pub const FLOOR_COLUMNS_WITHOUT_IMAGE: &str =
+    "id, project_id, name, floor_number, background_image_format, \
+     scale_px_per_meter, width_meters, height_meters, ceiling_height_m, \
+     floor_material_id, created_at, updated_at";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Material {
@@ -109,12 +171,22 @@ impl Material {
     }
 
     /// Returns the attenuation value for the requested frequency band.
-    pub fn attenuation_for_band(&self, band: &str) -> f64 {
+    ///
+    /// Returns `None` if the band string is not recognized. Use `FrequencyBand`
+    /// for a type-safe alternative via `attenuation_for_frequency_band`.
+    pub fn attenuation_for_band(&self, band: &str) -> Option<f64> {
+        match FrequencyBand::from_str(band) {
+            Some(fb) => Some(self.attenuation_for_frequency_band(fb)),
+            None => None,
+        }
+    }
+
+    /// Returns the attenuation value for a typed `FrequencyBand`.
+    pub fn attenuation_for_frequency_band(&self, band: FrequencyBand) -> f64 {
         match band {
-            "2.4ghz" => self.attenuation_24ghz_db,
-            "5ghz" => self.attenuation_5ghz_db,
-            "6ghz" => self.attenuation_6ghz_db,
-            _ => self.attenuation_5ghz_db,
+            FrequencyBand::Band24Ghz => self.attenuation_24ghz_db,
+            FrequencyBand::Band5Ghz => self.attenuation_5ghz_db,
+            FrequencyBand::Band6Ghz => self.attenuation_6ghz_db,
         }
     }
 }
@@ -563,4 +635,101 @@ pub struct SaveMeasurementParams {
     pub iperf_udp_lost_packets: Option<i32>,
     pub iperf_udp_total_packets: Option<i32>,
     pub raw_iperf_json: Option<String>,
+}
+
+// =============================================================================
+// Phase 8b parameter structs
+// =============================================================================
+
+/// Partial update payload for a project.
+#[derive(Debug, Deserialize)]
+pub struct UpdateProjectParams {
+    pub id: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub locale: Option<String>,
+}
+
+/// Parameters for creating a new floor.
+#[derive(Debug, Deserialize)]
+pub struct CreateFloorParams {
+    pub project_id: String,
+    pub name: String,
+    pub floor_number: i32,
+    pub ceiling_height_m: Option<f64>,
+    pub floor_material_id: Option<String>,
+}
+
+/// Partial update payload for a floor.
+#[derive(Debug, Deserialize)]
+pub struct UpdateFloorParams {
+    pub id: String,
+    pub name: Option<String>,
+    pub floor_number: Option<i32>,
+    pub ceiling_height_m: Option<f64>,
+    pub floor_material_id: Option<String>,
+}
+
+/// A single wall entry within a batch-create operation.
+#[derive(Debug, Deserialize)]
+pub struct CreateWallEntry {
+    pub material_id: String,
+    pub segments: Vec<SegmentParams>,
+    pub attenuation_override_24ghz: Option<f64>,
+    pub attenuation_override_5ghz: Option<f64>,
+    pub attenuation_override_6ghz: Option<f64>,
+}
+
+/// Parameters for creating multiple walls in a single transaction.
+#[derive(Debug, Deserialize)]
+pub struct CreateWallsBatchParams {
+    pub floor_id: String,
+    pub walls: Vec<CreateWallEntry>,
+}
+
+/// Parameters for creating a user-defined material.
+#[derive(Debug, Deserialize)]
+pub struct CreateMaterialParams {
+    pub name_de: String,
+    pub name_en: String,
+    pub category: String,
+    pub default_thickness_cm: Option<f64>,
+    pub attenuation_24ghz_db: f64,
+    pub attenuation_5ghz_db: f64,
+    pub attenuation_6ghz_db: f64,
+    pub is_floor: Option<bool>,
+    pub icon: Option<String>,
+}
+
+/// Partial update payload for a material.
+#[derive(Debug, Deserialize)]
+pub struct UpdateMaterialParams {
+    pub id: String,
+    pub name_de: Option<String>,
+    pub name_en: Option<String>,
+    pub category: Option<String>,
+    pub default_thickness_cm: Option<f64>,
+    pub attenuation_24ghz_db: Option<f64>,
+    pub attenuation_5ghz_db: Option<f64>,
+    pub attenuation_6ghz_db: Option<f64>,
+    pub is_floor: Option<bool>,
+    pub icon: Option<String>,
+}
+
+/// Parameters for creating a custom AP model.
+#[derive(Debug, Deserialize)]
+pub struct CreateApModelParams {
+    pub manufacturer: String,
+    pub model: String,
+    pub wifi_standard: Option<String>,
+    pub max_tx_power_24ghz_dbm: Option<f64>,
+    pub max_tx_power_5ghz_dbm: Option<f64>,
+    pub max_tx_power_6ghz_dbm: Option<f64>,
+    pub antenna_gain_24ghz_dbi: Option<f64>,
+    pub antenna_gain_5ghz_dbi: Option<f64>,
+    pub antenna_gain_6ghz_dbi: Option<f64>,
+    pub mimo_streams: Option<i32>,
+    pub supported_channels_24ghz: Option<String>,
+    pub supported_channels_5ghz: Option<String>,
+    pub supported_channels_6ghz: Option<String>,
 }

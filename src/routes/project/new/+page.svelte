@@ -1,17 +1,21 @@
 <script lang="ts">
-  // New project creation page
-  // TODO: Implement in Phase 8b
+  import { goto } from '$app/navigation';
+  import Layout from '$lib/components/layout/Layout.svelte';
+  import NewProjectDialog from '$lib/components/project/NewProjectDialog.svelte';
+  import type { ProjectResponse } from '$lib/api/invoke';
+
+  function handleCreated(project: ProjectResponse): void {
+    goto(`/project/${project.id}/editor`);
+  }
+
+  function handleClose(): void {
+    goto('/');
+  }
 </script>
 
-<div class="new-project">
-  <h2>New Project</h2>
-  <p>Project creation wizard will be implemented in Phase 8b.</p>
-</div>
-
-<style>
-  .new-project {
-    max-width: 600px;
-    margin: 2rem auto;
-    padding: 1rem;
-  }
-</style>
+<Layout showSidebar={false} showEditorTools={false}>
+  <NewProjectDialog
+    onClose={handleClose}
+    onCreated={handleCreated}
+  />
+</Layout>

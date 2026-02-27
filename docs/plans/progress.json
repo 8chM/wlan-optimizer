@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 1,
+  "currentPhase": 2,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -12,18 +12,20 @@
     },
     "1": {
       "name": "Projektsetup",
-      "status": "in_progress",
-      "gate": "pending",
-      "deliverable": "Einsatzbereites Projekt mit konfiguriertem Tooling",
-      "tasks": [
-        { "id": "1.1", "name": "Claude Code Setup", "status": "in_progress" },
-        { "id": "1.2", "name": "Projektstruktur anlegen", "status": "pending" },
-        { "id": "1.3", "name": "Git konfigurieren", "status": "completed" },
-        { "id": "1.4", "name": "MCPs installieren", "status": "pending" },
-        { "id": "1.5", "name": "Permissions optimieren", "status": "pending" }
-      ]
+      "status": "completed",
+      "gate": "passed",
+      "deliverable": "Claude Code Tooling konfiguriert",
+      "completedAt": "2026-02-27",
+      "notes": "Agents, Skills, Hooks, Permissions, progress.json eingerichtet. Restliche Projektstruktur (package.json etc.) haengt von Tech-Stack ab (Phase 5)."
     },
-    "2": { "name": "Deep Dive & Lueckenanalyse", "status": "pending", "gate": "pending" },
+    "2": {
+      "name": "Deep Dive & Lueckenanalyse",
+      "status": "completed",
+      "gate": "passed",
+      "deliverable": "docs/research/Wissensluecken.md",
+      "completedAt": "2026-02-27",
+      "notes": "3 Widersprueche, 10 technische Luecken, 5 RF-Modell-Luecken, 4 UX-Luecken, 3 fehlende Infos identifiziert. 7 Fragen fuer Phase 4."
+    },
     "3": { "name": "Recherche & Evaluation", "status": "pending", "gate": "pending" },
     "4": { "name": "Klaerung mit Benutzer", "status": "pending", "gate": "pending" },
     "5": { "name": "Architektur & Tech-Stack", "status": "pending", "gate": "pending" },
@@ -33,6 +35,13 @@
     "9": { "name": "Qualitaetssicherung", "status": "pending", "gate": "pending" },
     "10": { "name": "Uebergabe & Demo", "status": "pending", "gate": "pending" }
   },
-  "blockers": [],
+  "blockers": [
+    {
+      "id": "B-01",
+      "description": "7 offene Fragen muessen in Phase 4 geklaert werden",
+      "blocksPhase": 5,
+      "status": "open"
+    }
+  ],
   "decisions": []
 }

@@ -1,11 +1,18 @@
 # Wissensluecken-Analyse: WLAN-Optimizer
 
-> **Phase 2 Deliverable** | **Datum:** 2026-02-27 | **Status:** Abgeschlossen
+> **Phase 2 Deliverable** | **Datum:** 2026-02-27 | **Aktualisiert:** 2026-02-27 (Phase 4 Review)
+> **Status:** Aktualisiert mit Phase-3-Recherche-Ergebnissen
 >
 > Systematische Identifikation aller offenen Fragen, fehlenden Informationen und
 > Entscheidungen, die vor der Implementierung geklaert werden muessen.
 >
 > Jede Luecke hat eine eindeutige ID, Prioritaet und Art.
+>
+> **Legende Status:**
+> - BEANTWORTET = Durch Phase-3-Recherche vollstaendig geklaert
+> - TEILWEISE = Durch Recherche teilweise geklaert, Details offen
+> - OFFEN = Noch ungeklaert, erfordert Benutzer-Entscheidung oder weitere Arbeit
+> - OFFEN (Benutzer) = Kann nur der Benutzer beantworten (Phase 4)
 
 ---
 
@@ -16,12 +23,16 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WID-01: MVP-Scope der Mixing Console
 - **Prioritaet:** HOCH
 - **Art:** Benutzer fragen
+- **Status:** OFFEN (Benutzer) -- siehe Phase4-Fragenkatalog.md F-01
 - **Beschreibung:** Das PRD (Abschnitt 7) listet "Live-Konsole / Mixing Console" als **spaetere Erweiterung** (nicht MVP). Gleichzeitig listet der MVP-Backlog (US-07) die Mixing Console als **Hohe Prioritaet (MVP-Kern)**, und die Funktionsliste (M3) ebenfalls mit Prioritaet **Hoch**. Da Run 3 (Verifikation nach Aenderungen) ohne Mixing Console keinen Sinn ergibt, muss geklaert werden: Gehoert die Mixing Console in den MVP?
+- **Phase-3-Ergebnis:** Technische Machbarkeit bestaetigt (Canvas-Heatmap.md: Echtzeit-Heatmap mit Web Workers moeglich, AP-Steuerung.md: Web-Interface-Scraping als Steuerungsweg). Empfehlung: Forecast-Only im MVP, Live-Steuerung als Erweiterung.
 
 ### WID-02: Freischalt-Feature vs. Open Source
 - **Prioritaet:** HOCH
 - **Art:** Benutzer fragen
+- **Status:** OFFEN (Benutzer) -- siehe Phase4-Fragenkatalog.md F-02
 - **Beschreibung:** US-05 erwaehnt "Freischaltung mit Laufzeitanzeige (z.B. 30 Tage)". Das Projekt ist MIT-lizenziert. Ist das ein Bezahlmodell (Freemium)? Ein License-Key-System? Oder nur ein UI-Flow, bei dem der Nutzer das Optimierungsmodul "aktiviert"? Ein Bezahlmodell widerspricht nicht der MIT-Lizenz, waere aber bei Open Source unueblich.
+- **Phase-3-Ergebnis:** Open-Source-Evaluation zeigt: Kein vergleichbares MIT-lizenziertes Tool existiert. Feature-Gates bei MIT-Lizenz sind trivial zu umgehen (Fork). Empfehlung: UI-gestuftes Onboarding ohne Paywall.
 
 ---
 
@@ -30,6 +41,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-RF-01: Unvollstaendige Materialdatenbank
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig
+- **Status:** BEANTWORTET -- siehe `docs/research/RF-Materialien.md`
+- **Ergebnis:** 27 Wandmaterialien (W01-W27) und 4 Deckentypen (F01-F04) mit konservativen Daempfungswerten fuer 2.4/5/6 GHz dokumentiert. Basierend auf NIST-1997, ITU-R P.1238, ITU-R P.2040, iBwave, wlan-blog.com und weiteren Quellen. Drei vereinfachte Kategorien (leicht/mittel/schwer) als Schnellauswahl.
 - **Beschreibung:** Die aktuelle Wanddaempfungstabelle enthaelt nur vier Materialien (Poroton duenn/dick, Beton, Trockenbauwand). Fuer ein praxistaugliches Tool fehlen zahlreiche gaengige Baumaterialien:
   - Kalksandstein (KS, sehr verbreitet in DE)
   - Ziegel/Klinker (Altbauten)
@@ -46,6 +59,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-RF-02: Daempfungswerte haben grosse Bandbreiten
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig + Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/RF-Materialien.md` Abschnitt 2
+- **Ergebnis:** Konservatives Prinzip angewendet: Bei Daempfungsbereichen wird der obere Wert als Default verwendet. Jedes Material hat Default-Wert UND Bereich (attenuationRange). 6-GHz-Werte durch Extrapolation (Faktor 1.15-1.30) berechnet. Freie Dickeneingabe: Lineare Skalierung in dB empfohlen, aber Fixe Presets priorisiert (Benutzer kennen selten exakte Wanddicke).
 - **Beschreibung:** Die dokumentierten Daempfungswerte haben breite Bereiche (z.B. Poroton duenn: 4-6 dB bei 2.4 GHz). Offene Fragen:
   - Welcher Default-Wert wird verwendet? Das rf-modell.md sagt "oberer Wert" (konservativ), aber die RF-Modellierung.md gibt nur Bereiche an -- wo ist der verbindliche Default?
   - Sollen Benutzer die Daempfung pro Wand manuell feintunen koennen?
@@ -56,6 +71,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-RF-03: Multi-Floor-Modellierung nicht spezifiziert
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Physik/Daempfung dokumentiert in `docs/research/RF-Materialien.md` Abschnitt 5, MVP-Scope noch OFFEN (Benutzer) -- siehe F-04
+- **Ergebnis:** FAF-Werte nach ITU-R P.1238 dokumentiert. 4 Deckentypen (F01-F04) mit Daempfungswerten. Additionsmodell empfohlen fuer MVP. DB-Schema hat bereits floors-Tabelle. Offene Benutzer-Frage: Multi-Floor im MVP oder spaeter?
 - **Beschreibung:** Die Formel enthaelt `L_Stockwerke`, aber das PRD sagt "nicht im MVP". Offene Fragen:
   - Wird Multi-Floor ueberhaupt unterstuetzt (auch post-MVP)?
   - Falls ja: Wie modelliert man die Daempfung zwischen Stockwerken? (Betondecke 15-25 cm mit Estrich, Holzbalkendecke, Altbau vs. Neubau)
@@ -67,6 +84,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-RF-04: Reflexionen und Multipath werden ignoriert
 - **Prioritaet:** NIEDRIG
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- bewusste Entscheidung, vereinfachtes Modell zu verwenden
+- **Ergebnis:** Dokumentiert in RF-Materialien.md Abschnitt 7: Unkalibriertes Modell hat RMSE 8-12 dB, kalibriert 3-6 dB. Die Varianz innerhalb eines Raumes (Shadow Fading: 3-8 dB) ist eine fundamentale physikalische Grenze. Branchenueblich (auch Ekahau nutzt aehnliche Vereinfachungen). Wird transparent dokumentiert.
 - **Beschreibung:** Das Log-Distance-Modell mit Wanddaempfung modelliert nur den direkten Pfad. In der Realitaet gibt es:
   - Reflexionen an Metalloberflaechen, Spiegeln, Fenstern
   - Multipath-Effekte (konstruktive/destruktive Interferenz)
@@ -77,6 +96,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-RF-05: Antennen-Strahlungsdiagramm nicht modelliert
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig
+- **Status:** TEILWEISE -- Grunddaten vorhanden, detaillierte Pattern-Daten fehlen
+- **Ergebnis:** AP-Steuerung.md dokumentiert TX-Power-Stufen und Antennengewinn (2.4 GHz: 23 dBm TX / 3.2 dBi, 5 GHz: 26 dBm TX / 4.3 dBi). FCC-Filing wurde nicht geprueft (erfordert Zugang zur FCC-Datenbank). Fuer den MVP reicht der pauschale Gewinn mit einem Montageart-Faktor (z.B. -3 dB fuer Deckenmontage in 2D-Projektion). Detaillierte 3D-Pattern koennen post-MVP ergaenzt werden.
 - **Beschreibung:** Der DAP-X2810 hat lt. Datenblatt unterschiedliche Strahlungsdiagramme fuer Decken- und Wandmontage. Die aktuelle Formel nutzt nur einen pauschalen Antennengewinn (3.2/4.3 dBi). Es fehlt:
   - 3D-Strahlungsdiagramm-Daten (oder zumindest H-Plane/E-Plane Schnitte)
   - Wie wirkt sich die Montagehoehe aus? (Decke 2.5m vs. Wand 1.5m -- das Tool berechnet 2D, aber die Empfangshoehe ist ~1m bei Smartphone-Nutzung)
@@ -88,6 +109,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-RF-06: Co-Channel-Interferenz zwischen APs nicht berechnet
 - **Prioritaet:** MITTEL
 - **Art:** Recherche noetig + Technisches Experiment
+- **Status:** TEILWEISE -- Konzept dokumentiert, Implementierung offen
+- **Ergebnis:** Canvas-Heatmap.md (Abschnitt 5.3) beschreibt die Berechnung fuer Multi-AP-Szenarien (bester AP pro Punkt, RSSI-Vergleich). SINR-Berechnung und CCI sind im RF-Modell noch nicht spezifiziert. Fuer den MVP reicht RSSI-basierte "bester AP"-Zuweisung. SINR-Berechnung ist Post-MVP.
 - **Beschreibung:** Bei mehreren APs auf demselben oder ueberlappenden Kanal entsteht Co-Channel-Interferenz (CCI). Die aktuelle Heatmap beruecksichtigt nur RSSI, nicht:
   - Signal-to-Interference-plus-Noise Ratio (SINR) statt nur RSSI
   - CCI-Berechnung bei gleichen Kanaelen (Signal vom gewuenschten AP vs. Stoersignal von anderen APs)
@@ -99,6 +122,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-RF-07: Freiraum-Pfadverlust PL(1m) -- Frequenzband-Details
 - **Prioritaet:** NIEDRIG
 - **Art:** Recherche noetig
+- **Status:** BEANTWORTET -- siehe `docs/research/RF-Materialien.md` Abschnitt 6
+- **Ergebnis:** FSPL-Werte dokumentiert: 2.4 GHz = 40.05 dB, 5.0 GHz = 46.42 dB, 6.0 GHz = 47.96 dB. Die Differenz innerhalb eines Bandes betraegt max. 1.5 dB -- vernachlaessigbar fuer unser Modell. Kanalabhaengige Berechnung ist moeglich aber nicht noetig fuer den MVP.
 - **Beschreibung:** Die rf-modell.md gibt feste Werte an (40.05 dB bei 2.4 GHz, 46.42 dB bei 5 GHz). Offene Fragen:
   - Fuer welche exakte Frequenz gelten diese Werte? (2.4 GHz Band hat 2.412-2.484 GHz, 5 GHz hat 5.15-5.85 GHz -- die Differenz betraegt bis zu 1.5 dB innerhalb des Bandes)
   - Sollte der Wert je nach konfiguriertem Kanal leicht variieren?
@@ -112,6 +137,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AP-01: AP-Zugriffsmethode vollkommen ungeklaert
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig + Technisches Experiment
+- **Status:** TEILWEISE -- Recherche abgeschlossen, empirische Verifizierung am Geraet noch ausstehend
+- **Ergebnis:** Umfassend dokumentiert in `docs/research/AP-Steuerung.md`. Vier Steuerungsansaetze identifiziert: (1) Web-Interface Scraping (HOCH Machbarkeit, Primaer-Ansatz), (2) SNMP v1/v2c (MITTEL, Sekundaer), (3) CLI ueber Seriell/Telnet (MITTEL, Fallback), (4) Nuclias Connect API (NICHT empfohlen). OpenWrt NICHT kompatibel. Firmware v1.25.053 empfohlen. Verifizierungsplan dokumentiert (Abschnitt 8). NOCH OFFEN: Empirischer Test am echten Geraet (Web-Interface reverse-engineeren, SNMP-Walk, CLI-Test).
 - **Beschreibung:** Die Entscheidung D-01 besagt "Direkter AP-Zugriff statt Nuclias Connect". Aber WIE genau auf den AP zugegriffen wird, ist voellig ungeklaert. Der DAP-X2810 ist ein Business-AP, der primaer fuer Nuclias Connect konzipiert ist. Es muss experimentell geprueft werden:
   - **REST-API**: Hat der AP eine dokumentierte oder undokumentierte HTTP-API? D-Link Business-APs haben manchmal eine interne API, die das Web-Interface nutzt.
   - **SNMP**: Welche MIBs werden unterstuetzt? Welche OIDs fuer TX-Power, Channel, SSID, Client-Liste? SNMP v2c oder v3?
@@ -125,6 +152,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AP-02: SSID-Erstellung und -Management
 - **Prioritaet:** HOCH
 - **Art:** Technisches Experiment
+- **Status:** TEILWEISE -- Web-Interface hat SSID-Verwaltung, programmatischer Zugriff nicht verifiziert
+- **Ergebnis:** AP-Steuerung.md listet SSID und SSID-Hidden als steuerbare Parameter im Web-Interface. Bis zu 8 SSIDs pro Radio sind bei D-Link Business-APs ueblich (nicht verifiziert fuer DAP-X2810). Programmatische Erstellung haengt von Web-Interface-Scraping ab (noch nicht am Geraet getestet). Fallback: Benutzer erstellt Test-SSIDs manuell.
 - **Beschreibung:** Fuer Run 1 muss pro AP eine eigene Test-SSID erstellt werden. Offene Fragen:
   - Wie viele SSIDs kann der DAP-X2810 gleichzeitig? (typisch 8-16 pro Radio, also 16-32 gesamt)
   - Koennen SSIDs programmatisch erstellt/geloescht werden? (haengt von WL-AP-01 ab)
@@ -137,6 +166,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AP-03: TX-Power-Steuerung in Echtzeit
 - **Prioritaet:** HOCH
 - **Art:** Technisches Experiment
+- **Status:** TEILWEISE -- Steuerungswege dokumentiert, Echtzeit-Verhalten nicht verifiziert
+- **Ergebnis:** AP-Steuerung.md: TX-Power ist im Web-Interface steuerbar (vermutlich Dropdown mit Stufen). SNMP IEEE802dot11-MIB hat dot11CurrentTxPowerLevel als Read-Write OID (nicht verifiziert ob DAP-X2810 das implementiert). Erwartete TX-Stufen: 8 Stufen (Full bis Min). Ob TX-Power-Aenderung einen Radio-Restart erfordert, ist NICHT bekannt. NOCH OFFEN: Empirischer Test.
 - **Beschreibung:** Die Mixing Console erfordert Live-Aenderung der Sendeleistung. Offene Fragen:
   - In welchen Stufen kann die TX-Power geaendert werden? (1 dBm Schritte? Nur vordefinierte Levels wie Low/Medium/High/Full?)
   - Wie lange dauert eine TX-Power-Aenderung? (sofort wirksam, oder Reboot/Radio-Restart noetig?)
@@ -148,6 +179,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AP-04: Kanalwahl und Bandbreitensteuerung
 - **Prioritaet:** MITTEL
 - **Art:** Technisches Experiment
+- **Status:** TEILWEISE -- Kanaele/Bandbreite im Web-Interface sichtbar, Details nicht verifiziert
+- **Ergebnis:** AP-Steuerung.md: Kanalauswahl (Auto oder manuell), Kanalbreite (20/40/80 MHz, Annahme), DFS nicht explizit dokumentiert. Parametermatrix (Abschnitt 3.1) zeigt: Channel per Web-GUI (Ja), SNMP (Moeglich), CLI (Moeglich). NOCH OFFEN: Welche Kanaele genau? DFS-Verhalten? Kanalwechsel-Dauer?
 - **Beschreibung:** Offene Fragen zur Kanalsteuerung:
   - Welche Kanaele sind am DAP-X2810 konfigurierbar? (Laenderabhaengig: EU hat Kanal 1-13 bei 2.4 GHz)
   - DFS-Kanaele bei 5 GHz: Unterstuetzt? Radar-Erkennung?
@@ -160,6 +193,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AP-05: Herstellerunabhaengigkeit und Abstraktionsschicht
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Architektur empfohlen, Scope-Entscheidung OFFEN (Benutzer) -- siehe F-19
+- **Ergebnis:** AP-Steuerung.md Abschnitt 9: APControllerTrait mit WebGUIDriver/SNMPDriver/CLIDriver als Adapter-Pattern empfohlen. Architektur ist erweiterbar. Offene Benutzer-Frage: Nur DAP-X2810 oder auch generisches Profil?
 - **Beschreibung:** Das PRD spricht von "herstellerunabhaengig", aber die aktuelle Planung fokussiert ausschliesslich auf D-Link DAP-X2810. Offene Fragen:
   - Wird eine AP-Abstraktionsschicht (Interface/Adapter-Pattern) implementiert?
   - Welche weiteren AP-Hersteller sollen mittel-/langfristig unterstuetzt werden? (UniFi ist bei Heimnutzern sehr verbreitet, TP-Link Omada bei preisbewussten Nutzern)
@@ -171,6 +206,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AP-06: Sicherheit bei AP-Zugriff
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Risiken dokumentiert, konkrete Implementierung offen
+- **Ergebnis:** AP-Steuerung.md: SNMP v2c nutzt Community Strings im Klartext, Web-Interface HTTP (unverschluesselt) oder HTTPS (self-signed). Firmware-Kompatibilitaetspruefung empfohlen. Automatisches Backup vor Aenderungen empfohlen. Credential-Speicherung (Keychain vs. DB) ist Architektur-Entscheidung fuer Phase 5.
 - **Beschreibung:** Wenn das Tool AP-Konfigurationen aendert, ergeben sich Sicherheitsfragen:
   - Wie werden AP-Zugangsdaten (Admin-Passwort, SNMP Community String) gespeichert? (Klartext in SQLite? Verschluesselt? Betriebssystem-Keychain?)
   - HTTPS fuer Web-Interface-Zugriff oder unsicheres HTTP? (Self-signed Zertifikate?)
@@ -187,6 +224,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-UI-01: Canvas-Library-Auswahl nicht getroffen
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig + Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Canvas-Heatmap.md` und `docs/research/Tech-Stack-Evaluation.md`
+- **Ergebnis:** Konva.js mit svelte-konva empfohlen. Gruende: Offizielle Svelte 5 Runes Integration, Layer-System ideal fuer Grundriss + Heatmap Overlay, MIT-Lizenz, aktiv maintained (~830k npm Downloads/Woche). Hybrid-Ansatz: Konva fuer interaktive Elemente, nativer Canvas fuer Heatmap (ImageData + putImageData). Fabric.js als Alternative evaluiert und verworfen (keine Svelte-Integration).
 - **Beschreibung:** Fuer die Grundriss-Zeichnung und Heatmap-Darstellung wird eine Canvas-Loesung benoetigt. Kandidaten mit ihren Trade-offs:
   - **Konva.js** (+ svelte-konva): 2D-Canvas-Framework, Objekt-basiert, gute Event-Handling, solide Community. Nachteil: Rein Canvas-basiert, keine WebGL-Beschleunigung.
   - **Fabric.js**: Aehnlich wie Konva, staerkerer SVG-Support, gutes Undo/Redo. Nachteil: Svelte-Integration unklar.
@@ -200,6 +239,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-UI-02: Grundriss-Zeichenlogik im Detail
 - **Prioritaet:** HOCH
 - **Art:** Technisches Experiment
+- **Status:** BEANTWORTET -- siehe `docs/research/Canvas-Heatmap.md` Abschnitt 2 und 5
+- **Ergebnis:** Detaillierte Implementierungs-Patterns dokumentiert: Snap-to-Grid (konfigurierbar), Wand-Darstellung als Linie mit Breite (Konva Line + strokeWidth basierend auf Material), Drag-and-Drop, Undo/Redo (Command-Pattern mit $state-Array), Zoom/Pan (Konva Stage draggable + Wheel-Event), Selection/Multi-Edit, Wand-Labels. Code-Beispiele in Svelte 5 + svelte-konva vorhanden.
 - **Beschreibung:** Das Zeichnen von Waenden auf einem importierten Grundriss erfordert erhebliche Implementierungsarbeit:
   - **Snapping**: Waende an Endpunkten einrasten (Snap-to-Grid, Snap-to-Endpoint, Snap-to-Edge)
   - **Wand-Darstellung**: Linie mit Breite (Dicke visuell darstellen) oder nur Mittellinie? Farbcodierung nach Material?
@@ -215,6 +256,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-UI-03: Grundriss-Bildverarbeitung und Import
 - **Prioritaet:** MITTEL
 - **Art:** Recherche noetig
+- **Status:** TEILWEISE -- Bild-Import dokumentiert, PDF-Import-Technologie offen
+- **Ergebnis:** Canvas-Heatmap.md Abschnitt 2.4: Grundriss als Konva.Image auf Background-Layer. Unterstuetzte Formate: PNG, JPG (nativ). PDF-Import: pdf.js im Frontend oder Rust-Library (poppler-rs, pdf-extract) im Backend -- noch nicht entschieden. Referenzlinie fuer Massstab: Zwei-Punkt-Klick + Laengeneingabe. OFFEN: PDF-Strategie, maximale Bildgroesse/Aufloesung.
 - **Beschreibung:** Beim Import von Grundrissbildern/-PDFs gibt es offene Fragen:
   - Unterstuetzte Bildformate: PNG, JPG, SVG, TIFF, BMP?
   - **PDF-Import**: Wie wird ein PDF in ein Canvas-Bild umgewandelt? (pdf.js im Frontend? Rust-Library im Tauri-Backend? Nur erste Seite oder Seite waehlbar?)
@@ -227,6 +270,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-UI-04: Touch- und Mobile-Support
 - **Prioritaet:** NIEDRIG
 - **Art:** Entscheidung treffen
+- **Status:** OFFEN (Benutzer) -- siehe Phase4-Fragenkatalog.md F-14
+- **Ergebnis:** Keine spezifische Recherche in Phase 3. Konva.js unterstuetzt Touch-Events nativ. Kernfrage: Reicht Desktop-UI fuer Messungen oder wird Companion-App/Web-UI benoetigt? Benutzer-Entscheidung erforderlich.
 - **Beschreibung:** Das Tool ist als Desktop-App (Tauri) geplant. Offene Fragen:
   - Wird Touchscreen-Bedienung auf Laptops/2-in-1-Geraeten unterstuetzt?
   - Pinch-to-Zoom, Zwei-Finger-Pan auf Trackpads?
@@ -238,6 +283,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-UI-05: Barrierefreiheit (Accessibility)
 - **Prioritaet:** NIEDRIG
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Farbschema-Empfehlung vorhanden, weitere A11y-Details offen
+- **Ergebnis:** Canvas-Heatmap.md und Open-Source-Evaluation.md empfehlen Viridis als farbenblind-freundliches Farbschema. WCAG-Konformitaetsziel und Tastatur-Navigation fuer Canvas-Elemente sind Architektur-Entscheidungen fuer Phase 5.
 - **Beschreibung:** Farbheatmaps sind fuer farbenblinde Benutzer (8% aller Maenner) problematisch:
   - Alternatives Farbschema fuer Rot-Gruen-Blindheit? (Viridis ist farbenblind-freundlich)
   - Tastatur-Navigation fuer Canvas-Elemente moeglich?
@@ -252,6 +299,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-HM-01: Rasteraufloesung und Performance-Balance
 - **Prioritaet:** HOCH
 - **Art:** Technisches Experiment
+- **Status:** BEANTWORTET -- siehe `docs/research/Canvas-Heatmap.md` Abschnitt 4
+- **Ergebnis:** Detaillierte Benchmarks dokumentiert: 25 cm Default-Aufloesung (16.000 Punkte bei 100 m^2), progressive Berechnung (erst 1m grob, dann 25cm fein). Web Worker + OffscreenCanvas fuer non-blocking. Adaptive Aufloesung waehrend Drag (1m) vs. nach Loslassen (25cm). Ziel-Rechenzeiten: <100ms fuer Drag-Preview, <500ms fuer volle Qualitaet.
 - **Beschreibung:** Die Heatmap muss auf einem Raster berechnet werden. Konkrete Zahlen:
   - 100 m^2 Wohnung bei 10 cm Aufloesung = 100.000 Rasterpunkte
   - 100 m^2 Wohnung bei 25 cm Aufloesung = 16.000 Rasterpunkte
@@ -266,6 +315,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-HM-02: Ray-Casting-Algorithmus fuer Wanderkennung
 - **Prioritaet:** HOCH
 - **Art:** Technisches Experiment
+- **Status:** BEANTWORTET -- siehe `docs/research/Canvas-Heatmap.md` Abschnitt 4.2 und `docs/research/Open-Source-Evaluation.md`
+- **Ergebnis:** flatten-js (MIT-Lizenz, 160k+ Downloads/Woche) empfohlen fuer Ray-Segment-Intersection. Unterstuetzt Punkt, Segment, Polygon, Ray-Queries. Alternative: eigene Implementierung mit Spatial Hashing (Grid-basiert) fuer O(1) Lookup statt O(n) Wandsegmente. Edge Cases (Wand als Linie, Ecken-Streifung) in Canvas-Heatmap.md adressiert.
 - **Beschreibung:** Fuer jeden Rasterpunkt muss berechnet werden, welche Waende zwischen dem Punkt und jedem AP liegen. Das erfordert:
   - **Algorithmus**: Linie-Segment-Schnitttest (fuer jedes Wandsegment pruefen ob es den Strahl AP→Punkt schneidet)
   - **Naive Komplexitaet**: O(Rasterpunkte * APs * Wandsegmente) -- bei 16.000 * 5 * 50 = 4.000.000 Schnittberechnungen
@@ -277,6 +328,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-HM-03: Berechnung im Hintergrund (Worker/Backend)
 - **Prioritaet:** HOCH
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Canvas-Heatmap.md` Abschnitt 4 und `docs/research/Tech-Stack-Evaluation.md`
+- **Ergebnis:** Empfehlung: Web Worker + OffscreenCanvas als primaerer Ansatz (kein IPC-Overhead, kein SharedArrayBuffer-Header noetig). Progressive Berechnung: erst grob (1m), dann fein (25cm). Tauri-Rust-Backend als optionale Beschleunigung fuer sehr grosse Grundrisse (>200 m^2). WASM als Mittelweg evaluiert aber zunaechst nicht empfohlen (Komplexitaet vs. Nutzen).
 - **Beschreibung:** Die Heatmap-Berechnung blockiert den UI-Thread. Loesungsansaetze:
   - **WebWorker** (JavaScript): Berechnung im separaten Thread, Ergebnis per postMessage zurueck. Einfach, aber JS-Performance.
   - **WebWorker + SharedArrayBuffer**: Heatmap-Daten im geteilten Speicher, kein Kopieren noetig. Erfordert spezielle HTTP-Header (COOP/COEP).
@@ -289,6 +342,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-HM-04: Farbschema und Visualisierungsoptionen
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Viridis empfohlen, Detail-Entscheidungen offen
+- **Ergebnis:** Canvas-Heatmap.md: Viridis als Default (farbenblind-freundlich, perceptually uniform). Kontinuierlicher Gradient empfohlen, diskrete Stufen als Option. Heatmap als ImageData auf nativem Canvas (nicht Konva), Alpha einstellbar. OFFEN: Isolinien ja/nein (Benutzer-Entscheidung F-16), separate vs. Toggle-Ansicht fuer 2.4/5 GHz, Durchsatz-Schaetzungsansicht.
 - **Beschreibung:** Die Signal-Schwellen sind in rf-modell.md definiert. Offene Designfragen:
   - Welches Farbschema? Standard-Optionen: Viridis (farbenblind-freundlich), Jet (klassisch, aber problematisch), Inferno, Plasma, oder Custom-Schema
   - Diskrete Farbstufen (5 Farben, wie in rf-modell.md) oder kontinuierlicher Gradient?
@@ -303,6 +358,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-HM-05: Echtzeit-Update bei AP-Verschiebung
 - **Prioritaet:** MITTEL
 - **Art:** Technisches Experiment
+- **Status:** BEANTWORTET -- siehe `docs/research/Canvas-Heatmap.md` Abschnitt 4.3
+- **Ergebnis:** Progressive Rendering-Strategie: Waehrend Drag niedrige Aufloesung (1m, ~400 Punkte bei 100 m^2, <50ms), nach Loslassen volle Aufloesung (25cm, 16.000 Punkte, <500ms). Debouncing bei 100-200ms waehrend Drag. Inkrementelles Update: nur betroffenen AP-Beitrag neu berechnen, Rest cachen. Web Worker verhindert UI-Blocking.
 - **Beschreibung:** Wenn ein AP per Drag-and-Drop verschoben wird, soll die Heatmap sich "sofort" aktualisieren. Offene Fragen:
   - Was ist "sofort" akzeptabel? (< 100ms fuer fluessiges Drag, < 500ms fuer responsives Gefuehl, < 2s fuer akzeptabel)
   - Debouncing/Throttling waehrend des Draggings? (z.B. Neuberechnung max. alle 200ms)
@@ -318,6 +375,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MS-01: iPerf3-Integration technisch ungeklaert
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig + Technisches Experiment
+- **Status:** BEANTWORTET -- siehe `docs/research/Messung-Kalibrierung.md` Abschnitt 1
+- **Ergebnis:** iPerf3 als Tauri Sidecar (gebundelte Binary pro Plattform). Server auf kabelgebundenem Host, Client auf WLAN-Geraet. JSON-Output-Parsing (`-J` Flag) dokumentiert mit Rust-Structs. Parameter: TCP, 10s Dauer, 4 parallele Streams, bidirektional (`--bidir`). Fehlerbehandlung: Timeout 15s, Retry 1x, Fallback auf HTTP-Speedtest. Smartphone: kein iPerf3 auf iOS, HTTP-basierter Fallback-Test empfohlen.
 - **Beschreibung:** iPerf3 wird fuer Durchsatzmessungen verwendet. Voellig ungeklaert:
   - **Server-Seite**: Wo laeuft der iPerf3-Server? Auf dem Host-Rechner (via Kabel angebunden)? Auf einem separaten Geraet (Raspberry Pi)? Auf dem Router?
   - **Client-Seite**: Wird iPerf3 als separater Prozess gestartet? (Tauri Sidecar? Rust child_process?)
@@ -332,6 +391,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MS-02: RSSI/BSSID-Messung pro Betriebssystem
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig
+- **Status:** BEANTWORTET -- siehe `docs/research/Messung-Kalibrierung.md` Abschnitt 2
+- **Ergebnis:** Plattform-spezifische Loesung dokumentiert: macOS via CoreWLAN (objc2-core-wlan Rust Crate), Windows via WlanApi (windows-rs Crate), Linux via nl80211 (neli Crate). Polling: 1x/Sekunde waehrend Messung. RSSI-Werte zwischen Plattformen nicht direkt vergleichbar (3-10 dB Offset). iOS/Android nicht direkt unterstuetzt (Tauri Desktop-only), BSSID ab iOS 13 blockiert. macOS Location Services erforderlich (NEU-01).
 - **Beschreibung:** Signalstaerke und verbundener AP muessen ausgelesen werden. Das ist hochgradig OS-abhaengig:
   - **macOS**: `airport -I` (deprecated aber funktioniert) oder CoreWLAN Framework (`CWInterface`) -- liefert RSSI, BSSID, Channel, Noise. In Tauri via Rust-Binding oder Shell-Command.
   - **Windows**: `netsh wlan show interfaces` oder Native WiFi API (`WlanQueryInterface`). RSSI, BSSID, Channel verfuegbar.
@@ -345,6 +406,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MS-03: Messpunkt-Lokalisierung im Grundriss
 - **Prioritaet:** HOCH
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Messung-Kalibrierung.md` Abschnitt 3
+- **Ergebnis:** Empfohlen: Hybrid-Ansatz. Automatische Messpunkt-Generierung (Raster + intelligente Platzierung an Waenden/Durchgaengen), Benutzer kann anpassen. Sequentielle Navigation ("Gehen Sie zu Punkt 3") mit Marker auf Grundriss, Bestaetigung per Klick. Genauigkeit +/- 0.5m ausreichend. Mindestanzahl: 8-12 Punkte fuer sinnvolle Kalibrierung (abhaengig von Grundrissgroesse und Wandanzahl).
 - **Beschreibung:** Der Benutzer geht Messpunkte ab. Aber wie weiss das Tool, wo der Benutzer gerade steht?
   - **Manueller Klick**: Benutzer tippt/klickt seine aktuelle Position auf dem Grundriss. Einfach, aber erfordert Blick auf den Bildschirm.
   - **Sequentielle Navigation**: "Gehen Sie jetzt zu Punkt 3" mit Marker auf dem Grundriss -- Benutzer bestaetigt Ankunft. Strukturierter, weniger fehleranfaellig.
@@ -356,6 +419,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MS-04: Kalibrierungsalgorithmus
 - **Prioritaet:** MITTEL
 - **Art:** Recherche noetig
+- **Status:** BEANTWORTET -- siehe `docs/research/Messung-Kalibrierung.md` Abschnitt 4
+- **Ergebnis:** Least-Squares-Fitting empfohlen fuer Pfadverlustexponent n und PL(1m). Wanddaempfungen werden NICHT individuell kalibriert (zu wenige Datenpunkte), nur globaler Korrekturfaktor. Minimale Datenmenge: 8 Punkte fuer stabile Regression. Regularisierung: Priors aus Literaturwerten (n=2.8 fuer Indoor), Outlier-Erkennung via IQR-Methode. Unkalibriert: RMSE 8-12 dB, kalibriert: RMSE 3-6 dB.
 - **Beschreibung:** Messdaten sollen das RF-Modell kalibrieren ("Measured + Delta" laut Backlog). Offene Fragen:
   - **Welche Parameter kalibrieren?** Daempfungsfaktor n? Wanddaempfungen individuell? PL(1m)? Alles zusammen?
   - **Mathematischer Ansatz**: Least-Squares-Fit der Modellparameter an die Messdaten? Bayes'sche Schaetzung mit Priors (konservative Defaults als Prior)?
@@ -368,6 +433,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MS-05: Statistische Auswertung der Messungen
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Messung-Kalibrierung.md` Abschnitt 3.3 und 4
+- **Ergebnis:** Empfohlen: 3x10s iPerf-Runs pro Messpunkt, Median als Aggregation (robuster als Mittelwert). Standardabweichung anzeigen (hohe Varianz = instabile Verbindung). Outlier-Erkennung via IQR-Methode (1.5*IQR). Confidence-Intervall aus Residuen der Kalibrierung ableitbar. Vergleichbarkeit Run 1/2/3: Zeitstempel speichern, Warnung bei >30min Zeitversatz.
 - **Beschreibung:** Pro Messpunkt gibt es mehrere Messwerte. Statistische Fragen:
   - Wie viele Einzelmessungen pro Messpunkt? (3x10s iPerf? 5x5s? 10x Ping?)
   - Aggregation: Mittelwert, Median (robuster gegen Ausreisser), oder Perzentile (p5 fuer Worst-Case)?
@@ -380,6 +447,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MS-06: Mess-Agent-Architektur
 - **Prioritaet:** NIEDRIG
 - **Art:** Entscheidung treffen
+- **Status:** OFFEN -- Post-MVP, keine Recherche in Phase 3
+- **Ergebnis:** Nicht in Phase 3 adressiert. Messung-Kalibrierung.md fokussiert auf Desktop-basierte Messung. WebSocket-Server-Architektur fuer spaetere Agent-Anbindung sollte in Phase 5 als Extension Point eingeplant werden. Benutzer-Entscheidung F-14 (Companion-App) beeinflusst Prioritaet.
 - **Beschreibung:** Das PRD erwaehnt einen optionalen "Mess-Agent" fuer Notebook/Android. Voellig unspezifiziert:
   - Kommunikationsprotokoll: WebSocket (bidirektional, echtzeitfaehig) oder REST (einfacher, Request-Response)?
   - Automatische Erkennung des Agents: mDNS/Bonjour? Manuell IP eingeben?
@@ -395,6 +464,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MC-01: Live-Parameter vs. Forecast-Parameter
 - **Prioritaet:** HOCH
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Empfehlung vorhanden, Benutzer-Entscheidung noetig
+- **Ergebnis:** AP-Steuerung.md: Web-Interface-Scraping ermoeglicht Live-Steuerung (TX-Power, Channel, Bandwidth aenderbar). Empfehlung: Forecast-Only im MVP, Live-Modus als Erweiterung. Begruendung: Forecast ist sicherer, Web-Interface-Scraping ist fragil (Firmware-Abhaengigkeit). Benutzer-Entscheidung F-01 (MVP-Scope Mixing Console) bestimmt ob Live-Modus relevant ist.
 - **Beschreibung:** Die Mixing Console hat zwei potentielle Modi:
   1. **Forecast-Modus**: Schieberegler aendern nur die berechnete Heatmap (reine Simulation, kein AP wird angesteuert)
   2. **Live-Modus**: Schieberegler aendern tatsaechlich die AP-Konfiguration UND die Heatmap
@@ -409,6 +480,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MC-02: Optimierungsalgorithmus
 - **Prioritaet:** MITTEL
 - **Art:** Recherche noetig
+- **Status:** TEILWEISE -- Heuristischer Ansatz empfohlen, Details offen
+- **Ergebnis:** Keine dedizierte Recherche in Phase 3. Empfehlung aus Cross-Check: Regelbasierter/heuristischer Ansatz fuer MVP (IF-THEN-Regeln: "Wenn RSSI <-75 dBm: TX-Power erhoehen", "Wenn Co-Channel-Interferenz: Kanal wechseln"). Greedy-Algorithmus als Stufe 2. Brute-Force und genetischer Algorithmus sind Post-MVP. Optimierungsziel und Multi-Objective-Gewichtung sind Benutzer-Entscheidungen.
 - **Beschreibung:** Das Tool soll Konfigurationsvorschlaege mit Confidence-Level generieren. Aber welcher Algorithmus?
   - **Brute-Force**: Alle Kombinationen von TX-Power (z.B. 10 Stufen) * Channel (13 Kanaele) * Bandwidth (3 Optionen) pro AP -- bei 3 APs = (10*13*3)^3 = ~60 Milliarden Kombinationen. Unmoeglich.
   - **Heuristik/Regelbasiert**: "Wenn RSSI am Nachbar-AP > -50 dBm: TX-Power reduzieren", "Wenn Kanal-Ueberlappung: anderen Kanal waehlen". Einfach, erklaerbar, aber nicht optimal.
@@ -422,6 +495,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-MC-03: Roaming-Analyse und Sticky-Client-Erkennung
 - **Prioritaet:** MITTEL
 - **Art:** Recherche noetig
+- **Status:** TEILWEISE -- RSSI-Messung geklaert, Roaming-Logik offen
+- **Ergebnis:** Messung-Kalibrierung.md: BSSID-Tracking pro Messpunkt moeglich (RSSI + BSSID gleichzeitig erfassen). Sticky-Client-Erkennung: Vergleich RSSI des verbundenen AP vs. bester verfuegbarer AP (Delta >15 dB = sticky). OFFEN: 802.11k/r/v Unterstuetzungserkennung, Client-spezifische Roaming-Empfehlungen, Min-RSSI-Kick-Konfiguration (Post-MVP, abhaengig von AP-Steuerung).
 - **Beschreibung:** Run 2 soll Roaming-Probleme erkennen. Offene Fragen:
   - **Sticky-Client-Definition**: Ab wann ist ein Client "sticky"? (z.B. verbunden mit AP bei -80 dBm, obwohl anderer AP -55 dBm liefert)
   - **Metriken**: RSSI-Differenz zwischen verbundenem und bestem AP, Disconnect-Haeufigkeit, Roaming-Dauer
@@ -438,6 +513,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-DB-01: Datenbankschema nicht definiert
 - **Prioritaet:** HOCH
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` Abschnitt 4
+- **Ergebnis:** Vollstaendiges SQLite-Schema mit rusqlite dokumentiert: projects, floor_plans, walls, openings, access_points, ap_models, materials, measurement_points, measurement_results, config_history. Grundrissbild als BLOB in DB (einfacher Export). rusqlite mit bundled-Feature (SQLite kompiliert in Binary, keine externe Abhaengigkeit). Migrationen via PRAGMA user_version.
 - **Beschreibung:** SQLite ist als Kandidat erwaehnt. Aber das Schema fehlt komplett. Benoetigte Entitaeten:
   - **Projects**: Name, Erstellungsdatum, Grundrissbild-Referenz, Massstab
   - **FloorPlans**: Bild-Daten oder Pfad, Rotation, Offset, DPI
@@ -456,6 +533,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-DB-02: Undo/Redo-Mechanismus
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Canvas-Heatmap.md` Abschnitt 2.6
+- **Ergebnis:** Command-Pattern empfohlen: Jede Aktion als Command-Objekt mit execute()/undo(). Svelte 5 $state-Array fuer Undo-Stack. Undo-Tiefe: 100 Aktionen (konfigurierbar). Redo-Stack bei neuer Aktion verwerfen. Persistenz ueber Session-Grenzen: Letzte Aktion automatisch gespeichert (Auto-Save), aber Undo-History nicht persistent. AP-Konfiguration-Undo: Separater Mechanismus ueber config_history-Tabelle.
 - **Beschreibung:** Das PRD fordert "Undo jederzeit moeglich". Offene Architektur-Fragen:
   - **Granularitaet**: Undo pro Einzelaktion (Wand zeichnen, AP verschieben) oder pro logischem Schritt?
   - **Command-Pattern**: Jede Aktion als Command-Objekt mit `execute()` und `undo()`?
@@ -469,6 +548,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-DB-03: Projekt-Import/Export-Format
 - **Prioritaet:** NIEDRIG
 - **Art:** Entscheidung treffen
+- **Status:** OFFEN -- Nicht in Phase 3 adressiert, Post-MVP
+- **Ergebnis:** Keine dedizierte Recherche. Empfehlung aus Tech-Stack-Evaluation: ZIP-Container (.wlanopt) mit JSON-Schema + Bild-Dateien. Schema-Versionierung ueber Version-Feld im JSON. Detail-Spezifikation in Phase 5 (Architektur).
 - **Beschreibung:** Export als JSON ist geplant. Offene Fragen:
   - JSON-Schema definieren (fuer Validierung bei Import)
   - Grundrissbild eingebettet (Base64 im JSON) oder separate Datei?
@@ -485,6 +566,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-TS-01: Frontend-Framework
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig + Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` Abschnitt 1
+- **Ergebnis:** Svelte 5 (Runes) empfohlen. Gruende: Kleinste Runtime (~5 KB), granulare Reaktivitaet ohne VDOM, exzellente Tauri-2-Integration, offizielle svelte-konva Bindings mit Runes-Support, Paraglide-js fuer i18n (Svelte-nativ). Nachteil: Kleineres Oekosystem als React, aber alle benoetigten Libraries vorhanden. Bewertungsmatrix: Svelte 5 (91/100) > React 19 (82/100) > Vue 3.5 (75/100).
 - **Beschreibung:** Svelte 5 ist als Kandidat erwaehnt, aber die Entscheidung ist nicht getroffen. Zu evaluieren:
   - **Svelte 5 (Runes)**: Kleine Bundle-Size (~5 KB Runtime), granulare Reaktivitaet ohne VDOM, exzellente DX. Nachteil: Kleineres Oekosystem als React, weniger Canvas-Libraries, weniger LLM-Trainingsdaten (relevant fuer Code-Generierung in Phase 8).
   - **React 19**: Groesstes Oekosystem, viele Canvas-Libraries (react-konva, react-pixi, react-three-fiber). Server Components irrelevant fuer Desktop-App. Nachteil: VDOM-Overhead, groessere Bundle-Size.
@@ -496,6 +579,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-TS-02: Desktop-Framework
 - **Prioritaet:** HOCH
 - **Art:** Recherche noetig + Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` Abschnitt 2
+- **Ergebnis:** Tauri 2 empfohlen. Gruende: Kleine Bundle-Size (~10-15 MB vs. ~200 MB Electron), Rust-Backend ideal fuer rechenintensive Heatmap und OS-spezifische APIs (RSSI, WLAN), nativer Sidecar-Support fuer iPerf3, Capabilities-basiertes Sicherheitsmodell. WebView-Inkonsistenz als Risiko identifiziert (NEU-02: IPC-Latenz Windows). Tauri 2 Plugins: fs, shell (Sidecar), sql (rusqlite), updater.
 - **Beschreibung:** Tauri 2 ist als Kandidat erwaehnt. Konkreter Vergleich:
   - **Tauri 2**: Kleine Bundle-Size (~10-15 MB), Rust-Backend (sicher, schnell), System-WebView. Nachteil: WebView-Rendering ist nicht konsistent (WKWebView/Safari auf macOS, Edge WebView2 auf Windows, WebKitGTK auf Linux). Canvas/WebGL-Performance kann variieren.
   - **Electron 34**: Chromium-basiert, konsistente Darstellung, riesiges Oekosystem. Nachteil: Bundle-Size (~150-200 MB), hoher RAM-Verbrauch (~200 MB Basis), Node.js-Backend (langsamer als Rust fuer RF-Berechnung).
@@ -506,6 +591,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-TS-03: Backend-Logik-Verteilung (Frontend vs. Backend)
 - **Prioritaet:** HOCH
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` und `docs/research/Canvas-Heatmap.md`
+- **Ergebnis:** Empfohlene Verteilung: Heatmap-Berechnung im Frontend (Web Worker, kein IPC-Overhead), AP-Steuerung im Backend (Rust, Netzwerk-Zugriff), iPerf3 als Backend-Sidecar, Datenbankzugriff via Tauri-Commands (rusqlite), RSSI-Messung im Backend (OS-spezifische Rust-Crates). IPC-Design: Tauri invoke fuer Request-Response, Tauri Events fuer lang laufende Operationen (Messungen, iPerf-Fortschritt).
 - **Beschreibung:** Wo laeuft welche Logik?
   - **Heatmap-Berechnung**: Frontend (JS/WASM im WebWorker) oder Backend (Rust in Tauri)? Rust waere 10-100x schneller, aber IPC-Serialisierung der Heatmap-Daten (16.000+ Farbwerte) kostet Zeit.
   - **AP-Steuerung**: Muss im Backend laufen (Netzwerk-Zugriff, SNMP, HTTP-Requests)
@@ -518,6 +605,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-TS-04: Testing-Strategie und -Framework
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` Abschnitt 6
+- **Ergebnis:** Vitest empfohlen (Vite-nativ, ESM-Support, schnelle Ausfuehrung). Svelte Testing Library fuer Komponenten-Tests. Playwright fuer E2E (Tauri WebDriver Support). RF-Modell-Tests: Numerische Verifikation gegen ITU-R P.1238 Referenzwerte. Coverage-Ziel: 90% RF-Berechnung, 80% Business-Logik, 60% UI-Komponenten. CI/CD: GitHub Actions mit macOS/Windows/Linux Matrix.
 - **Beschreibung:** Kein Testing-Framework festgelegt. Zu klaeren:
   - **Unit Tests**: Vitest (schnell, Vite-nativ, ESM-Support) -- fuer beide Svelte und React geeignet
   - **Komponenten-Tests**: Svelte Testing Library oder React Testing Library (je nach WL-TS-01)
@@ -531,6 +620,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-TS-05: i18n-Loesung
 - **Prioritaet:** MITTEL
 - **Art:** Recherche noetig + Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Open-Source-Evaluation.md` und `docs/research/Tech-Stack-Evaluation.md`
+- **Ergebnis:** Paraglide-js (inlang) empfohlen. Gruende: Kompilierzeit-i18n, vollstaendig typsicher (TypeScript), Tree-Shaking (nur genutzte Uebersetzungen im Bundle), offizielle SvelteKit-Integration, Laufzeit-Sprachwechsel ohne Reload. Nachteil: Juengeres Projekt als i18next. Fallback-Sprache: Englisch. Spaeteren Support fuer weitere Sprachen einfach durch zusaetzliche JSON-Dateien.
 - **Beschreibung:** Key-basierte Uebersetzungen sind gefordert (EN/DE). Optionen:
   - **svelte-i18n**: Nativ fuer Svelte, einfach, aber weniger Features (keine Typsicherheit fuer Keys)
   - **i18next** (+ svelte-i18next / react-i18next): Ausgereift, Pluralisierung, Interpolation, Namespaces, viele Plugins. Defacto-Standard.
@@ -542,6 +633,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-TS-06: Build-System und Bundler
 - **Prioritaet:** NIEDRIG
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` Abschnitt 7
+- **Ergebnis:** Vite als klarer Standard fuer Svelte + Tauri. Dev-Server-Port konfigurierbar, HTTPS nicht noetig (SharedArrayBuffer ueber Tauri Capabilities statt COOP/COEP Header). Biome als Linter/Formatter (ersetzt ESLint + Prettier, 100x schneller). Source Maps nur in Development. CI/CD: GitHub Actions.
 - **Beschreibung:** Optionen:
   - **Vite**: De-facto-Standard fuer Svelte + Tauri. Schneller Dev-Server, guter Production-Build.
   - Dev-Server-Konfiguration: Port, HTTPS (noetig fuer SharedArrayBuffer-Header)?
@@ -555,6 +648,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-DP-01: Plattform-Support und -Prioritaet
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen + Benutzer fragen
+- **Status:** OFFEN (Benutzer) -- siehe Phase4-Fragenkatalog.md F-12
+- **Ergebnis:** Tech-Stack-Evaluation.md: Tauri 2 unterstuetzt macOS (Universal Binary), Windows (x64 + ARM), Linux (AppImage, .deb, .rpm). Benutzer-Entwicklungsmaschine ist macOS (Apple Silicon). RSSI-Crates fuer alle 3 Plattformen verfuegbar. Benutzer muss entscheiden: macOS-First oder alle gleichzeitig? iPerf3-Binaries muessen pro Plattform gebundled werden.
 - **Beschreibung:** Welche Betriebssysteme werden unterstuetzt und in welcher Reihenfolge?
   - **macOS**: Intel + Apple Silicon (Universal Binary). Ab macOS 12 (Monterey)?
   - **Windows**: x64 zwingend. ARM (Surface Pro X)? Ab Windows 10?
@@ -567,6 +662,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-DP-02: Auto-Update und Code-Signing
 - **Prioritaet:** NIEDRIG
 - **Art:** Recherche noetig
+- **Status:** TEILWEISE -- Tauri-Updater dokumentiert, Code-Signing ist Benutzer-Entscheidung
+- **Ergebnis:** Tech-Stack-Evaluation.md: Tauri Updater Plugin (v2) unterstuetzt GitHub Releases als Backend, Full-Download (kein Delta). Code-Signing: macOS Notarization ($99/Jahr Apple Developer), Windows Authenticode (~$200/Jahr). OFFEN: Ob Benutzer Kosten fuer Code-Signing tragen will oder unsigned Distribution mit Installationsanleitung akzeptabel ist. Benutzer-Entscheidung F-18.
 - **Beschreibung:** Offene Fragen:
   - Tauri hat ein eingebautes Updater-Plugin -- reicht das?
   - Update-Server: GitHub Releases als Backend (kostenlos, einfach)?
@@ -578,6 +675,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-DP-03: Lizenz-Compliance
 - **Prioritaet:** NIEDRIG
 - **Art:** Recherche noetig
+- **Status:** BEANTWORTET -- siehe `docs/research/Open-Source-Evaluation.md` und `docs/research/Tech-Stack-Evaluation.md`
+- **Ergebnis:** Alle empfohlenen Abhaengigkeiten MIT- oder Apache-2.0-lizenziert (kompatibel mit MIT). iPerf3: BSD-3-Clause (kompatibel). Konva.js: MIT. flatten-js: MIT. Paraglide-js: Apache-2.0. Tauri: MIT + Apache-2.0. rusqlite: MIT. Biome: MIT. Keine GPL-Infektionsgefahr identifiziert. SBOM-Erstellung: cargo-about (Rust) + license-checker (npm) empfohlen fuer Phase 9.
 - **Beschreibung:** MIT-Lizenz ist entschieden, aber:
   - Lizenz-Kompatibilitaet aller Abhaengigkeiten pruefen (GPL-Infektionsgefahr! z.B. manche Linux-Libraries)
   - iPerf3: BSD-3-Clause lizenziert -- kompatibel mit MIT
@@ -594,6 +693,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AR-01: State Management
 - **Prioritaet:** HOCH
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` und `docs/research/Canvas-Heatmap.md`
+- **Ergebnis:** Svelte 5 Runes ($state, $derived, $effect) als primaeres State-Management. Kein externes State-Management-Framework noetig (Svelte 5 Runes ersetzen Stores). Reaktivitaets-Kette: Wand-Aenderung -> $derived Heatmap-Neuberechnung -> Canvas-Update. Serialisierung: JSON.stringify/$state Snapshot fuer Speichern/Laden. XState optional fuer komplexe Workflows (Mess-Ablauf State Machine) -- Architektur-Entscheidung Phase 5.
 - **Beschreibung:** Welches State-Management-Pattern? Die App hat verschiedene State-Domains:
   - **App-State**: Aktuelles Projekt, aktiver Modus, Sprache, Theme
   - **Canvas-State**: Waende, APs, Messpunkte, Zoom/Pan, aktives Werkzeug, Selektion
@@ -608,6 +709,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AR-02: Modularisierung und Paketstruktur
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Empfehlung vorhanden, Detail-Spezifikation Phase 5
+- **Ergebnis:** Tech-Stack-Evaluation.md: Single-Package mit Feature-basierter Ordnerstruktur empfohlen (src/features/planning/, src/features/measurement/, src/features/optimization/). Kein Monorepo noetig fuer MVP. Shared Types: TypeScript Interfaces in src/types/, generiert via Supabase-Style generate_typescript_types oder manuell. Abhaengigkeitsrichtung: core (RF-Modell) -> features -> UI. Detail-Spezifikation in Phase 5.
 - **Beschreibung:** Wie wird der Code strukturiert?
   - **Monorepo** (ein Repository, mehrere Packages) vs. **Single-Package** (alles in einem `src/`)?
   - Feature-basierte Ordnerstruktur (`src/features/planning/`, `src/features/measurement/`) vs. schichtenbasiert (`src/components/`, `src/services/`, `src/models/`)?
@@ -620,6 +723,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AR-03: Plugin-System fuer AP-Modelle und Materialien
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Materialien als JSON dokumentiert, AP-Profil-System offen
+- **Ergebnis:** RF-Materialien.md: 27 Wandmaterialien + 4 Deckentypen als JSON-Struktur definiert (ID, Name, Daempfung pro Band, Kategorie). Benutzer-editierbar ueber UI. AP-Steuerung.md: APControllerTrait als Rust-Interface fuer Hersteller-Plugins. AP-Modell-Profile als JSON (TX-Power-Range, Channels, Capabilities). OFFEN: Community-Repository-Konzept, Validierung benutzerdefinierter Profile -- Phase 5 Architektur.
 - **Beschreibung:** Das PRD fordert Erweiterbarkeit. Offene Fragen:
   - AP-Modell als JSON/YAML-Datei mit definiertem Schema?
   - Material-Definitionen als Konfigurationsdatei (bearbeitbar durch Benutzer)?
@@ -632,6 +737,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AR-04: Error Handling und Logging
 - **Prioritaet:** MITTEL
 - **Art:** Entscheidung treffen
+- **Status:** TEILWEISE -- Grundkonzept in Tech-Stack-Evaluation, Details offen
+- **Ergebnis:** Tech-Stack-Evaluation.md: Svelte 5 Error Boundaries fuer UI-Fehler. Rust-Backend: anyhow/thiserror fuer Error-Handling, tracing Crate fuer strukturiertes Logging. Tauri: Log-Plugin fuer Datei-basiertes Logging mit Rotation. Auto-Save: Empfohlen alle 5 Minuten oder bei kritischen Aktionen. OFFEN: Crash-Reporting-Strategie, benutzerfreundliche Fehlermeldungen (i18n), Graceful Degradation bei AP-Kommunikationsfehlern -- Phase 5.
 - **Beschreibung:** Offene Fragen:
   - **Globale Fehlerbehandlung**: Error Boundary in Svelte/React fuer UI-Fehler
   - **Logging**: Logging-Level (Debug, Info, Warn, Error) und -Ziel (Datei im Benutzerverzeichnis? Konsole? Rotierendes Log?)
@@ -644,6 +751,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AR-05: Freischaltungslogik fuer Optimierungsmodul
 - **Prioritaet:** MITTEL
 - **Art:** Benutzer fragen
+- **Status:** OFFEN (Benutzer) -- siehe Phase4-Fragenkatalog.md F-02
+- **Ergebnis:** Nicht in Phase 3 technisch recherchiert, da reine Geschaeftsentscheidung. Widerspruch WID-02 identifiziert: MIT-Lizenz macht technische Freischaltung sinnlos (Fork moeglich). Benutzer muss klaeren: Bezahlmodell, UI-Flow-Gate, oder Feature komplett offen? Empfehlung: Falls Open Source (MIT), dann kein technisches Gate, statt dessen Donation-Link oder Sponsorware-Modell.
 - **Beschreibung:** Das PRD erwaehnt "Freischalt-Feature" und US-05 spricht von "Freischaltung mit Laufzeitanzeige (z.B. 30 Tage)". Voellig ungeklaert (siehe auch WID-02):
   - Ist das ein Bezahlmodell? (License Key? Donation-Ware? Sponsorware a la Tailwind UI?)
   - Oder ist "Freischaltung" nur ein UI-Flow? (Planungsfeatures zuerst, Messfeatures als "naechster Schritt")
@@ -655,6 +764,8 @@ Vor der eigentlichen Lueckenanalyse: Diese Inkonsistenzen muessen in Phase 4 gek
 ### WL-AR-06: Datenmigration bei Schema-Aenderungen
 - **Prioritaet:** NIEDRIG
 - **Art:** Entscheidung treffen
+- **Status:** BEANTWORTET -- siehe `docs/research/Tech-Stack-Evaluation.md` Abschnitt 4
+- **Ergebnis:** rusqlite mit PRAGMA user_version fuer Schema-Versionierung. Migrationen als sequentielle SQL-Skripte (001_initial.sql, 002_add_measurements.sql etc.). Automatische Migration bei App-Start: user_version pruefen, fehlende Migrationen anwenden. Backup vor Migration: SQLite-Datei kopieren (trivial). Migrationstests als Teil der Test-Suite (Phase 9).
 - **Beschreibung:** Wenn sich das Datenbankschema oder Projektformat aendert:
   - Automatische Migration bei App-Update? (SQLite ALTER TABLE + Migrationsskripte)
   - Schema-Versionsnummer in der Datenbank?

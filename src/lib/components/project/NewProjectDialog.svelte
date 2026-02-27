@@ -64,7 +64,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label={t('project.newProject')}>
     <header class="dialog-header">
       <h2>{t('project.newProject')}</h2>
-      <button class="close-btn" onclick={onClose} aria-label="Close">x</button>
+      <button class="close-btn" onclick={onClose} aria-label={t('action.close')}>x</button>
     </header>
 
     <form onsubmit={handleSubmit}>
@@ -102,7 +102,7 @@
         </button>
         <button type="submit" class="btn-primary" disabled={!isValid || isSubmitting}>
           {#if isSubmitting}
-            Creating...
+            {t('action.creating')}
           {:else}
             {t('project.create')}
           {/if}

@@ -18,6 +18,7 @@ export interface CanvasState {
   readonly gridVisible: boolean;
   readonly gridSize: number;
   readonly selectedMaterialId: string | null;
+  readonly sidebarCollapsed: boolean;
 }
 
 // ─── Store ──────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ function createCanvasStore() {
   let gridVisible = $state(true);
   let gridSize = $state(1); // meters
   let selectedMaterialId = $state<string | null>(null);
+  let sidebarCollapsed = $state(false);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -42,6 +44,7 @@ function createCanvasStore() {
     get gridVisible() { return gridVisible; },
     get gridSize() { return gridSize; },
     get selectedMaterialId() { return selectedMaterialId; },
+    get sidebarCollapsed() { return sidebarCollapsed; },
 
     get zoomPercent(): number {
       return scale * 100;
@@ -100,6 +103,14 @@ function createCanvasStore() {
       selectedMaterialId = materialId;
     },
 
+    toggleSidebar(): void {
+      sidebarCollapsed = !sidebarCollapsed;
+    },
+
+    setSidebarCollapsed(v: boolean): void {
+      sidebarCollapsed = v;
+    },
+
     zoomIn(): void {
       scale = Math.min(10, scale * 1.2);
     },
@@ -117,6 +128,7 @@ function createCanvasStore() {
       gridVisible = true;
       gridSize = 1;
       selectedMaterialId = null;
+      sidebarCollapsed = false;
     },
   };
 }

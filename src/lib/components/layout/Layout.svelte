@@ -12,6 +12,7 @@
   import Toolbar from './Toolbar.svelte';
   import Sidebar from './Sidebar.svelte';
   import StatusBar from './StatusBar.svelte';
+  import { canvasStore } from '$lib/stores/canvasStore.svelte';
 
   type EditorTool = 'select' | 'wall' | 'ap' | 'measure';
 
@@ -66,7 +67,7 @@
     onToggleGrid,
   }: LayoutProps = $props();
 
-  let sidebarCollapsed = $state(false);
+  let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
 </script>
 
 <div class="app-layout" class:no-sidebar={!showSidebar} class:sidebar-collapsed={sidebarCollapsed}>
@@ -90,7 +91,7 @@
 
   {#if showSidebar}
     <div class="layout-sidebar">
-      <Sidebar bind:collapsed={sidebarCollapsed} {projectId}>
+      <Sidebar {projectId}>
         {#if sidebarContent}
           {@render sidebarContent()}
         {/if}

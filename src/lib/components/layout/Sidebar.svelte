@@ -1,23 +1,21 @@
 <!--
   Sidebar.svelte - Collapsible sidebar with navigation links.
 
-  Supports collapsed/expanded state. Shows navigation items
-  with icons and labels. Used in the editor layout.
+  Supports collapsed/expanded state with smooth CSS transitions.
+  Shows navigation items with icons and labels. Auto-collapses
+  when the window width is less than 1024px. Used in the editor layout.
 -->
 <script lang="ts">
   import { t } from '$lib/i18n';
+  import { canvasStore } from '$lib/stores/canvasStore.svelte';
   import type { Snippet } from 'svelte';
 
   interface SidebarProps {
-    collapsed?: boolean;
-    onToggle?: () => void;
     projectId?: string;
     children?: Snippet;
   }
 
   let {
-    collapsed = $bindable(false),
-    onToggle,
     projectId = '',
     children,
   }: SidebarProps = $props();
@@ -32,31 +30,57 @@
   let navItems = $derived<NavItem[]>(
     projectId
       ? [
-          { id: 'editor', label: 'nav.editor', icon: '✎', href: `/project/${projectId}/editor` },
-          { id: 'measure', label: 'nav.measure', icon: '📊', href: `/project/${projectId}/measure` },
-          { id: 'mixing', label: 'nav.mixing', icon: '🎛', href: `/project/${projectId}/mixing` },
-          { id: 'results', label: 'nav.results', icon: '📈', href: `/project/${projectId}/results` },
+          { id: 'editor', label: 'nav.editor', icon: '\u270E', href: `/project/${projectId}/editor` },
+          { id: 'measure', label: 'nav.measure', icon: '\uD83D\uDCCA', href: `/project/${projectId}/measure` },
+          { id: 'mixing', label: 'nav.mixing', icon: '\uD83C\uDF9B', href: `/project/${projectId}/mixing` },
+          { id: 'results', label: 'nav.results', icon: '\uD83D\uDCC8', href: `/project/${projectId}/results` },
         ]
       : []
   );
 
+  let collapsed = $derived(canvasStore.sidebarCollapsed);
+
   function toggleCollapsed(): void {
-    collapsed = !collapsed;
-    onToggle?.();
+    canvasStore.toggleSidebar();
   }
+
+  // Auto-collapse on narrow viewports
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+
+    function handleChange(e: MediaQueryListEvent | MediaQueryList): void {
+      canvasStore.setSidebarCollapsed(e.matches);
+    }
+
+    // Set initial state
+    handleChange(mediaQuery);
+
+    mediaQuery.addEventListener('change', handleChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange);
+    };
+  });
 </script>
 
-<aside class="sidebar" class:collapsed>
+<aside class="sidebar" class:collapsed style="width: {collapsed ? '48px' : '220px'}">
   <div class="sidebar-header">
-    <button class="toggle-btn" onclick={toggleCollapsed} title={collapsed ? 'Expand' : 'Collapse'}>
-      <span class="toggle-icon">{collapsed ? '▸' : '◂'}</span>
+    <button
+      class="toggle-btn"
+      onclick={toggleCollapsed}
+      title={collapsed ? t('action.expandSidebar') : t('action.collapseSidebar')}
+      aria-label={collapsed ? t('action.expandSidebar') : t('action.collapseSidebar')}
+    >
+      <span class="toggle-icon">{collapsed ? '\u2630' : '\u25C2'}</span>
     </button>
   </div>
 
   {#if navItems.length > 0}
     <nav class="sidebar-nav">
       {#each navItems as item (item.id)}
-        <a href={item.href} class="nav-item" title={t(item.label)}>
+        <a href={item.href} class="nav-item" title={collapsed ? t(item.label) : ''}>
           <span class="nav-icon">{item.icon}</span>
           {#if !collapsed}
             <span class="nav-label">{t(item.label)}</span>
@@ -73,14 +97,14 @@
   {/if}
 
   <div class="sidebar-footer">
-    <a href="/" class="nav-item" title={t('nav.projects')}>
-      <span class="nav-icon">🏠</span>
+    <a href="/" class="nav-item" title={collapsed ? t('nav.projects') : ''}>
+      <span class="nav-icon">{'\uD83C\uDFE0'}</span>
       {#if !collapsed}
         <span class="nav-label">{t('nav.projects')}</span>
       {/if}
     </a>
-    <a href="/settings" class="nav-item" title={t('nav.settings')}>
-      <span class="nav-icon">⚙</span>
+    <a href="/settings" class="nav-item" title={collapsed ? t('nav.settings') : ''}>
+      <span class="nav-icon">{'\u2699'}</span>
       {#if !collapsed}
         <span class="nav-label">{t('nav.settings')}</span>
       {/if}
@@ -92,7 +116,6 @@
   .sidebar {
     display: flex;
     flex-direction: column;
-    width: 220px;
     background: #1a1a2e;
     color: #c0c0d0;
     flex-shrink: 0;
@@ -100,15 +123,15 @@
     overflow: hidden;
   }
 
-  .sidebar.collapsed {
-    width: 52px;
-  }
-
   .sidebar-header {
     display: flex;
     justify-content: flex-end;
     padding: 8px;
     border-bottom: 1px solid #2a2a4e;
+  }
+
+  .sidebar.collapsed .sidebar-header {
+    justify-content: center;
   }
 
   .toggle-btn {
@@ -154,6 +177,11 @@
     transition: background 0.15s ease;
     white-space: nowrap;
     overflow: hidden;
+  }
+
+  .sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 10px 8px;
   }
 
   .nav-item:hover {

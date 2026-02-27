@@ -1,14 +1,25 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import ToastContainer from '$lib/components/common/ToastContainer.svelte';
+  import OnboardingDialog from '$lib/components/common/OnboardingDialog.svelte';
+  import { themeStore } from '$lib/stores/themeStore.svelte';
+  import '$lib/styles/theme.css';
 
   interface Props {
     children: Snippet;
   }
 
   let { children }: Props = $props();
+
+  // Initialize theme on mount
+  $effect(() => {
+    themeStore.initTheme();
+  });
 </script>
 
 {@render children()}
+<ToastContainer />
+<OnboardingDialog />
 
 <style>
   :global(html, body) {

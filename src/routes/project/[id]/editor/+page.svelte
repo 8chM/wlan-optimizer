@@ -15,13 +15,62 @@
   import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
   import MaterialPicker from '$lib/components/editor/MaterialPicker.svelte';
   import APLibraryPanel from '$lib/components/editor/APLibraryPanel.svelte';
+  import ShortcutHelp from '$lib/components/common/ShortcutHelp.svelte';
+  import { registerShortcuts } from '$lib/utils/keyboard';
   import { t } from '$lib/i18n';
 
   let containerWidth = $state(800);
   let containerHeight = $state(600);
+  let shortcutHelpOpen = $state(false);
 
   let floor = $derived(projectStore.activeFloor);
   let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
+
+  // ── Keyboard Shortcuts ────────────────────────────────────────
+  $effect(() => {
+    const cleanup = registerShortcuts({
+      undo: () => {
+        // TODO: Implement undo action (Phase 8g)
+      },
+      redo: () => {
+        // TODO: Implement redo action (Phase 8g)
+      },
+      delete: () => {
+        // Delete current selection
+        canvasStore.clearSelection();
+      },
+      save: () => {
+        // TODO: Trigger save via projectStore (Phase 8g)
+      },
+      deselect: () => {
+        canvasStore.setTool('select');
+        canvasStore.clearSelection();
+      },
+      wallTool: () => {
+        canvasStore.setTool('wall');
+      },
+      apTool: () => {
+        canvasStore.setTool('ap');
+      },
+      measureTool: () => {
+        canvasStore.setTool('measure');
+      },
+      selectTool: () => {
+        canvasStore.setTool('select');
+      },
+      gridToggle: () => {
+        canvasStore.toggleGrid();
+      },
+      heatmapToggle: () => {
+        // TODO: Implement heatmap toggle (Phase 8g)
+      },
+      shortcutHelp: () => {
+        shortcutHelpOpen = !shortcutHelpOpen;
+      },
+    });
+
+    return cleanup;
+  });
 
   /** Convert screen coords to meters for StatusBar display */
   function screenToMeters(screenX: number, screenY: number): { x: number; y: number } {
@@ -96,6 +145,8 @@
     </div>
   {/if}
 </div>
+
+<ShortcutHelp bind:open={shortcutHelpOpen} />
 
 <style>
   .editor-container {

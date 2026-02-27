@@ -55,7 +55,13 @@
     "addWall": "Wand hinzufuegen",
     "addAp": "Access Point hinzufuegen",
     "undo": "Rueckgaengig",
-    "redo": "Wiederherstellen"
+    "redo": "Wiederherstellen",
+    "creating": "Wird erstellt...",
+    "retry": "Erneut versuchen",
+    "confirm": "Bestaetigen",
+    "close": "Schliessen",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "expandSidebar": "Seitenleiste ausklappen"
   },
   "label": {
     "material": "Material",
@@ -129,6 +135,7 @@
     "serverInstructions": "Fuehre 'iperf3 -s' auf einem anderen Geraet in deinem Netzwerk aus.",
     "continueSetup": "Weiter",
     "run": "Durchlauf",
+    "runs": "Durchlaeufe",
     "baseline": "Baseline",
     "postOptimization": "Nach Optimierung",
     "verification": "Verifizierung",
@@ -165,6 +172,21 @@
     "maxDeviation": "Max. Abweichung",
     "pointsCount": "Messpunkte"
   },
+  "shortcuts": {
+    "title": "Tastenkuerzel",
+    "undo": "Rueckgaengig",
+    "redo": "Wiederherstellen",
+    "delete": "Auswahl loeschen",
+    "save": "Projekt speichern",
+    "deselect": "Abwaehlen / Werkzeug abbrechen",
+    "wallTool": "Wand-Werkzeug",
+    "apTool": "Access-Point-Werkzeug",
+    "measureTool": "Mess-Werkzeug",
+    "selectTool": "Auswahl-Werkzeug",
+    "gridToggle": "Raster umschalten",
+    "heatmapToggle": "Heatmap umschalten",
+    "showHelp": "Tastenkuerzel anzeigen"
+  },
   "mixing": {
     "title": "Mixing Console",
     "generatePlan": "Optimierungsplan erstellen",
@@ -192,5 +214,74 @@
     "planStatus": "Plan-Status",
     "draft": "Entwurf",
     "verified": "Verifiziert"
+  },
+  "results": {
+    "title": "Ergebnisse",
+    "noData": "Keine Messdaten vorhanden",
+    "noDataHint": "Gehe zum Messen-Tab um zuerst Messungen aufzuzeichnen.",
+    "selectRuns": "Durchlaeufe zum Vergleichen auswaehlen",
+    "baseline": "Baseline",
+    "comparison": "Vergleich",
+    "improvement": "Verbesserung",
+    "degradation": "Verschlechterung",
+    "noChange": "Keine Aenderung",
+    "coverage": "Abdeckung",
+    "avgRssi": "Durchschn. RSSI",
+    "minRssi": "Min. RSSI",
+    "maxRssi": "Max. RSSI",
+    "qualityOverall": "Gesamtqualitaet",
+    "export": "Exportieren",
+    "exportJson": "JSON exportieren",
+    "exportCsv": "CSV exportieren",
+    "exportTitle": "Ergebnisse exportieren",
+    "pointsCount": "Messpunkte"
+  },
+  "properties": {
+    "title": "Eigenschaften",
+    "noSelection": "Waehle eine Wand oder einen Access Point um die Eigenschaften anzuzeigen.",
+    "wallLength": "Gesamtlaenge",
+    "attenuationOverride": "Daempfung ueberschreiben",
+    "deleteConfirmWall": "Moechtest du diese Wand wirklich loeschen?",
+    "deleteConfirmAp": "Moechtest du diesen Access Point wirklich loeschen?",
+    "enabled": "Aktiviert",
+    "position": "Position",
+    "label": "Bezeichnung"
+  },
+  "toast": {
+    "close": "Schliessen"
+  },
+  "onboarding": {
+    "welcome": "Willkommen beim WLAN-Optimizer!",
+    "step1Title": "Grundriss hochladen",
+    "step1Desc": "Lade ein Bild deines Grundrisses hoch. Setze den Massstab damit die Entfernungen stimmen.",
+    "step2Title": "Waende zeichnen & APs platzieren",
+    "step2Desc": "Zeichne Waende mit ihren Materialien ein und platziere deine Access Points im Plan.",
+    "step3Title": "Heatmap ansehen",
+    "step3Desc": "Sieh die vorhergesagte WLAN-Abdeckung als Heatmap. Optimiere AP-Platzierung und Einstellungen fuer beste Ergebnisse.",
+    "gotIt": "Verstanden!",
+    "skip": "Ueberspringen"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "language": "Sprache",
+    "languageEn": "English",
+    "languageDe": "Deutsch",
+    "appearance": "Darstellung",
+    "theme": "Design",
+    "themeLight": "Hell",
+    "themeDark": "Dunkel",
+    "themeSystem": "System",
+    "heatmapDefaults": "Heatmap-Standardwerte",
+    "colorScheme": "Farbschema",
+    "gridResolution": "Rasteraufloesung",
+    "opacity": "Deckkraft",
+    "measurementDefaults": "Mess-Standardwerte",
+    "iperfServer": "iPerf-Server-IP",
+    "iperfPort": "iPerf-Port",
+    "about": "Ueber",
+    "version": "Version",
+    "techStack": "Technologie-Stack",
+    "saved": "Einstellungen gespeichert",
+    "saving": "Speichert..."
   }
 }

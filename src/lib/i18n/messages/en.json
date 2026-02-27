@@ -55,7 +55,13 @@
     "addWall": "Add Wall",
     "addAp": "Add Access Point",
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "creating": "Creating...",
+    "retry": "Retry",
+    "confirm": "Confirm",
+    "close": "Close",
+    "collapseSidebar": "Collapse Sidebar",
+    "expandSidebar": "Expand Sidebar"
   },
   "label": {
     "material": "Material",
@@ -129,6 +135,7 @@
     "serverInstructions": "Run 'iperf3 -s' on another device in your network.",
     "continueSetup": "Continue",
     "run": "Run",
+    "runs": "Runs",
     "baseline": "Baseline",
     "postOptimization": "Post-Optimization",
     "verification": "Verification",
@@ -165,6 +172,21 @@
     "maxDeviation": "Max. Deviation",
     "pointsCount": "measurement points"
   },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "undo": "Undo",
+    "redo": "Redo",
+    "delete": "Delete selection",
+    "save": "Save project",
+    "deselect": "Deselect / Cancel tool",
+    "wallTool": "Wall tool",
+    "apTool": "Access Point tool",
+    "measureTool": "Measure tool",
+    "selectTool": "Select tool",
+    "gridToggle": "Toggle grid",
+    "heatmapToggle": "Toggle heatmap",
+    "showHelp": "Show shortcuts"
+  },
   "mixing": {
     "title": "Mixing Console",
     "generatePlan": "Generate Optimization Plan",
@@ -192,5 +214,74 @@
     "planStatus": "Plan Status",
     "draft": "Draft",
     "verified": "Verified"
+  },
+  "results": {
+    "title": "Results",
+    "noData": "No measurement data available",
+    "noDataHint": "Go to the Measure tab to record measurements first.",
+    "selectRuns": "Select runs to compare",
+    "baseline": "Baseline",
+    "comparison": "Comparison",
+    "improvement": "Improvement",
+    "degradation": "Degradation",
+    "noChange": "No change",
+    "coverage": "Coverage",
+    "avgRssi": "Avg. RSSI",
+    "minRssi": "Min. RSSI",
+    "maxRssi": "Max. RSSI",
+    "qualityOverall": "Overall Quality",
+    "export": "Export",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV",
+    "exportTitle": "Export Results",
+    "pointsCount": "Measurement Points"
+  },
+  "properties": {
+    "title": "Properties",
+    "noSelection": "Select a wall or access point to view its properties.",
+    "wallLength": "Total Length",
+    "attenuationOverride": "Attenuation Override",
+    "deleteConfirmWall": "Are you sure you want to delete this wall?",
+    "deleteConfirmAp": "Are you sure you want to delete this access point?",
+    "enabled": "Enabled",
+    "position": "Position",
+    "label": "Label"
+  },
+  "toast": {
+    "close": "Close"
+  },
+  "onboarding": {
+    "welcome": "Welcome to WLAN-Optimizer!",
+    "step1Title": "Upload a Floor Plan",
+    "step1Desc": "Start by uploading an image of your floor plan. Set the scale so distances are accurate.",
+    "step2Title": "Draw Walls & Place APs",
+    "step2Desc": "Draw walls with their materials and place your access points on the plan.",
+    "step3Title": "View the Heatmap",
+    "step3Desc": "See the predicted WiFi coverage as a heatmap. Optimize AP placement and settings for best results.",
+    "gotIt": "Got it!",
+    "skip": "Skip"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languageEn": "English",
+    "languageDe": "Deutsch",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "heatmapDefaults": "Heatmap Defaults",
+    "colorScheme": "Color Scheme",
+    "gridResolution": "Grid Resolution",
+    "opacity": "Opacity",
+    "measurementDefaults": "Measurement Defaults",
+    "iperfServer": "iPerf Server IP",
+    "iperfPort": "iPerf Port",
+    "about": "About",
+    "version": "Version",
+    "techStack": "Tech Stack",
+    "saved": "Settings saved",
+    "saving": "Saving..."
   }
 }

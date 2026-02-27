@@ -64,7 +64,7 @@
     <div class="error-message">
       <p>{projectStore.error}</p>
       <button class="btn-secondary" onclick={() => projectStore.loadProjects()}>
-        Retry
+        {t('action.retry')}
       </button>
     </div>
   {:else if projectStore.projects.length === 0}
@@ -84,7 +84,7 @@
             <div class="card-actions">
               {#if deleteConfirmId === project.id}
                 <button class="btn-danger-sm" onclick={() => handleDelete(project.id)}>
-                  Confirm
+                  {t('action.confirm')}
                 </button>
                 <button class="btn-ghost-sm" onclick={() => (deleteConfirmId = null)}>
                   {t('project.cancel')}

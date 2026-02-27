@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { t } from '$lib/i18n';
+  import { themeStore } from '$lib/stores/themeStore.svelte';
   import type { Snippet } from 'svelte';
 
   type EditorTool = 'select' | 'wall' | 'ap' | 'measure';
@@ -37,7 +38,7 @@
   }: ToolbarProps = $props();
 
   const tools: Array<{ id: EditorTool; label: string; icon: string; shortcut: string }> = [
-    { id: 'select', label: 'toolbar.select', icon: '⊹', shortcut: 'V' },
+    { id: 'select', label: 'toolbar.select', icon: '⊹', shortcut: 'S' },
     { id: 'wall', label: 'toolbar.wall', icon: '▬', shortcut: 'W' },
     { id: 'ap', label: 'toolbar.ap', icon: '◉', shortcut: 'A' },
     { id: 'measure', label: 'toolbar.measure', icon: '⊞', shortcut: 'M' },
@@ -46,6 +47,21 @@
   function selectTool(tool: EditorTool): void {
     onToolChange?.(tool);
   }
+
+  const themeIcons: Record<string, string> = {
+    light: '\u2600',
+    dark: '\uD83C\uDF19',
+    system: '\uD83D\uDCBB',
+  };
+
+  let themeIcon = $derived(themeIcons[themeStore.theme] ?? '\u2600');
+  let themeLabel = $derived(
+    themeStore.theme === 'light'
+      ? t('settings.themeLight')
+      : themeStore.theme === 'dark'
+        ? t('settings.themeDark')
+        : t('settings.themeSystem')
+  );
 </script>
 
 <div class="toolbar">
@@ -104,6 +120,13 @@
   {/if}
 
   <div class="toolbar-section toolbar-right">
+    <button
+      class="tool-btn theme-toggle"
+      onclick={() => themeStore.toggleTheme()}
+      title="{t('settings.theme')}: {themeLabel}"
+    >
+      <span class="tool-icon">{themeIcon}</span>
+    </button>
     {#if children}
       {@render children()}
     {/if}

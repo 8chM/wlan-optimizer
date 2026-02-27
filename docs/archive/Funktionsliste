@@ -1,0 +1,40 @@
+# Funktionsliste des Tools
+
+Diese Liste beschreibt die zentralen Funktionen der geplanten Software zur WLAN‑Planung, Messung und Optimierung. Alle Texte sind auf Deutsch verfasst, die Implementierung erfolgt in englischer Sprache; die Oberfläche ist zweisprachig (EN/DE).
+
+## Planung
+
+| Funktion | Beschreibung |
+|---|---|
+| **Grundrissimport** | Der Nutzer lädt einen Grundriss (Bild/PDF) hoch. Eine Referenzlinie mit bekannter Länge dient zur Maßstabsberechnung. |
+| **Wandeditor** | Wände können als Linien gezeichnet und mit Dicke und Material (17 cm oder 36 cm Poroton) versehen werden. Türen und Fenster sind als Öffnungen einfübbar. |
+| **Access‑Point‑Bibliothek** | Auswahl verschiedener AP‑Modelle; jedes Modell besitzt hinterlegte Parameter (Sendeleistung, Antennengewinn, Montagearten). |
+| **AP‑Platzierung** | Zugriff per Drag‑and‑Drop: Position, Montageart (Decke/Wand), Höhe und Richtung (bei Wandmontage) einstellbar. |
+| **Vorhersage‑Heatmap** | Basierend auf Indoor‑Modell (log‑distance + Wanddämpfung) wird eine konservative Heatmap für 2,4 und 5 GHz berechnet (Annahme: Smartphone‑Limit). |
+
+## Messung und Optimierung (kostenpflichtiges Freischalt‑Feature)
+
+| Funktion | Beschreibung |
+|---|---|
+| **Messpunkt‑Generierung** | Automatische Platzierung strategischer Messpunkte (Ränder, Durchgänge, ausgewählte Bereiche), manuell verschiebbar. |
+| **Messkampagne (Run 1)** | Pro AP eine Test‑SSID; an jedem Messpunkt wird RSSI/SNR, Jitter, Paketverlust und Durchsatz aufgenommen. |
+| **Mixing Console** | Interaktive Konsole mit Schiebereglern: TX‑Power je AP und Band, Kanalbreite sowie Kanalwahl. Änderungen werden sofort als Forecast‑Heatmap visualisiert. |
+| **Messkampagne (Run 2)** | Gemeinsame Test‑SSID; Messung identifiziert Roaming‑Verhalten und Interferenz. |
+| **Konfigurationsvorschläge** | Das Tool schlägt Änderungen an Sendeleistung, Kanalbreite und Kanalwahl vor. Confidence‑Level zeigt an, wie sicher die Vorhersage ist. |
+| **Verifikation (Run 3)** | Nach Anwendung der Einstellungen erfolgt eine kurze Messung, um die Wirkung zu prüfen. |
+| **Berichte und Export** | Erstellung von PDFs/PNG mit Heatmaps, Vorher‑/Nachher‑Vergleich; Export des Projektes (JSON). |
+
+## Internationale Unterstützung
+
+| Funktion | Beschreibung |
+|---|---|
+| **Mehrsprachige UI** | Englisch und Deutsch über Key‑basierte Übersetzungsdateien. |
+| **Code in englischer Sprache** | Programmlogik und Namenskonventionen sind englisch; UI‑Texte werden übersetzt. |
+
+## Erweiterbarkeit
+
+| Funktion | Beschreibung |
+|---|---|
+| **Flexible AP‑Bibliothek** | Einfügen weiterer AP‑Modelle über Konfigurationsdateien. |
+| **Mess‑Agent** | Optionaler Agent für Notebook/Android liefert zusätzlich BSSID, Kanal, Nachbarschaftsscans. Smartphones können ohne Agent messen, mit eingeschränkter Information. |
+| **Modularer Optimierungskern** | Später erweiterbar um fortgeschrittene Features wie Min‑RSSI‑Kick, 802.11k/r/v‑Tuning oder automatische Kanalhops. |

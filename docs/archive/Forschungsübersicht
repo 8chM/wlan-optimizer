@@ -1,0 +1,39 @@
+# Forschung und Hintergrundinformationen
+
+## D-Link DAP-X2810 Eigenschaften
+
+Der D-Link DAP‑X2810 ist ein Wi-Fi‑6 Access Point für Nuclias Connect, der auf 2x2 MU‑MIMO basierende Dualband‑Übertragung unterstützt. Laut Datenblatt erreicht der AP folgende Sendeleistungen (bei typischer Antennenverstärkung):
+
+- 2,4‑GHz‑Band: maximale Sendeleistung ca. **23 dBm** bei **3,2 dBi** Antennengewinn【393071267125076†screenshot】.
+- 5‑GHz‑Band: maximale Sendeleistung ca. **26 dBm** bei **4,3 dBi** Antennengewinn【393071267125076†screenshot】.
+
+Das Gerät unterstützt wichtige Enterprise‑Funktionen wie **Fast Roaming (802.11k/r)**, **Band Steering** und **Airtime Fairness**. Zudem stellt D-Link für Decken‑ und Wandmontage unterschiedliche Antennen‑Strahlungsdiagramme zur Verfügung, wodurch die Werkzeugsoftware Montagerichtungen korrekt berücksichtigen kann.  
+Gemäß D-Link‑Datenblatt lässt sich der AP über Nuclias Connect zentral verwalten【393071267125076†screenshot】.
+
+## Indoor‑Pathloss‑Modelle
+
+Um die Funkabdeckung bei der Planung zu schätzen, kann ein vereinfachtes **Indoor‑Log‑Distance‑Modell** verwendet werden. Die internationale Empfehlung **ITU‑R P.1238** definiert den Pfadverlust für Innenräume als:
+
+\[PL(d) = PL(1 m) + 10 \cdot n \cdot \log_{10}(d) + \sum L_{\text{Wände}} + L_{\text{Stockwerke}} -28\,
+\]
+
+wobei \(PL(1 m)\) der freie Raumverlust in 1 m Abstand, \(n\) der Umgebungsdämpfungsfaktor (typischerweise 3,0–3,8 in Wohngebäuden) und \(L_{\text{Wände}}\) die Materialdämpfung pro Wanddurchtritt ist. Dünne Innenwände aus Poroton‑Steinen (17 cm) dämpfen bei 5 GHz etwa **6‑9 dB**, dicke Wände (36 cm) etwa **12‑18 dB**; bei 2,4 GHz liegen die Werte niedriger. Dieser Ansatz liefert konservative Schätzungen für unsere Forecast‑Heatmaps.
+
+## Messmethoden und Optimierung
+
+### Messverfahren
+Das Messkonzept basiert auf zwei Phasen:
+
+1. **Run 1 – Per‑AP‑Messung**: Jede AP sendet eine eigene Test‑SSID. An vorgegebenen Messpunkten werden RSSI/SNR, Paketverlust, Jitter und ein Durchsatztest (z.B. via iPerf) aufgenommen. So lassen sich Abdeckung und Überlappung pro AP bestimmen und der Einfluss von Sendeleistung und Kanalbreite vorhersagen.
+2. **Run 2 – Gemeinsame SSID**: Alle APs senden dieselbe Test‑SSID. Dies erlaubt, Roaming‑ und Sticky‑Verhalten zu erkennen (welcher BSSID hängt der Client) und reale Interferenzsituationen zu messen. Änderungen wie Anpassung der Sendeleistung oder Kanalbreite werden in Stufen getestet und per Vorher‑/Nachher‑Vergleich verifiziert.
+
+### Optimierungspotenzial
+Wichtige Parameter zur Optimierung:
+
+- **Sendeleistung** pro AP und Band: Verringern hilft gegen „Sticky Clients“ und verbessert Roaming. Eine Erhöhung kann Löcher füllen, erzeugt aber Interferenzen.
+- **Kanalbreite** (20/40/80 MHz): 20 MHz ist in 2,4 GHz zwingend; bei 5 GHz führt 80 MHz zu höherem Durchsatz, aber geringerer Reichweite und höherer Empfindlichkeit gegenüber Störungen.
+- **Kanalwahl**: Nachbarschafts‑Scans helfen, überlappungsfreie Kanäle zu finden; dennoch muss nach jeder Änderung getestet werden.
+- **Band Steering und Fast Roaming**: Falls vom AP/Controller unterstützt, kann Band Steering Geräte auf 5 GHz verschieben. Fast‑Roaming‑Protokolle wie 802.11k/r verbessern die Übernahme zwischen APs, sind aber clientabhängig.
+
+### Grenzen
+Die Optimierungen können Roaming‑Verhalten verbessern, aber sie hängen von den Endgeräten ab. Die Vorhersage der Kanalwahl ist unsicher, da benachbarte WLAN‑Netze wechselhaft sind. Daher benötigt jede Veränderung eine anschließende Verifikation.

@@ -1,0 +1,77 @@
+# Produktanforderungsdokument – Home‑Netzwerk‑Planungs‑ und Optimierungstool
+
+## Zusammenfassung
+
+Dieses Open‑Source‑Projekt soll Heim‑Netzwerkadministratoren ohne tiefes Fachwissen die Planung, Messung und Optimierung von WLAN‑Infrastrukturen erleichtern. Nutzer können Grundrisse hochladen, Wände und ihre Eigenschaften einzeichnen, Zugangspunkte (APs) platzieren und virtuelle Heatmaps erzeugen. Ein optional freigeschalteter Optimierungsmodus führt geführte Messungen durch, analysiert reale Daten und schlägt darauf basierend Konfigurationsänderungen vor. Die Bedienoberfläche wird in Englisch entwickelt, bietet aber deutsche Übersetzung.
+
+## Projektziel und Motivation
+
+Viele Heimnetzwerke werden zunehmend komplexer (VLANs, mehrere APs, Mesh‑Repeater, unterschiedliche Hersteller). Die meisten Tools auf dem Markt sind proprietär und setzen tiefes Netzwerk‑Know‑how voraus. Ziel des Projektes ist es, eine herstellerunabhängige, möglichst einfach zu bedienende Software zu entwickeln, die die folgenden Anforderungen erfüllt:
+
+* **Planung** – Nutzer können einen Grundriss hochladen, Maßstab definieren, Wände nachzeichnen (inkl. Material und Dicke) und Access‑Points platzieren. Das Tool berechnet anhand einfacher Modelle konservative Abdeckungskarten (Heatmaps) für 2,4 GHz und 5 GHz.
+* **Optimierung** – In einem optionalen Bezahlmodus startet ein Assistent geführte Messläufe, erstellt echte Heatmaps aus Messwerten (Signalstärke, Durchsatz etc.) und schlägt Konfigurationsanpassungen vor (Sendeleistung, Kanalbreite, Kanalwahl). Änderungen werden mit „Vorher‑/Nachher“‑Verifikation bestätigt.
+* **Benutzerführung** – Der Optimierungsteil soll jeden Schritt erklären, den Benutzer durch den Messparcours führen und automatisch alle notwendigen Einstellungen vornehmen (z. B. Test‑SSID pro AP). Konfigurationsänderungen werden erst nach Bestätigung angewendet; ein Undo ist jederzeit möglich.
+* **Internationale Nutzung** – Der Quellcode (Kommentare, Identifikatoren) wird auf Englisch gehalten, während die Oberfläche in Deutsch verfügbar ist.
+
+## Zielgruppe
+
+* Besitzer großer Heimnetze oder Home‑Labs mit mehreren WLAN‑Geräten, VLANs und zentraler Firewall (z. B. OPNsense).
+* Technikaffine Nutzer, die professionelle Ergebnisse wünschen, aber komplexe Netzwerk‑Konfigurationen vermeiden wollen.
+* Open‑Source‑Enthusiasten, die eine flexible, erweiterbare Lösung suchen.
+
+## Anforderungen
+
+### Funktionale Anforderungen
+
+1. **Grundriss-Import und Maßstabsdefinition:**
+   * Import von Grundrissen (Bild oder PDF) und Festlegen des Maßstabs via Referenzlinie. 
+   * Wände mit geraden Linien (keine Kurven) zeichnen; pro Wand Material (z. B. Poroton, Beton) und Dicke wählen.
+   * Türen/Fenster als Öffnungen definieren.
+
+2. **AP‑Bibliothek und Platzierung:**
+   * Auswahl aus Datenblättern bekannter Modelle (z. B. D‑Link DAP‑X2810) mit Parametern wie Sendeleistung, Antennengewinn, Montagearten.
+   * Freies Platzieren von APs im Grundriss; Angabe von Montage (Decke/Wand), Höhe und Ausrichtung.
+   * Automatische Vorschläge für AP‑Anzahl und ‑Position basierend auf Grundrissgröße.
+
+3. **Heatmap-Berechnung:**
+   * Erzeugung konservativer Abdeckungsprognosen (Heatmaps) für 2,4 GHz und 5 GHz anhand des vereinfachten Indoor‑Modells. 
+   * Berücksichtigung der eingezeichneten Wände (je nach Material/Wandstärke) und des AP‑Montageortes.
+   * Möglichkeit, Heatmaps nach Änderungen in Echtzeit zu aktualisieren (dynamische Vorhersage, wenn Sendeleistung oder Kanalbreite verändert wird).
+
+4. **Optimierungsassistent (freigeschaltet):**
+   * Geführte Messkampagnen in drei Läufen: 
+     1. Abdeckung pro AP (pro AP eine separate Test‑SSID). 
+     2. Abdeckung im realen WLAN (gemeinsame Test‑SSID). 
+     3. Verifikation im finalen Produktivnetz.
+   * Messung von Durchsatz, Latenz, Signalstärke und ggf. Roaming-Eigenschaften. 
+   * Analyse der Ergebnisse, inkl. Überschneidungen, Funklöcher, „Sticky Clients“.
+   * Vorschläge zur Optimierung (z. B. Sendeleistung anpassen, Kanalbreite reduzieren, Kanal wechseln), jeweils mit prognostiziertem Effekt und Unsicherheitsangabe.
+
+5. **Live‑Konsole:**
+   * Visualisierung der aktuellen bzw. gemessenen Heatmap. 
+   * Regler für AP‑Parameter wie Sendeleistung und Kanalbreite; Visualisierung der erwarteten Änderung sofort in der Heatmap. 
+   * Möglichkeiten zum Anwenden und Rückgängig‑Machen von Änderungen.
+
+6. **Berichte und Export:**
+   * Export von Projektdateien (Grundriss, Mauerzeichnung, AP‑Platzierung, Messdaten) und Heatmaps als PNG und JSON. 
+   * Automatisch generierter Bericht mit „Vorher/Nachher“‑Vergleich und angewandten Optimierungen.
+
+7. **Lokalisierung:** 
+   * Texte, Beschriftungen und Meldungen in Deutsch; Code bleibt auf Englisch. 
+   * Infrastruktur für weitere Sprachen (z. B. Übersetzungsdateien).
+
+### Nicht‑Funktionale Anforderungen
+
+* **Datenschutz:** Alle Messdaten bleiben lokal beim Nutzer; keinerlei Cloud‑Abhängigkeit.
+* **Erweiterbarkeit:** Modularer Aufbau, sodass weitere AP‑Modelle, Materialien und Messverfahren ergänzt werden können.
+* **Benutzerfreundlichkeit:** Bedienoberfläche soll visuell ansprechend und intuitiv bedienbar sein, auch für Nutzer ohne technisches Fachwissen.
+
+## Abhängigkeiten und Annahmen
+
+* Das Produkt setzt keine externe Firewall oder DNS‑Integration voraus. Es bringt seinen eigenen iPerf‑Server und Messagenten mit.
+* AP‑Modelle müssen in die Bibliothek integriert werden; für jedes Modell sind Parameter (TX‑Power, Antennengewinn etc.) erforderlich.
+* Messungen können je nach Betriebssystem des Endgeräts unterschiedliche WLAN‑Informationen liefern (z. B. können iOS‑Geräte keine BSSID auslesen). Eine Agent‑Software auf dem Notebook kann zusätzliche Daten liefern.
+
+## Zeitplan und Milestones
+
+Der initiale MVP umfasst die Kernfunktionen aus den funktionalen Anforderungen 1–3 sowie Basisfunktionen des Optimierungsassistenten (nur Run 1 und Run 3). Erweiterungen (vollständiger Optimierungsassistent, Live‑Konsole, Berichte) werden schrittweise hinzugefügt.

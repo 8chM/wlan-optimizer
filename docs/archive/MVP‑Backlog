@@ -1,0 +1,27 @@
+# MVP‑Backlog
+
+Dieses Backlog enthält die wichtigsten Aufgaben zur Umsetzung des Minimum Viable Product (MVP) für das WLAN‑Planungs‑ und Optimierungswerkzeug. Jede Aufgabe ist als User Story formuliert und mit einer Priorität versehen.
+
+## Produktstruktur
+| ID | User Story | Akzeptanzkriterien | Priorität |
+|---|---|---|---|
+| **1** | **Als Benutzer möchte ich einen Grundriss hochladen und eine Referenzlinie zeichnen, um den Maßstab zu bestimmen.** | Der Nutzer kann ein Bild/PDF hochladen; nach Zeichnen einer Linie und Eingabe der realen Länge wird der Maßstab angezeigt. | **hoch** |
+| **2** | **Als Benutzer möchte ich Wände auf dem Plan einzeichnen, damit das Tool Wandverluste berechnen kann.** | Wände können gezeichnet werden; Benutzer können Wanddicke (17/36 cm) und Material (Poroton) wählen. | **hoch** |
+| **3** | **Als Benutzer möchte ich Access Points aus einer Bibliothek auswählen und im Plan positionieren.** | Eine Liste von AP‑Modellen steht zur Auswahl; jedes hat Parameter für Sendeleistung/Antennengewinn; APs können per Drag‑and‑Drop gesetzt und bearbeitet werden. | **hoch** |
+| **4** | **Als Benutzer möchte ich eine Vorhersage‑Heatmap sehen, nachdem ich die APs platziert habe.** | Nach Platzierung der APs wird eine konservative Heatmap für 2,4 und 5 GHz angezeigt; Legende und Info zu Confidence sind vorhanden. | **hoch** |
+| **5** | **Als Benutzer möchte ich gegen Gebühr ein Optimierungsmodul freischalten, das mich durch Messungen führt.** | Bei Freischaltung wird ein Assistent gestartet; Laufzeit (z.B. 30 Tage) wird angezeigt. | **mittel** |
+| **6** | **Als Benutzer möchte ich Messpunkte generieren und messen können.** | Das Tool erzeugt Messpunkte, der Benutzer kann sie anpassen; Messungen werden in einer geführten Tour durchgeführt (Run 1, Run 2, Run 3). | **hoch** |
+| **7** | **Als Benutzer möchte ich eine interaktive Konsole, um AP‑Konfigurationen anzupassen und sofort eine neue Heatmap zu sehen.** | Die Konsole enthält Schieberegler für TX‑Power, Dropdown für Kanalbreite, optional Kanalwahl; Änderungen aktualisieren die Heatmap sofort. | **hoch** |
+| **8** | **Als Benutzer möchte ich, dass das Tool Konfigurationsvorschläge macht und mir das Risiko verdeutlicht.** | Nach Messungen schlägt das Tool Änderungen vor; Confidence‑Stufen („hoch/mittel/niedrig“) werden angezeigt; Anwender kann Änderungen annehmen/ablehnen. | **mittel** |
+| **9** | **Als Benutzer möchte ich die finalen Einstellungen übernehmen und anschließend die Leistung überprüfen.** | Nach Anwendung der Einstellungen wird ein kurzer Verifikationslauf gestartet; Heatmap und Qualitätsmetriken werden angezeigt. | **mittel** |
+| **10** | **Als Benutzer möchte ich das Projekt speichern und exportieren können.** | Projekt kann als JSON exportiert werden; Heatmaps können als PDF/PNG heruntergeladen werden. | **niedrig** |
+| **11** | **Als Administrator möchte ich die Benutzeroberfläche auf Englisch und Deutsch bereitstellen.** | Alle UI‑Texte sind über Übersetzungsdateien gesteuert; der Nutzer kann die Sprache wechseln. | **hoch** |
+| **12** | **Als Entwickler möchte ich den Code ausschließlich in englischer Sprache verfassen und separate Übersetzungstabellen nutzen.** | Codebasis in Englisch; Übersetzungen werden über Keys verwaltet. | **hoch** |
+| **13** | **Als Benutzer möchte ich einen optionalen Mess‑Agent installieren können, der zusätzliche WLAN‑Metriken liefert.** | Der Agent wird heruntergeladen, verbindet sich mit dem Server und sendet RSSI/BSSID/Channel/Scanlisten; Messungen im Browser fallen zurück auf Basic‑Metriken. | **mittel** |
+
+## Hinweise zur Umsetzung
+
+- **Mess‑Service**: Es wird ein lokal gehosteter Dienst benötigt, der iPerf3 oder einen ähnlichen Test bereitstellt. Smartphones können nur einfache HTTP‑Basistests durchführen, Agent‑basierte Messungen ermöglichen genauere Messwerte.
+- **RF‑Modellierung**: Für die Forecast‑Heatmap im MVP wird ein konservatives Log‑Distance‑Modell verwendet; Wandverluste basieren auf vordefinierten Werten. Nach Messungen werden Änderungen anhand von Differenzwerten berechnet (Measured + Delta).
+- **Sicherheitsmechanismen**: Jede angewendete Änderung muss rückgängig gemacht werden können. Eine Untergrenze für die Abdeckung in wichtigen Bereichen (z.B. Schlafzimmer, Büro) kann über Warnhinweise erzwungen werden.
+- **Roadmap**: Spätere Versionen können weitere AP‑Modelle, komplexere Optimierungen (Min‑RSSI, k/r/v), Multi‑Site‑Management und gerätespezifische Profile hinzufügen.

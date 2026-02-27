@@ -2,6 +2,7 @@
 
 > Konsolidierte Ergebnisse der Autonomie-Recherche (Feb 2026)
 > Basis fuer alle Folgephasen: Orchestrierung, Monitoring, Entwicklungsstrategie
+> **v2**: Erweitert um BMAD-Methode und fortschrittliche MCP-Server
 
 ---
 
@@ -117,33 +118,51 @@ Du bist ein Experte fuer Indoor-RF-Modellierung...
 
 ## 4. MCP-Server (Model Context Protocol)
 
-### Bereits konfiguriert
+### Bereits konfiguriert (global)
 
 - Supabase (Datenbank)
 - Atlassian (Jira/Confluence)
 - Google Calendar
 - Gmail
 
-### Relevant fuer unser Projekt
+### Erweiterte MCP-Recherche (v2)
 
-| MCP-Server | Nutzen | Prioritaet |
-|------------|--------|------------|
-| **Playwright** | E2E-Tests, UI-Validierung | Hoch |
-| **GitHub** | PR-Reviews, Issue-Tracking | Hoch |
-| **Filesystem** | Erweiterte Dateioperationen | Mittel |
-| **Sentry** | Error-Tracking (spaeter) | Niedrig |
+#### Hoechste Prioritaet - Sofort installieren
 
-### Installation
+| MCP-Server | Was es tut | Stars | Installation |
+|------------|-----------|-------|-------------|
+| **[Context7](https://github.com/upstash/context7)** | Aktuelle, versionsspezifische Bibliotheks-Docs direkt im LLM-Kontext. Eliminiert halluzinierte APIs. | ~47.1k | `claude mcp add context7 -- npx -y @upstash/context7-mcp` |
+| **[Sequential Thinking](https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking)** | Strukturiertes Problemloesen mit Revision und Verzweigung. Ideal fuer Architektur und RF-Algorithmen. | Offiziell | `claude mcp add sequential-thinking -- npx -y @modelcontextprotocol/server-sequential-thinking` |
+| **[ESLint MCP](https://eslint.org/docs/latest/use/mcp)** | Echtzeit-Linting waehrend Code-Generierung. | Offiziell | `npx @eslint/mcp@latest` |
 
-```bash
-# Playwright fuer E2E-Tests
-claude mcp add --transport stdio playwright -- npx -y @playwright/mcp@latest
+#### Hohe Prioritaet - Ab Phase 5/7
 
-# GitHub fuer Code-Reviews
-claude mcp add --transport http github https://api.githubcopilot.com/mcp/
-```
+| MCP-Server | Was es tut | Nutzen |
+|------------|-----------|--------|
+| **[Design Patterns](https://github.com/apolosan/design_patterns_mcp)** | 685+ Patterns in 12 Kategorien (GoF, Architektur, React, Concurrency). Semantische Suche. | Architektur-Entscheidungen |
+| **[Mermaid/Sailor](https://github.com/aj-geddes/sailor)** | Diagramm-Generierung mit Live-Reload in Claude Code. | Architektur-Visualisierung |
+| **[Vitest MCP](https://github.com/djankies/vitest-mcp)** | KI-optimierter Vitest-Runner mit strukturiertem Output und Coverage. | TDD ab Phase 8 |
+| **[Playwright MCP](https://github.com/executeautomation/mcp-playwright)** | Browser-Automatisierung, Accessibility-Tree-Snapshots, 143 Geraete-Emulationen. | E2E-Tests |
 
-### Scopes
+#### Mittlere Prioritaet - Kontextabhaengig
+
+| MCP-Server | Was es tut | Nutzen |
+|------------|-----------|--------|
+| **[Tauri Plugin MCP](https://github.com/P3GLEG/tauri-plugin-mcp)** | Debugging von Tauri-v2-Apps: Screenshots, DOM-Zugriff, JS-Ausfuehrung. | Falls Tauri gewaehlt wird |
+| **[Figma MCP](https://developers.figma.com/docs/figma-mcp-server)** | Design-zu-Code-Konvertierung, Zugriff auf Designvariablen. | Falls Figma-Designs existieren |
+| **[Sentry MCP](https://github.com/getsentry/sentry-mcp)** | Fehler-Tracking, Stack-Traces aus Produktion. | Post-Release |
+| **[Memory MCP](https://github.com/modelcontextprotocol/servers/tree/main/src/memory)** | Persistenter Wissensgraph (JSONL). | Ergaenzend zu MEMORY.md |
+
+#### Referenz-Listen
+
+| Liste | URL |
+|-------|-----|
+| Official MCP Servers | [github.com/modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) |
+| wong2/awesome-mcp-servers | [github.com/wong2/awesome-mcp-servers](https://github.com/wong2/awesome-mcp-servers) |
+| punkpeye/awesome-mcp-servers | [github.com/punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) |
+| TensorBlock (7.260+ Server) | [github.com/TensorBlock/awesome-mcp-servers](https://github.com/TensorBlock/awesome-mcp-servers) |
+
+### MCP Scopes
 
 | Scope | Datei | Zugriff |
 |-------|-------|---------|
@@ -435,16 +454,107 @@ Geplante projektspezifische Skills:
 
 ---
 
-## 8. Konkrete naechste Schritte (Phase 1)
+## 8. BMAD - Breakthrough Method for Agile AI-Driven Development
+
+### Was ist BMAD?
+
+BMAD ist ein Open-Source-Framework (MIT, ~38.3k GitHub Stars), das Softwareentwicklung durch spezialisierte KI-Agenten strukturiert. Jeder Agent uebernimmt eine Rolle: Analyst, Product Manager, Architekt, Scrum Master, Developer, QA, UX Designer.
+
+**Kernphilosophie**: "Structure beats chaos" -- Dokumentation als primaere Wahrheitsquelle. Durch PRDs, Architektur-Dokumente und User Stories **vor** Implementierung werden KI-Halluzinationen reduziert.
+
+### Repositories
+
+| Repository | Beschreibung | Version |
+|---|---|---|
+| [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD) | Offizielle Referenz | v6.0.3 (Feb 2026) |
+| [claude-code-bmad-skills](https://github.com/aj-geddes/claude-code-bmad-skills) | Native Claude Code Skills | v6 |
+| [bmad-mcp-server](https://github.com/cexll/bmad-mcp-server) | MCP-Server-Variante | - |
+| [Dokumentation](https://docs.bmad-method.org/) | Offizielle Docs | - |
+
+### BMAD-Agenten (12+ Spezialisten)
+
+1. **BMad Master** -- Orchestrator, koordiniert alle Agenten
+2. **Business Analyst** -- Produktentdeckung, Marktanalyse
+3. **Product Manager** -- PRD-Erstellung, Anforderungsdokumentation
+4. **System Architect** -- Systemdesign, technische Spezifikationen
+5. **Scrum Master** -- Sprint-Planung, Koordination
+6. **Developer** -- Implementierung, Code-Generierung
+7. **UX Designer** -- Barrierefreiheit, WCAG-Compliance
+8. **Builder** -- Erstellung benutzerdefinierter Agenten
+9. **Creative Intelligence** -- Brainstorming (8 Techniken: 5 Whys, SCAMPER, Mind Mapping etc.)
+10. **QA Engineer** -- Test-Strategie, Qualitaetssicherung
+11. **Test Architect** -- Risikobasiertes Testen (TEA-Modul)
+
+### BMAD-Workflow (15 Slash-Commands)
+
+| Phase | Command | Funktion |
+|-------|---------|----------|
+| Analyse | `/workflow-init` | BMAD im Projekt initialisieren |
+| Analyse | `/workflow-status` | Status + Empfehlungen |
+| Analyse | `/product-brief` | Produktentdeckungsdokument |
+| Planung | `/prd` | Umfassendes PRD |
+| Planung | `/tech-spec` | Leichtgewichtige Anforderungen |
+| Solutioning | `/architecture` | Systemdesign-Dokument |
+| Solutioning | `/solutioning-gate-check` | Design-Qualitaet validieren (>=90%) |
+| Impl. | `/sprint-planning` | Sprint-Iterationen planen |
+| Impl. | `/create-story` | Atomare User Stories |
+| Impl. | `/dev-story` | Stories mit Tests implementieren |
+| Erweiterung | `/create-agent` | Benutzerdefinierte Agenten |
+| Erweiterung | `/brainstorm` | Strukturierte Ideenfindung |
+| Erweiterung | `/research` | Markt-/Technik-Recherche |
+
+### Installation fuer Claude Code
+
+```bash
+# Option A: npm (Node.js v20+ erforderlich)
+npx bmad-method install
+
+# Option B: Native Skills (keine Abhaengigkeiten)
+cd /tmp && git clone https://github.com/aj-geddes/claude-code-bmad-skills.git
+cd claude-code-bmad-skills && chmod +x install-v6.sh && ./install-v6.sh
+```
+
+### Token-Optimierung
+
+Die Skills-Variante reduziert den Token-Verbrauch um **70-85%** (15-25KB statt 60-100KB pro Konversation) durch ein Helper-Pattern mit referenzierten Abschnitten.
+
+### BMAD vs. Alternativen
+
+| Aspekt | BMAD | Claude Flow | Gas Town |
+|---|---|---|---|
+| **Agenten** | 26 Personas, sequenziell | 54+, parallel (Schwarm) | 7 Rollen, ephemer |
+| **Persistenz** | Dokumente im Repo | AgentDB + SQLite | Git-Commits (JSONL) |
+| **Staerke** | Audit-Trails, Governance | Schnelle Parallelisierung | Crash-Recovery |
+| **Schwaeche** | ~3h Planungsphase | Speicher-Overhead | ~100$/h Kosten |
+| **Bester Einsatz** | Greenfield mit Doku-Disziplin | Komplexe parallele Tasks | Langfrist-Projekte |
+
+### Relevanz fuer WLAN-Optimizer
+
+BMAD ist **hochrelevant**. Unser Phasenmodell entspricht dem BMAD-Workflow:
+
+| Unsere Phase | BMAD-Equivalent |
+|---|---|
+| Phase 3 (Recherche) | `/product-brief` + `/research` |
+| Phase 5 (Architektur) | `/architecture` + `/solutioning-gate-check` |
+| Phase 7 (Detailplanung) | `/sprint-planning` + `/create-story` |
+| Phase 8 (Entwicklung) | `/dev-story` |
+
+**Empfehlung**: BMAD als ergaenzende Methodologie adoptieren, insbesondere die Agent-Personas, Slash-Commands und das Gate-Check-System. Nicht als Ersatz fuer unser Phasenmodell, sondern als **Qualitaetsverstaerker** innerhalb der existierenden Phasen.
+
+Quelle: [Multi-Agent Orchestration: BMAD, Claude Flow, Gas Town](https://re-cinq.com/blog/multi-agent-orchestration-bmad-claude-flow-gastown)
+
+---
+
+## 9. Konkrete naechste Schritte (Phase 1)
 
 Phase 0 (Recherche) ist mit diesem Dokument abgeschlossen. Phase 1 (Projektsetup) umfasst:
 
-1. **Projektstruktur anlegen**: src/, tests/, etc.
-2. **Skills erstellen**: `.claude/skills/` mit den oben definierten Skills
-3. **Hooks konfigurieren**: settings.json mit Lint/Test/Gate-Hooks
-4. **MCPs installieren**: Playwright, ggf. GitHub
+1. **MCPs installieren**: Context7, Sequential Thinking, ESLint MCP
+2. **BMAD evaluieren**: `npx bmad-method install` oder Skills-Variante testen
+3. **Skills erstellen/erweitern**: `.claude/skills/` mit BMAD-inspirierten Skills
+4. **Hooks konfigurieren**: settings.json mit Lint/Test/Gate-Hooks
 5. **Custom Agents definieren**: `.claude/agents/` fuer Reviewer und Tester
-6. **progress.json initialisieren**: Fortschritts-Tracking starten
+6. **progress.json pflegen**: Fortschritts-Tracking aktiv halten
 7. **Permissions optimieren**: Allow-Listen fuer vertrauenswuerdige Commands
 
 ---
@@ -461,3 +571,12 @@ Phase 0 (Recherche) ist mit diesem Dokument abgeschlossen. Phase 1 (Projektsetup
 - [Permissions](https://code.claude.com/docs/en/permissions)
 - [Anthropic Autonomous Coding Demo](https://github.com/anthropics/claude-quickstarts/tree/main/autonomous-coding)
 - [Building a C compiler with a team of parallel Claudes](https://www.anthropic.com/engineering/building-c-compiler)
+- [BMAD-METHOD GitHub](https://github.com/bmad-code-org/BMAD-METHOD)
+- [BMAD Dokumentation](https://docs.bmad-method.org/)
+- [claude-code-bmad-skills](https://github.com/aj-geddes/claude-code-bmad-skills)
+- [Context7 MCP](https://github.com/upstash/context7)
+- [Sequential Thinking MCP](https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking)
+- [Design Patterns MCP](https://github.com/apolosan/design_patterns_mcp)
+- [Tauri Plugin MCP](https://github.com/P3GLEG/tauri-plugin-mcp)
+- [Multi-Agent Orchestration: BMAD, Claude Flow, Gas Town](https://re-cinq.com/blog/multi-agent-orchestration-bmad-claude-flow-gastown)
+- [awesome-mcp-servers](https://github.com/wong2/awesome-mcp-servers)

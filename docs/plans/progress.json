@@ -1,31 +1,17 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 2,
+  "currentPhase": 0,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
-      "status": "completed",
-      "gate": "passed",
+      "status": "in_progress",
+      "gate": "pending",
       "deliverable": "docs/research/Claude-Code-Recherche.md",
-      "completedAt": "2026-02-27"
+      "notes": "Neustart: BMAD-Methode, erweiterte MCPs, verbesserte Tooling-Recherche"
     },
-    "1": {
-      "name": "Projektsetup",
-      "status": "completed",
-      "gate": "passed",
-      "deliverable": "Claude Code Tooling konfiguriert",
-      "completedAt": "2026-02-27",
-      "notes": "Agents, Skills, Hooks, Permissions, progress.json eingerichtet. Restliche Projektstruktur (package.json etc.) haengt von Tech-Stack ab (Phase 5)."
-    },
-    "2": {
-      "name": "Deep Dive & Lueckenanalyse",
-      "status": "completed",
-      "gate": "passed",
-      "deliverable": "docs/research/Wissensluecken.md",
-      "completedAt": "2026-02-27",
-      "notes": "3 Widersprueche, 10 technische Luecken, 5 RF-Modell-Luecken, 4 UX-Luecken, 3 fehlende Infos identifiziert. 7 Fragen fuer Phase 4."
-    },
+    "1": { "name": "Projektsetup", "status": "pending", "gate": "pending" },
+    "2": { "name": "Deep Dive & Lueckenanalyse", "status": "pending", "gate": "pending" },
     "3": { "name": "Recherche & Evaluation", "status": "pending", "gate": "pending" },
     "4": { "name": "Klaerung mit Benutzer", "status": "pending", "gate": "pending" },
     "5": { "name": "Architektur & Tech-Stack", "status": "pending", "gate": "pending" },
@@ -35,13 +21,13 @@
     "9": { "name": "Qualitaetssicherung", "status": "pending", "gate": "pending" },
     "10": { "name": "Uebergabe & Demo", "status": "pending", "gate": "pending" }
   },
-  "blockers": [
+  "blockers": [],
+  "decisions": [
     {
-      "id": "B-01",
-      "description": "7 offene Fragen muessen in Phase 4 geklaert werden",
-      "blocksPhase": 5,
-      "status": "open"
+      "id": "D-01",
+      "description": "Direkter AP-Zugriff statt Nuclias Connect - AP muss ueber unser Tool gesteuert werden",
+      "date": "2026-02-27",
+      "status": "confirmed"
     }
-  ],
-  "decisions": []
+  ]
 }

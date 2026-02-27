@@ -1,17 +1,24 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-02-27",
-  "currentPhase": 0,
+  "currentPhase": 2,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
-      "status": "in_progress",
-      "gate": "pending",
+      "status": "completed",
+      "gate": "passed",
       "deliverable": "docs/research/Claude-Code-Recherche.md",
-      "notes": "Neustart: BMAD-Methode, erweiterte MCPs, verbesserte Tooling-Recherche"
+      "completedAt": "2026-02-27",
+      "notes": "v2: BMAD-Methode, Context7, Sequential Thinking, ESLint, Design Patterns, Vitest, Tauri Plugin MCPs"
     },
-    "1": { "name": "Projektsetup", "status": "pending", "gate": "pending" },
-    "2": { "name": "Deep Dive & Lueckenanalyse", "status": "pending", "gate": "pending" },
+    "1": {
+      "name": "Projektsetup",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "notes": "MCPs: Context7, Sequential Thinking, ESLint. BMAD v6 global (9 Skills, 15 Commands). Agents: code-reviewer, tester. Skills: check-gate, update-progress, review-module. Hooks: PostEdit-Check, Stop-QualityGate. Rules: phasenmodell.md, rf-modell.md"
+    },
+    "2": { "name": "Deep Dive & Lueckenanalyse", "status": "in_progress", "gate": "pending" },
     "3": { "name": "Recherche & Evaluation", "status": "pending", "gate": "pending" },
     "4": { "name": "Klaerung mit Benutzer", "status": "pending", "gate": "pending" },
     "5": { "name": "Architektur & Tech-Stack", "status": "pending", "gate": "pending" },

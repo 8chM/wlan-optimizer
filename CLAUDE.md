@@ -7,7 +7,7 @@
 - **UI**: Zweisprachig (EN/DE), Key-basierte Uebersetzungen
 
 ## Aktuelle Phase
-**Phase 0: Autonomie-Recherche** 🔄 (Neustart mit BMAD + erweiterten MCPs)
+**Phase 2: Deep Dive & Lueckenanalyse** 🔄
 - Fortschritt: `docs/plans/progress.json`
 - Details: `.claude/rules/phasenmodell.md`
 

@@ -8,11 +8,18 @@
       "Bash(git *)",
       "Bash(mkdir *)",
       "Bash(ls *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(cargo *)",
+      "Bash(cat *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(claude mcp *)"
     ],
     "deny": [
-      "Bash(rm -rf *)",
+      "Bash(rm -rf /)",
       "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
       "Read(//.env*)"
     ]
   },

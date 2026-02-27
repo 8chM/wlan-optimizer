@@ -85,8 +85,8 @@
       "gate": "pending",
       "subtasks": {
         "8a": { "name": "Scaffolding + PoC", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8a-01..09: Tauri2+Svelte5 Scaffolding, Biome, Vitest, 16 DB-Tabellen (3 Migrationen), Rust module stubs (commands, db, ap_control, measurement, export, platform), TypeScript types, i18n, SvelteKit routes" },
-        "8b": { "name": "Kernmodul Planung", "status": "in_progress", "startedAt": "2026-02-27" },
-        "8c": { "name": "Kernmodul Heatmap", "status": "pending" },
+        "8b": { "name": "Kernmodul Planung", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8b-01..16: 14 neue Backend-Commands (CRUD+Batch), N+1 fix, FrequencyBand Enum. Frontend: Layout, Stores (Svelte 5 Runes), Canvas Editor, WallDrawingTool, APMarker, MaterialPicker, AutoSave, GridOverlay. Code-Review: 5 CRITICAL + 23 WARNING behoben." },
+        "8c": { "name": "Kernmodul Heatmap", "status": "completed", "completedAt": "2026-02-27", "notes": "T-8c-01..12: RF-Engine extrahiert (ITU-R P.1238, RFConfig), Spatial-Grid extrahiert (1m Zellen, Segment-Intersection), Worker refactored (imports). HeatmapManager mit 4 LOD-Stufen (1.0/0.5/0.25/0.1m). HeatmapOverlay + HeatmapControls + SignalLegend. 123 Tests (RF, SpatialGrid, ColorSchemes). Code-Review: 2 CRITICAL + 6 WARNING behoben." },
         "8d": { "name": "Modul Messung", "status": "pending" },
         "8e": { "name": "Modul Optimierung", "status": "pending" },
         "8f": { "name": "UI/UX & i18n", "status": "pending" },

@@ -4,8 +4,8 @@
  * Each generator returns a Uint32Array[256] lookup table in ABGR format
  * (little-endian, as used by ImageData on most systems).
  *
- * Index 0 = weakest signal (< -85 dBm, "no signal")
- * Index 255 = strongest signal (> -50 dBm, "excellent")
+ * Index 0 = weakest signal (RSSI_MIN = -95 dBm)
+ * Index 255 = strongest signal (RSSI_MAX = -30 dBm)
  *
  * Signal thresholds (from rf-modell.md):
  *   Excellent: > -50 dBm

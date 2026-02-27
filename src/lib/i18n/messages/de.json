@@ -69,7 +69,21 @@
     "good": "Gut",
     "fair": "Ausreichend",
     "poor": "Schwach",
-    "none": "Kein Signal"
+    "none": "Kein Signal",
+    "noSignal": "Kein Signal"
+  },
+  "heatmap": {
+    "title": "Heatmap",
+    "band": "Frequenzband",
+    "colorScheme": "Farbschema",
+    "opacity": "Deckkraft",
+    "visible": "Heatmap anzeigen",
+    "stats": "Statistik",
+    "minRSSI": "Min",
+    "maxRSSI": "Max",
+    "avgRSSI": "Durchschnitt",
+    "calcTime": "Rechenzeit",
+    "coverage": "Abdeckung"
   },
   "editor": {
     "wallDrawHint": "Klicke um Punkte zu setzen. Doppelklick zum Beenden. ESC zum Abbrechen.",

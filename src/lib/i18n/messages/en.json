@@ -69,7 +69,21 @@
     "good": "Good",
     "fair": "Fair",
     "poor": "Poor",
-    "none": "No Signal"
+    "none": "No Signal",
+    "noSignal": "No Signal"
+  },
+  "heatmap": {
+    "title": "Heatmap",
+    "band": "Frequency Band",
+    "colorScheme": "Color Scheme",
+    "opacity": "Opacity",
+    "visible": "Show Heatmap",
+    "stats": "Statistics",
+    "minRSSI": "Min",
+    "maxRSSI": "Max",
+    "avgRSSI": "Average",
+    "calcTime": "Calc. Time",
+    "coverage": "Coverage"
   },
   "editor": {
     "wallDrawHint": "Click to place points. Double-click to finish. ESC to cancel.",

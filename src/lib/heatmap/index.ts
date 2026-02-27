@@ -22,3 +22,35 @@ export type {
   LineSegment,
   FloorBounds,
 } from './worker-types';
+
+// RF Engine - pure RF propagation calculations
+export {
+  computeRSSI,
+  computePathLoss,
+  createRFConfig,
+  REFERENCE_LOSS,
+  DEFAULT_PATH_LOSS_EXPONENT,
+  DEFAULT_RECEIVER_GAIN_DBI,
+  MIN_DISTANCE,
+  type RFConfig,
+} from './rf-engine';
+
+// Spatial Grid - accelerated wall intersection detection
+export {
+  buildSpatialGrid,
+  segmentsIntersect,
+  computeWallLoss,
+  SPATIAL_GRID_CELL_SIZE,
+  type SpatialGrid,
+  type SpatialGridEntry,
+  type SpatialGridResult,
+} from './spatial-grid';
+
+// Heatmap Manager - progressive rendering controller
+export {
+  HeatmapManager,
+  type HeatmapManagerOptions,
+  type HeatmapParams,
+  type HeatmapStats,
+  type LODLevel,
+} from './heatmap-manager';

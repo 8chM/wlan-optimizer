@@ -507,6 +507,21 @@ pub struct OptimizationPlan {
     pub updated_at: String,
 }
 
+impl OptimizationPlan {
+    pub fn from_row(row: &Row<'_>) -> SqlResult<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            project_id: row.get("project_id")?,
+            name: row.get("name")?,
+            mode: row.get("mode")?,
+            status: row.get("status")?,
+            predicted_rmse_improvement_db: row.get("predicted_rmse_improvement_db")?,
+            created_at: row.get("created_at")?,
+            updated_at: row.get("updated_at")?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OptimizationStep {
     pub id: String,
@@ -520,6 +535,24 @@ pub struct OptimizationStep {
     pub description_en: Option<String>,
     pub applied: bool,
     pub applied_at: Option<String>,
+}
+
+impl OptimizationStep {
+    pub fn from_row(row: &Row<'_>) -> SqlResult<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            plan_id: row.get("plan_id")?,
+            access_point_id: row.get("access_point_id")?,
+            step_order: row.get("step_order")?,
+            parameter: row.get("parameter")?,
+            old_value: row.get("old_value")?,
+            new_value: row.get("new_value")?,
+            description_de: row.get("description_de")?,
+            description_en: row.get("description_en")?,
+            applied: row.get::<_, i32>("applied")? != 0,
+            applied_at: row.get("applied_at")?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

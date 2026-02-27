@@ -1,3 +1,4 @@
+pub mod custom_adapter;
 pub mod provider;
 
 use crate::error::AppError;

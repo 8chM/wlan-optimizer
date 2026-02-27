@@ -164,5 +164,33 @@
     "addPoint": "Klicke auf den Grundriss um einen Messpunkt hinzuzufuegen",
     "maxDeviation": "Max. Abweichung",
     "pointsCount": "Messpunkte"
+  },
+  "mixing": {
+    "title": "Mixing Console",
+    "generatePlan": "Optimierungsplan erstellen",
+    "generating": "Analysiere...",
+    "resetAll": "Alle zuruecksetzen",
+    "resetAp": "Zuruecksetzen",
+    "applyChanges": "Aenderungen anwenden",
+    "noAps": "Keine Access Points konfiguriert. Fuege APs im Editor hinzu.",
+    "txPower": "Sendeleistung",
+    "channel": "Kanal",
+    "channelWidth": "Kanalbreite",
+    "changeList": "Aenderungen",
+    "noChanges": "Noch keine Aenderungen",
+    "assistSteps": "Schritt-fuer-Schritt-Anleitung",
+    "stepCompleted": "Erledigt",
+    "allStepsCompleted": "Alle Schritte erledigt! Fuehre eine Post-Optimierungs-Messung durch um die Verbesserungen zu pruefen.",
+    "forecast": "Vorhersage",
+    "original": "Original",
+    "parameter": "Parameter",
+    "oldValue": "Aktuell",
+    "newValue": "Neu",
+    "status": "Status",
+    "pending": "Ausstehend",
+    "applied": "Angewandt",
+    "planStatus": "Plan-Status",
+    "draft": "Entwurf",
+    "verified": "Verifiziert"
   }
 }

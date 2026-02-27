@@ -4,5 +4,7 @@ pub mod export;
 pub mod floor;
 pub mod material;
 pub mod measurement;
+pub mod optimization;
 pub mod project;
 pub mod settings;
+pub mod wall;

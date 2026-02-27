@@ -4,6 +4,7 @@ pub mod db;
 pub mod error;
 pub mod export;
 pub mod measurement;
+pub mod optimizer;
 pub mod platform;
 pub mod state;
 
@@ -71,6 +72,12 @@ pub fn run() {
             commands::settings::update_heatmap_settings,
             // Export commands
             commands::export::export_project,
+            // Optimization commands
+            commands::optimization::generate_optimization_plan,
+            commands::optimization::get_optimization_plan,
+            commands::optimization::list_optimization_plans,
+            commands::optimization::update_optimization_step,
+            commands::optimization::update_optimization_plan_status,
         ])
         .run(tauri::generate_context!())
         .expect("Error while running WLAN-Optimizer");

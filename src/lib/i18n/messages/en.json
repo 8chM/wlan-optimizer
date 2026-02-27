@@ -164,5 +164,33 @@
     "addPoint": "Click on the floor plan to add a measurement point",
     "maxDeviation": "Max. Deviation",
     "pointsCount": "measurement points"
+  },
+  "mixing": {
+    "title": "Mixing Console",
+    "generatePlan": "Generate Optimization Plan",
+    "generating": "Analyzing...",
+    "resetAll": "Reset All",
+    "resetAp": "Reset",
+    "applyChanges": "Apply Changes",
+    "noAps": "No access points configured. Add APs in the Editor first.",
+    "txPower": "TX Power",
+    "channel": "Channel",
+    "channelWidth": "Channel Width",
+    "changeList": "Changes",
+    "noChanges": "No changes yet",
+    "assistSteps": "Step-by-Step Guide",
+    "stepCompleted": "Completed",
+    "allStepsCompleted": "All steps completed! Run a post-optimization measurement to verify improvements.",
+    "forecast": "Forecast",
+    "original": "Original",
+    "parameter": "Parameter",
+    "oldValue": "Current",
+    "newValue": "New",
+    "status": "Status",
+    "pending": "Pending",
+    "applied": "Applied",
+    "planStatus": "Plan Status",
+    "draft": "Draft",
+    "verified": "Verified"
   }
 }

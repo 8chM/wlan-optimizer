@@ -332,6 +332,28 @@ export interface CommandMap {
     params: { measurement_run_id: string; status: 'pending' | 'in_progress' | 'completed' | 'failed' };
     result: null;
   };
+
+  // ── Optimization Commands ────────────────────────────────────
+  generate_optimization_plan: {
+    params: { project_id: string; floor_id: string; name?: string };
+    result: { plan: OptimizationPlanResponse; steps: OptimizationStepResponse[] };
+  };
+  get_optimization_plan: {
+    params: { plan_id: string };
+    result: { plan: OptimizationPlanResponse; steps: OptimizationStepResponse[] };
+  };
+  list_optimization_plans: {
+    params: { project_id: string };
+    result: OptimizationPlanResponse[];
+  };
+  update_optimization_step: {
+    params: { step_id: string; applied: boolean };
+    result: null;
+  };
+  update_optimization_plan_status: {
+    params: { plan_id: string; status: 'draft' | 'applied' | 'verified' };
+    result: null;
+  };
 }
 
 // ─── Input Types (match Rust serde snake_case) ──────────────────
@@ -548,6 +570,31 @@ export interface CalibrationResultResponse {
   created_at: string;
 }
 
+export interface OptimizationPlanResponse {
+  id: string;
+  project_id: string;
+  name: string | null;
+  mode: string;
+  status: string;
+  predicted_rmse_improvement_db: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OptimizationStepResponse {
+  id: string;
+  plan_id: string;
+  access_point_id: string;
+  step_order: number;
+  parameter: string;
+  old_value: string | null;
+  new_value: string | null;
+  description_de: string | null;
+  description_en: string | null;
+  applied: boolean;
+  applied_at: string | null;
+}
+
 // ─── Safe Invoke ─────────────────────────────────────────────────
 
 /**
@@ -653,6 +700,11 @@ export function getErrorTitle(command: string): string {
     cancel_measurement: 'Could not cancel measurement',
     check_iperf_server: 'Server check failed',
     update_measurement_run_status: 'Could not update run status',
+    generate_optimization_plan: 'Could not generate optimization plan',
+    get_optimization_plan: 'Could not load optimization plan',
+    list_optimization_plans: 'Could not load optimization plans',
+    update_optimization_step: 'Could not update optimization step',
+    update_optimization_plan_status: 'Could not update plan status',
   };
 
   return titles[command] ?? `Command failed: ${command}`;

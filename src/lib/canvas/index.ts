@@ -7,3 +7,4 @@ export { default as WallDrawingLayer } from './WallDrawingLayer.svelte';
 export { default as AccessPointMarker } from './AccessPointMarker.svelte';
 export { default as GridOverlay } from './GridOverlay.svelte';
 export { default as HeatmapOverlay } from './HeatmapOverlay.svelte';
+export { default as MeasurementPoints } from './MeasurementPoints.svelte';

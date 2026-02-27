@@ -20,8 +20,8 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "iperf3",
-          "cmd": "iperf3",
+          "name": "binaries/iperf3",
+          "cmd": "binaries/iperf3",
           "args": true,
           "sidecar": true
         }

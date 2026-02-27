@@ -56,6 +56,13 @@ pub fn run() {
             // Measurement commands
             commands::measurement::start_measurement,
             commands::measurement::save_measurement,
+            commands::measurement::create_measurement_run,
+            commands::measurement::create_measurement_point,
+            commands::measurement::get_measurement_runs,
+            commands::measurement::get_measurements_by_run,
+            commands::measurement::cancel_measurement,
+            commands::measurement::update_measurement_run_status,
+            commands::measurement::check_iperf_server,
             // Settings commands
             commands::settings::get_settings,
             commands::settings::update_settings,

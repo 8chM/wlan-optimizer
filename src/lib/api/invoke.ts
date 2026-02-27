@@ -282,6 +282,56 @@ export interface CommandMap {
     };
     result: HeatmapSettingsResponse;
   };
+
+  // ── Measurement Commands ──────────────────────────────────────
+  create_measurement_run: {
+    params: {
+      params: {
+        floor_id: string;
+        run_number: number;
+        run_type: string;
+        iperf_server_ip?: string;
+      };
+    };
+    result: MeasurementRunResponse;
+  };
+  create_measurement_point: {
+    params: {
+      params: {
+        floor_id: string;
+        label: string;
+        x: number;
+        y: number;
+        auto_generated?: boolean;
+        notes?: string;
+      };
+    };
+    result: MeasurementPointResponse;
+  };
+  start_measurement: {
+    params: { measurement_point_id: string; measurement_run_id: string };
+    result: string;
+  };
+  get_measurement_runs: {
+    params: { floor_id: string };
+    result: MeasurementRunResponse[];
+  };
+  get_measurements_by_run: {
+    params: { measurement_run_id: string };
+    result: MeasurementResponse[];
+  };
+  cancel_measurement: {
+    params: { measurement_run_id: string };
+    result: null;
+  };
+  check_iperf_server: {
+    params: { server_ip: string };
+    result: boolean;
+  };
+  update_measurement_run_status: {
+    params: { measurement_run_id: string; status: 'pending' | 'in_progress' | 'completed' | 'failed' };
+    result: null;
+  };
 }
 
 // ─── Input Types (match Rust serde snake_case) ──────────────────
@@ -434,6 +484,70 @@ export interface HeatmapSettingsResponse {
   show_5ghz: boolean;
 }
 
+export interface MeasurementRunResponse {
+  id: string;
+  floor_id: string;
+  run_number: number;
+  run_type: string;
+  iperf_server_ip: string | null;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface MeasurementPointResponse {
+  id: string;
+  floor_id: string;
+  label: string;
+  x: number;
+  y: number;
+  auto_generated: boolean;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface MeasurementResponse {
+  id: string;
+  measurement_point_id: string;
+  measurement_run_id: string;
+  timestamp: string;
+  frequency_band: string;
+  rssi_dbm: number | null;
+  noise_dbm: number | null;
+  snr_db: number | null;
+  connected_bssid: string | null;
+  connected_ssid: string | null;
+  frequency_mhz: number | null;
+  tx_rate_mbps: number | null;
+  iperf_tcp_upload_bps: number | null;
+  iperf_tcp_download_bps: number | null;
+  iperf_tcp_retransmits: number | null;
+  iperf_udp_throughput_bps: number | null;
+  iperf_udp_jitter_ms: number | null;
+  iperf_udp_lost_packets: number | null;
+  iperf_udp_total_packets: number | null;
+  iperf_udp_lost_percent: number | null;
+  quality: string;
+  raw_iperf_json: string | null;
+  created_at: string;
+}
+
+export interface CalibrationResultResponse {
+  id: string;
+  measurement_run_id: string;
+  frequency_band: string;
+  path_loss_exponent_original: number;
+  path_loss_exponent_calibrated: number | null;
+  wall_correction_factor: number;
+  rmse_db: number | null;
+  r_squared: number | null;
+  max_deviation_db: number | null;
+  num_measurement_points: number;
+  confidence: string;
+  created_at: string;
+}
+
 // ─── Safe Invoke ─────────────────────────────────────────────────
 
 /**
@@ -531,6 +645,14 @@ export function getErrorTitle(command: string): string {
     create_custom_ap_model: 'Could not create AP model',
     get_heatmap_settings: 'Could not load heatmap settings',
     update_heatmap_settings: 'Could not save heatmap settings',
+    create_measurement_run: 'Could not create measurement run',
+    create_measurement_point: 'Could not create measurement point',
+    start_measurement: 'Measurement failed',
+    get_measurement_runs: 'Could not load measurement runs',
+    get_measurements_by_run: 'Could not load measurements',
+    cancel_measurement: 'Could not cancel measurement',
+    check_iperf_server: 'Server check failed',
+    update_measurement_run_status: 'Could not update run status',
   };
 
   return titles[command] ?? `Command failed: ${command}`;

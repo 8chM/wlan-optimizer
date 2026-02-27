@@ -353,6 +353,21 @@ pub struct MeasurementPoint {
     pub created_at: String,
 }
 
+impl MeasurementPoint {
+    pub fn from_row(row: &Row<'_>) -> SqlResult<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            floor_id: row.get("floor_id")?,
+            label: row.get("label")?,
+            x: row.get("x")?,
+            y: row.get("y")?,
+            auto_generated: row.get::<_, i32>("auto_generated")? != 0,
+            notes: row.get("notes")?,
+            created_at: row.get("created_at")?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeasurementRun {
     pub id: String,
@@ -364,6 +379,22 @@ pub struct MeasurementRun {
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
     pub created_at: String,
+}
+
+impl MeasurementRun {
+    pub fn from_row(row: &Row<'_>) -> SqlResult<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            floor_id: row.get("floor_id")?,
+            run_number: row.get("run_number")?,
+            run_type: row.get("run_type")?,
+            iperf_server_ip: row.get("iperf_server_ip")?,
+            status: row.get("status")?,
+            started_at: row.get("started_at")?,
+            completed_at: row.get("completed_at")?,
+            created_at: row.get("created_at")?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -392,6 +423,37 @@ pub struct Measurement {
     pub quality: String,
     pub raw_iperf_json: Option<String>,
     pub created_at: String,
+}
+
+impl Measurement {
+    pub fn from_row(row: &Row<'_>) -> SqlResult<Self> {
+        Ok(Self {
+            id: row.get("id")?,
+            measurement_point_id: row.get("measurement_point_id")?,
+            measurement_run_id: row.get("measurement_run_id")?,
+            timestamp: row.get("timestamp")?,
+            frequency_band: row.get("frequency_band")?,
+            rssi_dbm: row.get("rssi_dbm")?,
+            noise_dbm: row.get("noise_dbm")?,
+            snr_db: row.get("snr_db")?,
+            connected_bssid: row.get("connected_bssid")?,
+            connected_ssid: row.get("connected_ssid")?,
+            frequency_mhz: row.get("frequency_mhz")?,
+            tx_rate_mbps: row.get("tx_rate_mbps")?,
+            iperf_tcp_upload_bps: row.get("iperf_tcp_upload_bps")?,
+            iperf_tcp_download_bps: row.get("iperf_tcp_download_bps")?,
+            iperf_tcp_retransmits: row.get("iperf_tcp_retransmits")?,
+            iperf_udp_throughput_bps: row.get("iperf_udp_throughput_bps")?,
+            iperf_udp_jitter_ms: row.get("iperf_udp_jitter_ms")?,
+            iperf_udp_lost_packets: row.get("iperf_udp_lost_packets")?,
+            iperf_udp_total_packets: row.get("iperf_udp_total_packets")?,
+            iperf_udp_lost_percent: row.get("iperf_udp_lost_percent")?,
+            rtt_mean_us: row.get("rtt_mean_us")?,
+            quality: row.get("quality")?,
+            raw_iperf_json: row.get("raw_iperf_json")?,
+            created_at: row.get("created_at")?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -732,4 +794,28 @@ pub struct CreateApModelParams {
     pub supported_channels_24ghz: Option<String>,
     pub supported_channels_5ghz: Option<String>,
     pub supported_channels_6ghz: Option<String>,
+}
+
+// =============================================================================
+// Phase 8d parameter structs (measurement module)
+// =============================================================================
+
+/// Parameters for creating a new measurement run.
+#[derive(Debug, Deserialize)]
+pub struct CreateMeasurementRunParams {
+    pub floor_id: String,
+    pub run_number: i32,
+    pub run_type: String,
+    pub iperf_server_ip: Option<String>,
+}
+
+/// Parameters for creating a new measurement point.
+#[derive(Debug, Deserialize)]
+pub struct CreateMeasurementPointParams {
+    pub floor_id: String,
+    pub label: String,
+    pub x: f64,
+    pub y: f64,
+    pub auto_generated: Option<bool>,
+    pub notes: Option<String>,
 }

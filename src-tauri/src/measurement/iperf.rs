@@ -16,6 +16,7 @@
 // See also: Architecture Doc section 3.4, D-13.
 
 use serde::{Deserialize, Serialize};
+use tauri_plugin_shell::ShellExt;
 
 use crate::error::AppError;
 
@@ -175,13 +176,40 @@ pub struct IperfJsonStreamEnd {
 }
 
 // =============================================================================
+// Input validation
+// =============================================================================
+
+/// Validates a server IP address to prevent command injection.
+/// Only allows alphanumeric characters, dots (IPv4), and colons (IPv6).
+fn validate_server_ip(ip: &str) -> Result<(), AppError> {
+    if ip.is_empty() {
+        return Err(AppError::Validation {
+            message: "Server IP address must not be empty".into(),
+        });
+    }
+
+    for ch in ip.chars() {
+        if !ch.is_alphanumeric() && ch != '.' && ch != ':' && ch != '-' {
+            return Err(AppError::Validation {
+                message: format!(
+                    "Invalid character '{}' in server IP. Only alphanumeric, dots, and colons are allowed.",
+                    ch
+                ),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+// =============================================================================
 // iPerf3 Manager
 // =============================================================================
 
 /// Manages iPerf3 sidecar execution via Tauri Shell plugin.
 ///
 /// Requires the iPerf3 binary to be registered as a Tauri sidecar.
-/// The binary is resolved at runtime via `app.shell().sidecar("iperf3")`.
+/// The binary is resolved at runtime via `app.shell().sidecar("binaries/iperf3")`.
 pub struct IperfManager {
     /// Default configuration (can be overridden per test)
     pub default_config: IperfConfig,
@@ -206,87 +234,204 @@ impl IperfManager {
     /// The `--omit 2` flag discards the first 2 seconds (TCP slow-start).
     ///
     /// # Arguments
+    /// * `app` - Tauri AppHandle for shell plugin access
     /// * `server_ip` - iPerf3 server IP address
     /// * `duration` - Test duration in seconds
     /// * `streams` - Number of parallel TCP streams
     pub async fn run_tcp_upload(
         &self,
+        app: &tauri::AppHandle,
         server_ip: &str,
         duration: u32,
         streams: u32,
     ) -> Result<IperfTcpResult, AppError> {
-        // TODO: Implement using tauri_plugin_shell::ShellExt
-        // let command = self.app.shell().sidecar("iperf3").map_err(/* ... */)?
-        //     .args(["-c", server_ip, "-t", &duration.to_string(),
-        //            "-P", &streams.to_string(), "-J", "--omit", "2"]);
-        // let output = command.output().await?;
-        // let json: IperfJsonOutput = serde_json::from_str(&output.stdout)?;
-        // parse_tcp_result(&json, &output.stdout)
+        validate_server_ip(server_ip)?;
 
-        let _ = (server_ip, duration, streams);
-        Err(AppError::IPerf {
-            message: "TCP upload test not yet implemented. Sidecar binary will be added at build time.".into(),
-        })
+        let output = app
+            .shell()
+            .sidecar("binaries/iperf3")
+            .map_err(|e| AppError::IPerf {
+                message: format!("Failed to create sidecar: {}", e),
+            })?
+            .args(&[
+                "-c",
+                server_ip,
+                "-t",
+                &duration.to_string(),
+                "-P",
+                &streams.to_string(),
+                "-J",
+                "--omit",
+                "2",
+            ])
+            .output()
+            .await
+            .map_err(|e| AppError::IPerf {
+                message: format!("iPerf3 execution failed: {}", e),
+            })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(AppError::IPerf {
+                message: format!("iPerf3 failed: {}", stderr),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let json: IperfJsonOutput = serde_json::from_str(&stdout).map_err(|e| AppError::IPerf {
+            message: format!("Failed to parse iPerf3 output: {}", e),
+        })?;
+
+        parse_tcp_result(&json, &stdout)
     }
 
     /// Runs a TCP download test (server -> client, reverse mode).
     ///
     /// Uses iPerf3 args: `-c <ip> -t <duration> -P <streams> -R -J --omit 2`
     /// The `-R` flag activates reverse mode.
+    ///
+    /// # Arguments
+    /// * `app` - Tauri AppHandle for shell plugin access
+    /// * `server_ip` - iPerf3 server IP address
+    /// * `duration` - Test duration in seconds
+    /// * `streams` - Number of parallel TCP streams
     pub async fn run_tcp_download(
         &self,
+        app: &tauri::AppHandle,
         server_ip: &str,
         duration: u32,
         streams: u32,
     ) -> Result<IperfTcpResult, AppError> {
-        // TODO: Implement using tauri_plugin_shell::ShellExt
-        // Same as upload but with `-R` flag for reverse mode
+        validate_server_ip(server_ip)?;
 
-        let _ = (server_ip, duration, streams);
-        Err(AppError::IPerf {
-            message: "TCP download test not yet implemented. Sidecar binary will be added at build time.".into(),
-        })
+        let output = app
+            .shell()
+            .sidecar("binaries/iperf3")
+            .map_err(|e| AppError::IPerf {
+                message: format!("Failed to create sidecar: {}", e),
+            })?
+            .args(&[
+                "-c",
+                server_ip,
+                "-t",
+                &duration.to_string(),
+                "-P",
+                &streams.to_string(),
+                "-R",
+                "-J",
+                "--omit",
+                "2",
+            ])
+            .output()
+            .await
+            .map_err(|e| AppError::IPerf {
+                message: format!("iPerf3 execution failed: {}", e),
+            })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(AppError::IPerf {
+                message: format!("iPerf3 failed: {}", stderr),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let json: IperfJsonOutput = serde_json::from_str(&stdout).map_err(|e| AppError::IPerf {
+            message: format!("Failed to parse iPerf3 output: {}", e),
+        })?;
+
+        parse_tcp_result(&json, &stdout)
     }
 
     /// Runs a UDP quality test (jitter, packet loss).
     ///
     /// Uses iPerf3 args: `-c <ip> -u -b 0 -t <duration> -J`
     /// The `-b 0` flag means unlimited bitrate.
+    ///
+    /// # Arguments
+    /// * `app` - Tauri AppHandle for shell plugin access
+    /// * `server_ip` - iPerf3 server IP address
+    /// * `duration` - Test duration in seconds
     pub async fn run_udp_test(
         &self,
+        app: &tauri::AppHandle,
         server_ip: &str,
         duration: u32,
     ) -> Result<IperfUdpResult, AppError> {
-        // TODO: Implement using tauri_plugin_shell::ShellExt
-        // let command = self.app.shell().sidecar("iperf3").map_err(/* ... */)?
-        //     .args(["-c", server_ip, "-u", "-b", "0",
-        //            "-t", &duration.to_string(), "-J"]);
-        // let output = command.output().await?;
-        // let json: IperfJsonOutput = serde_json::from_str(&output.stdout)?;
-        // parse_udp_result(&json, &output.stdout)
+        validate_server_ip(server_ip)?;
 
-        let _ = (server_ip, duration);
-        Err(AppError::IPerf {
-            message: "UDP test not yet implemented. Sidecar binary will be added at build time.".into(),
-        })
+        let output = app
+            .shell()
+            .sidecar("binaries/iperf3")
+            .map_err(|e| AppError::IPerf {
+                message: format!("Failed to create sidecar: {}", e),
+            })?
+            .args(&[
+                "-c",
+                server_ip,
+                "-u",
+                "-b",
+                "0",
+                "-t",
+                &duration.to_string(),
+                "-J",
+            ])
+            .output()
+            .await
+            .map_err(|e| AppError::IPerf {
+                message: format!("iPerf3 execution failed: {}", e),
+            })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(AppError::IPerf {
+                message: format!("iPerf3 failed: {}", stderr),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let json: IperfJsonOutput = serde_json::from_str(&stdout).map_err(|e| AppError::IPerf {
+            message: format!("Failed to parse iPerf3 output: {}", e),
+        })?;
+
+        parse_udp_result(&json, &stdout)
     }
 
     /// Checks if the iPerf3 server is reachable by running a 1-second test.
     ///
     /// Uses iPerf3 args: `-c <ip> -t 1 -J --connect-timeout 3000`
-    pub async fn check_server(&self, server_ip: &str) -> Result<bool, AppError> {
-        // TODO: Implement using tauri_plugin_shell::ShellExt
-        // let command = self.app.shell().sidecar("iperf3").map_err(/* ... */)?
-        //     .args(["-c", server_ip, "-t", "1", "-J", "--connect-timeout", "3000"]);
-        // match command.output().await {
-        //     Ok(output) => Ok(output.status.success()),
-        //     Err(_) => Ok(false),
-        // }
+    ///
+    /// Returns `Ok(true)` if the server is reachable, `Ok(false)` if not.
+    /// Only returns `Err` for validation errors, not for connection failures.
+    pub async fn check_server(
+        &self,
+        app: &tauri::AppHandle,
+        server_ip: &str,
+    ) -> Result<bool, AppError> {
+        validate_server_ip(server_ip)?;
 
-        let _ = server_ip;
-        Err(AppError::IPerf {
-            message: "Server check not yet implemented. Sidecar binary will be added at build time.".into(),
-        })
+        let result = app
+            .shell()
+            .sidecar("binaries/iperf3")
+            .map_err(|e| AppError::IPerf {
+                message: format!("Failed to create sidecar: {}", e),
+            })?
+            .args(&[
+                "-c",
+                server_ip,
+                "-t",
+                "1",
+                "-J",
+                "--connect-timeout",
+                "3000",
+            ])
+            .output()
+            .await;
+
+        match result {
+            Ok(output) => Ok(output.status.success()),
+            Err(_) => Ok(false),
+        }
     }
 
     /// Runs the full measurement suite: TCP upload, TCP download, UDP.
@@ -294,14 +439,21 @@ impl IperfManager {
     /// Returns partial results if some tests fail.
     pub async fn run_full_suite(
         &self,
+        app: &tauri::AppHandle,
         server_ip: &str,
         tcp_duration: u32,
         tcp_streams: u32,
         udp_duration: u32,
     ) -> Result<IperfFullResult, AppError> {
-        let tcp_upload = self.run_tcp_upload(server_ip, tcp_duration, tcp_streams).await.ok();
-        let tcp_download = self.run_tcp_download(server_ip, tcp_duration, tcp_streams).await.ok();
-        let udp = self.run_udp_test(server_ip, udp_duration).await.ok();
+        let tcp_upload = self
+            .run_tcp_upload(app, server_ip, tcp_duration, tcp_streams)
+            .await
+            .ok();
+        let tcp_download = self
+            .run_tcp_download(app, server_ip, tcp_duration, tcp_streams)
+            .await
+            .ok();
+        let udp = self.run_udp_test(app, server_ip, udp_duration).await.ok();
 
         if tcp_upload.is_none() && tcp_download.is_none() && udp.is_none() {
             return Err(AppError::IPerf {
@@ -318,11 +470,10 @@ impl IperfManager {
 }
 
 // =============================================================================
-// JSON parsing helpers (used once sidecar is available)
+// JSON parsing helpers
 // =============================================================================
 
 /// Parses a TCP test result from iPerf3 JSON output.
-#[allow(dead_code)]
 fn parse_tcp_result(json: &IperfJsonOutput, raw: &str) -> Result<IperfTcpResult, AppError> {
     if let Some(ref error) = json.error {
         return Err(AppError::IPerf {
@@ -334,22 +485,30 @@ fn parse_tcp_result(json: &IperfJsonOutput, raw: &str) -> Result<IperfTcpResult,
         message: "Missing 'end' section in iPerf3 output".into(),
     })?;
 
-    let sum = end.sum_received.as_ref()
+    let sum = end
+        .sum_received
+        .as_ref()
         .or(end.sum_sent.as_ref())
         .ok_or_else(|| AppError::IPerf {
             message: "Missing sum data in iPerf3 TCP output".into(),
         })?;
 
-    let stream_results = end.streams.as_ref()
+    let stream_results = end
+        .streams
+        .as_ref()
         .map(|streams| {
-            streams.iter().enumerate().map(|(i, s)| {
-                let recv = s.receiver.as_ref().or(s.sender.as_ref());
-                IperfStreamResult {
-                    id: i as i32,
-                    throughput_bps: recv.and_then(|r| r.bits_per_second).unwrap_or(0.0),
-                    retransmits: recv.and_then(|r| r.retransmits),
-                }
-            }).collect()
+            streams
+                .iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    let recv = s.receiver.as_ref().or(s.sender.as_ref());
+                    IperfStreamResult {
+                        id: i as i32,
+                        throughput_bps: recv.and_then(|r| r.bits_per_second).unwrap_or(0.0),
+                        retransmits: recv.and_then(|r| r.retransmits),
+                    }
+                })
+                .collect()
         })
         .unwrap_or_default();
 
@@ -365,7 +524,6 @@ fn parse_tcp_result(json: &IperfJsonOutput, raw: &str) -> Result<IperfTcpResult,
 }
 
 /// Parses a UDP test result from iPerf3 JSON output.
-#[allow(dead_code)]
 fn parse_udp_result(json: &IperfJsonOutput, raw: &str) -> Result<IperfUdpResult, AppError> {
     if let Some(ref error) = json.error {
         return Err(AppError::IPerf {
@@ -467,5 +625,25 @@ mod tests {
 
         let result = parse_tcp_result(&json, "{}");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_server_ip_valid() {
+        assert!(validate_server_ip("192.168.1.1").is_ok());
+        assert!(validate_server_ip("10.0.0.1").is_ok());
+        assert!(validate_server_ip("::1").is_ok());
+        assert!(validate_server_ip("fe80::1").is_ok());
+        assert!(validate_server_ip("myserver").is_ok());
+        assert!(validate_server_ip("my-server.local").is_ok());
+        assert!(validate_server_ip("iperf-host").is_ok());
+    }
+
+    #[test]
+    fn test_validate_server_ip_invalid() {
+        assert!(validate_server_ip("").is_err());
+        assert!(validate_server_ip("192.168.1.1; rm -rf /").is_err());
+        assert!(validate_server_ip("$(whoami)").is_err());
+        assert!(validate_server_ip("ip & echo bad").is_err());
+        assert!(validate_server_ip("host|cmd").is_err());
     }
 }

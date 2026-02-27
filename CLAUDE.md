@@ -7,7 +7,7 @@
 - **UI**: Zweisprachig (EN/DE), Key-basierte Uebersetzungen
 
 ## Aktuelle Phase
-**Phase 2: Deep Dive & Lueckenanalyse** 🔄
+**Phase 3: Recherche & Evaluation** 🔄
 - Fortschritt: `docs/plans/progress.json`
 - Details: `.claude/rules/phasenmodell.md`
 

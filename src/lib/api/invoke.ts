@@ -7,7 +7,20 @@
  * - Logging for debugging
  */
 
-import { invoke } from '@tauri-apps/api/core';
+// Dynamic import: only load Tauri API when running inside Tauri runtime
+let tauriInvoke: typeof import('@tauri-apps/api/core').invoke | null = null;
+
+// Detect Tauri runtime
+const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+if (IS_TAURI) {
+  // Only import Tauri API when running in Tauri
+  import('@tauri-apps/api/core').then((mod) => {
+    tauriInvoke = mod.invoke;
+  }).catch(() => {
+    // Tauri API not available - stay in browser mode
+  });
+}
 
 // ─── IPC Error Type ──────────────────────────────────────────────
 
@@ -685,8 +698,13 @@ export async function safeInvoke<K extends keyof CommandMap>(
   command: K,
   params: CommandMap[K]['params'],
 ): Promise<CommandMap[K]['result']> {
+  // Browser preview mode: return mock data when Tauri is not available
+  if (!IS_TAURI || !tauriInvoke) {
+    return handleBrowserMock(command, params);
+  }
+
   try {
-    const result = await invoke<CommandMap[K]['result']>(command, params);
+    const result = await tauriInvoke<CommandMap[K]['result']>(command, params);
     return result;
   } catch (error: unknown) {
     const message = extractErrorMessage(error);
@@ -701,6 +719,65 @@ export async function safeInvoke<K extends keyof CommandMap>(
 
     throw invokeError;
   }
+}
+
+/**
+ * Handle IPC calls in browser preview mode with mock data.
+ */
+async function handleBrowserMock<K extends keyof CommandMap>(
+  command: K,
+  _params: CommandMap[K]['params'],
+): Promise<CommandMap[K]['result']> {
+  // Lazy import to avoid bundling mock data in Tauri builds
+  const mock = await import('./mock-data');
+
+  const handlers: Record<string, () => unknown> = {
+    list_projects: () => [mock.MOCK_PROJECT],
+    get_project: () => mock.MOCK_PROJECT,
+    create_project: () => mock.MOCK_PROJECT,
+    update_project: () => mock.MOCK_PROJECT,
+    delete_project: () => null,
+    get_settings: () => mock.MOCK_SETTINGS,
+    update_settings: () => mock.MOCK_SETTINGS,
+    get_system_language: () => 'de',
+    get_floors_by_project: () => [mock.MOCK_FLOOR],
+    get_floor_data: () => mock.MOCK_FLOOR_DATA,
+    create_floor: () => mock.MOCK_FLOOR,
+    update_floor: () => mock.MOCK_FLOOR,
+    set_floor_scale: () => mock.MOCK_FLOOR,
+    import_floor_image: () => mock.MOCK_FLOOR,
+    create_wall: () => mock.MOCK_FLOOR_DATA.walls[0],
+    update_wall: () => mock.MOCK_FLOOR_DATA.walls[0],
+    delete_wall: () => null,
+    create_walls_batch: () => mock.MOCK_FLOOR_DATA.walls,
+    create_access_point: () => mock.MOCK_FLOOR_DATA.access_points[0],
+    update_access_point: () => mock.MOCK_FLOOR_DATA.access_points[0],
+    delete_access_point: () => null,
+    list_materials: () => mock.MOCK_MATERIALS,
+    get_material: () => mock.MOCK_MATERIALS[0],
+    create_user_material: () => mock.MOCK_MATERIALS[0],
+    update_material: () => mock.MOCK_MATERIALS[0],
+    list_ap_models: () => mock.MOCK_AP_MODELS,
+    get_ap_model: () => mock.MOCK_AP_MODELS[0],
+    create_custom_ap_model: () => mock.MOCK_AP_MODELS[0],
+    get_heatmap_settings: () => mock.MOCK_HEATMAP_SETTINGS,
+    update_heatmap_settings: () => mock.MOCK_HEATMAP_SETTINGS,
+    get_measurement_runs: () => [],
+    get_measurements_by_run: () => [],
+    check_iperf_server: () => false,
+    list_optimization_plans: () => [],
+    export_project: () => '{}',
+    get_floor_image: () => null,
+  };
+
+  const handler = handlers[command];
+  if (handler) {
+    console.info(`[Browser Preview] Mock: ${command}`);
+    return handler() as CommandMap[K]['result'];
+  }
+
+  console.warn(`[Browser Preview] No mock for command: ${command}`);
+  throw { command, message: `Browser preview: command '${command}' not available`, raw: null };
 }
 
 /**

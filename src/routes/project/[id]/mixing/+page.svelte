@@ -86,12 +86,23 @@
     }
   }
 
-  // ─── Cleanup on Mount/Unmount ──────────────────────────────────
+  // ─── Load existing plan on mount, cleanup on unmount ────────────
 
   $effect(() => {
+    // Try to load the latest plan for this project
+    if (projectId) {
+      mixingStore.listPlans(projectId).then((plans) => {
+        if (plans.length > 0) {
+          const latest = plans[plans.length - 1]!;
+          mixingStore.loadPlan(latest.id);
+        }
+      });
+    }
+
     return () => {
-      mixingStore.reset();
+      // Persist changes before reset so they survive navigation
       comparisonStore.reset();
+      mixingStore.reset();
     };
   });
 

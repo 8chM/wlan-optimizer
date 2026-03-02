@@ -339,10 +339,33 @@ function dispatch(command: string, p: AnyParams): unknown {
       const floors = load<FloorResponse[]>(KEYS.floors, []);
       const fi = floors.findIndex((f) => f.id === p.floor_id);
       if (fi < 0) throw { command, message: `Floor not found`, raw: null };
-      // Update format in floor data (image bytes stored separately in localStorage by editor)
       const format = p.format ?? 'png';
       floors[fi] = { ...floors[fi]!, background_image_format: format, updated_at: now() };
       save(KEYS.floors, floors);
+
+      // Convert image_data (number[]) to a data-URL and persist in localStorage
+      if (p.image_data && Array.isArray(p.image_data) && p.image_data.length > 0) {
+        const bytes = new Uint8Array(p.image_data as number[]);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]!);
+        }
+        const base64 = btoa(binary);
+        const mimeType =
+          format === 'jpeg' || format === 'jpg'
+            ? 'image/jpeg'
+            : format === 'webp'
+              ? 'image/webp'
+              : 'image/png';
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+        const imageKey = `${STORAGE_PREFIX}floor-image:${p.floor_id}`;
+        try {
+          localStorage.setItem(imageKey, dataUrl);
+        } catch (e) {
+          console.warn('[BrowserBackend] Failed to store floor image in localStorage:', e);
+        }
+      }
+
       return floors[fi]!;
     }
 
@@ -396,15 +419,23 @@ function dispatch(command: string, p: AnyParams): unknown {
       const wall = walls[wi]!;
       if (p.params.material_id) wall.material_id = p.params.material_id;
       if (p.params.segments) {
-        wall.segments = (p.params.segments as SegmentInput[]).map((s, i) => ({
-          id: uuid(),
-          wall_id: wall.id,
-          segment_order: s.segment_order ?? i,
-          x1: s.x1,
-          y1: s.y1,
-          x2: s.x2,
-          y2: s.y2,
-        }));
+        // Build a lookup of existing segment IDs by segment_order
+        const existingById = new Map<number, string>();
+        for (const seg of wall.segments) {
+          existingById.set(seg.segment_order, seg.id);
+        }
+        wall.segments = (p.params.segments as SegmentInput[]).map((s, i) => {
+          const order = s.segment_order ?? i;
+          return {
+            id: existingById.get(order) ?? uuid(),
+            wall_id: wall.id,
+            segment_order: order,
+            x1: s.x1,
+            y1: s.y1,
+            x2: s.x2,
+            y2: s.y2,
+          };
+        });
       }
       if (p.params.attenuation_override_24ghz !== undefined)
         wall.attenuation_override_24ghz = p.params.attenuation_override_24ghz;
@@ -659,6 +690,11 @@ function dispatch(command: string, p: AnyParams): unknown {
       return newMp;
     }
 
+    case 'get_measurement_points': {
+      const mps = load<MeasurementPointResponse[]>(KEYS.measurementPoints, []);
+      return mps.filter((mp) => mp.floor_id === p.floor_id);
+    }
+
     case 'get_measurement_runs': {
       const runs = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []);
       return runs.filter((r) => r.floor_id === p.floor_id);
@@ -807,20 +843,76 @@ function dispatch(command: string, p: AnyParams): unknown {
       const aps = load<AccessPointResponse[]>(KEYS.aps, []).filter((a) =>
         floorIds.includes(a.floor_id),
       );
-      return JSON.stringify({ project, floors, walls, access_points: aps }, null, 2);
+      const measurementRuns = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []).filter(
+        (r) => floorIds.includes(r.floor_id),
+      );
+      const runIds = measurementRuns.map((r) => r.id);
+      const measurementPoints = load<MeasurementPointResponse[]>(
+        KEYS.measurementPoints,
+        [],
+      ).filter((mp) => floorIds.includes(mp.floor_id));
+      const measurements = load<MeasurementResponse[]>(KEYS.measurements, []).filter((m) =>
+        runIds.includes(m.measurement_run_id),
+      );
+      const heatmapSettings = load<HeatmapSettingsResponse[]>(
+        KEYS.heatmapSettings,
+        [],
+      ).filter((hs) => hs.project_id === p.project_id);
+      const optimizationPlans = load<OptimizationPlanResponse[]>(
+        KEYS.optimizationPlans,
+        [],
+      ).filter((pl) => pl.project_id === p.project_id);
+      const planIds = optimizationPlans.map((pl) => pl.id);
+      const optimizationSteps = load<OptimizationStepResponse[]>(
+        KEYS.optimizationSteps,
+        [],
+      ).filter((s) => planIds.includes(s.plan_id));
+
+      return JSON.stringify(
+        {
+          project,
+          floors,
+          walls,
+          access_points: aps,
+          measurement_runs: measurementRuns,
+          measurement_points: measurementPoints,
+          measurements,
+          heatmap_settings: heatmapSettings,
+          optimization_plans: optimizationPlans,
+          optimization_steps: optimizationSteps,
+        },
+        null,
+        2,
+      );
     }
 
     // ── Floor Image ───────────────────────────────────────────
     case 'get_floor_image': {
-      // Check localStorage for base64 image data
+      // Check localStorage for base64 image data (stored as data-URL)
       const imageKey = `${STORAGE_PREFIX}floor-image:${p.floor_id}`;
       const imageData = localStorage.getItem(imageKey);
       if (!imageData) return null;
       const floors = load<FloorResponse[]>(KEYS.floors, []);
       const floor = floors.find((f) => f.id === p.floor_id);
+
+      // Convert data-URL to byte array so callers get a consistent response
+      let byteArray: number[] | null = null;
+      try {
+        const base64Match = imageData.match(/^data:[^;]+;base64,(.+)$/);
+        if (base64Match && base64Match[1]) {
+          const binary = atob(base64Match[1]);
+          byteArray = new Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            byteArray[i] = binary.charCodeAt(i);
+          }
+        }
+      } catch {
+        // If conversion fails, callers will fall back to localStorage
+      }
+
       return {
         id: p.floor_id,
-        background_image: null, // Binary not needed, frontend uses localStorage directly
+        background_image: byteArray,
         background_image_format: floor?.background_image_format ?? 'png',
       };
     }
@@ -843,13 +935,9 @@ function dispatch(command: string, p: AnyParams): unknown {
       };
       plans.push(newPlan);
 
-      // Generate optimization steps based on existing APs
+      // Generate optimization steps based on APs on the specified floor
       const aps = load<AccessPointResponse[]>(KEYS.aps, []);
-      const floors = load<FloorResponse[]>(KEYS.floors, []);
-      const floorAps = aps.filter((a) => {
-        const floor = floors.find((f) => f.id === a.floor_id);
-        return floor?.project_id === p.params.project_id;
-      });
+      const floorAps = aps.filter((a) => a.floor_id === p.params.floor_id);
 
       const steps: OptimizationStepResponse[] = [];
       let stepOrder = 0;

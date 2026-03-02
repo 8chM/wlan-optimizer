@@ -53,6 +53,15 @@ export async function startMeasurement(
 }
 
 /**
+ * Loads all measurement points for a floor.
+ */
+export async function getMeasurementPoints(
+  floorId: string,
+): Promise<MeasurementPointResponse[]> {
+  return safeInvoke('get_measurement_points', { floor_id: floorId });
+}
+
+/**
  * Loads all measurement runs for a floor.
  */
 export async function getMeasurementRuns(

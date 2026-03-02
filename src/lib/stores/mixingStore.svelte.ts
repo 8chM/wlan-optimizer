@@ -287,6 +287,7 @@ function createMixingStore() {
       if (newMap.size === 0) {
         forecastMode = false;
       }
+      persistChanges(currentPlan?.id ?? null, apChanges);
     },
 
     /**
@@ -304,6 +305,7 @@ function createMixingStore() {
       if (newMap.size === 0) {
         forecastMode = false;
       }
+      persistChanges(currentPlan?.id ?? null, apChanges);
     },
 
     /**

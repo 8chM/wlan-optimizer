@@ -330,6 +330,10 @@ export interface CommandMap {
     params: { measurement_point_id: string; measurement_run_id: string };
     result: string;
   };
+  get_measurement_points: {
+    params: { floor_id: string };
+    result: MeasurementPointResponse[];
+  };
   get_measurement_runs: {
     params: { floor_id: string };
     result: MeasurementRunResponse[];
@@ -811,6 +815,7 @@ export function getErrorTitle(command: string): string {
     create_measurement_run: 'Could not create measurement run',
     create_measurement_point: 'Could not create measurement point',
     start_measurement: 'Measurement failed',
+    get_measurement_points: 'Could not load measurement points',
     get_measurement_runs: 'Could not load measurement runs',
     get_measurements_by_run: 'Could not load measurements',
     cancel_measurement: 'Could not cancel measurement',

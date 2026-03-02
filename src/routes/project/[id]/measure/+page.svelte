@@ -75,6 +75,7 @@
   $effect(() => {
     if (floorId) {
       measurementStore.loadRuns(floorId);
+      measurementStore.loadPoints(floorId);
     }
     return () => {
       measurementStore.reset();

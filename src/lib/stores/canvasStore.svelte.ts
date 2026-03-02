@@ -33,6 +33,7 @@ function createCanvasStore() {
   let gridSize = $state(1); // meters
   let selectedMaterialId = $state<string | null>(null);
   let sidebarCollapsed = $state(false);
+  let selectedApModelId = $state<string | null>(null);
   let settingScale = $state(false);
   let mouseXMeters = $state<number | null>(null);
   let mouseYMeters = $state<number | null>(null);
@@ -47,6 +48,7 @@ function createCanvasStore() {
     get gridVisible() { return gridVisible; },
     get gridSize() { return gridSize; },
     get selectedMaterialId() { return selectedMaterialId; },
+    get selectedApModelId() { return selectedApModelId; },
     get sidebarCollapsed() { return sidebarCollapsed; },
     get settingScale() { return settingScale; },
     get mouseXMeters() { return mouseXMeters; },
@@ -109,6 +111,10 @@ function createCanvasStore() {
       selectedMaterialId = materialId;
     },
 
+    setSelectedApModel(modelId: string | null): void {
+      selectedApModelId = modelId;
+    },
+
     setSettingScale(v: boolean): void {
       settingScale = v;
     },
@@ -143,6 +149,7 @@ function createCanvasStore() {
       gridVisible = true;
       gridSize = 1;
       selectedMaterialId = null;
+      selectedApModelId = null;
       sidebarCollapsed = false;
       settingScale = false;
       mouseXMeters = null;

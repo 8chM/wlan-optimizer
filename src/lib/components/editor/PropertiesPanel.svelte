@@ -31,6 +31,11 @@
       txPower24ghzDbm?: number;
       txPower5ghzDbm?: number;
       enabled?: boolean;
+      height_m?: number;
+      mounting?: string;
+      channel_24ghz?: number;
+      channel_5ghz?: number;
+      channel_width?: string;
     }) => void;
     /** Callback when a wall is deleted */
     onDeleteWall?: (wallId: string) => void;

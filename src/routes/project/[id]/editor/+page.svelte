@@ -219,10 +219,35 @@ async function handleWallUpdate(
 }
 
 async function handleWallSegmentsUpdate(wallId: string, segments: SegmentInput[]): Promise<void> {
+  // Capture old segments before updating for undo support
+  const wall = floor?.walls?.find((w) => w.id === wallId);
+  const oldSegments: SegmentInput[] = (wall?.segments ?? []).map((s) => ({
+    segment_order: s.segment_order,
+    x1: s.x1,
+    y1: s.y1,
+    x2: s.x2,
+    y2: s.y2,
+  }));
+
   try {
     await updateWall(wallId, { segments });
     await projectStore.refreshFloorData();
     projectStore.markDirty();
+
+    // Push undo command (move already happened)
+    undoStore.pushExecuted({
+      label: 'Move Wall Endpoint',
+      async execute() {
+        await updateWall(wallId, { segments });
+        await projectStore.refreshFloorData();
+        projectStore.markDirty();
+      },
+      async undo() {
+        await updateWall(wallId, { segments: oldSegments });
+        await projectStore.refreshFloorData();
+        projectStore.markDirty();
+      },
+    });
   } catch (err) {
     console.error('[Editor] Failed to update wall segments:', err);
   }
@@ -556,12 +581,13 @@ async function placeAccessPoint(x: number, y: number): Promise<void> {
   if (!floor) return;
   const apFloorId = floor.id;
   const apLabel = `AP ${(floor.access_points?.length ?? 0) + 1}`;
+  const apModelId = canvasStore.selectedApModelId ?? undefined;
   let currentApId = '';
 
   const command: EditorCommand = {
     label: 'Place AP',
     async execute() {
-      const result = await createAccessPoint(apFloorId, x, y, undefined, apLabel);
+      const result = await createAccessPoint(apFloorId, x, y, apModelId, apLabel);
       currentApId = result.id;
       await projectStore.refreshFloorData();
       projectStore.markDirty();
@@ -633,26 +659,144 @@ async function handleDeleteSelected(): Promise<void> {
     }
   }
 
-  // Multi-selection: delete all without undo (rare case)
+  // Multi-selection: capture all items for undo, then delete all at once
+  interface CapturedWall {
+    floorId: string;
+    materialId: string;
+    segments: WallSegmentInput[];
+    attOverride24: number | null;
+    attOverride5: number | null;
+    attOverride6: number | null;
+  }
+  interface CapturedAp {
+    floorId: string;
+    x: number;
+    y: number;
+    apModelId?: string;
+    label?: string;
+    height_m: number;
+    mounting: string;
+    tx_power_24ghz_dbm?: number;
+    tx_power_5ghz_dbm?: number;
+    channel_24ghz?: number;
+    channel_5ghz?: number;
+    channel_width: string;
+    enabled: boolean;
+  }
+
+  const capturedWalls: { id: string; data: CapturedWall }[] = [];
+  const capturedAps: { id: string; data: CapturedAp }[] = [];
+
   for (const id of ids) {
-    try {
-      const wall = floor?.walls?.find((w) => w.id === id);
-      if (wall) {
-        await deleteWall(id);
-        continue;
-      }
-      const ap = floor?.access_points?.find((a) => a.id === id);
-      if (ap) {
-        await deleteAccessPoint(id);
-      }
-    } catch (err) {
-      console.error('[Editor] Delete failed:', err);
+    const wall = floor?.walls?.find((w) => w.id === id);
+    if (wall) {
+      capturedWalls.push({
+        id,
+        data: {
+          floorId: wall.floor_id,
+          materialId: wall.material_id,
+          segments: wall.segments.map((s) => ({
+            segment_order: s.segment_order,
+            x1: s.x1,
+            y1: s.y1,
+            x2: s.x2,
+            y2: s.y2,
+          })),
+          attOverride24: wall.attenuation_override_24ghz,
+          attOverride5: wall.attenuation_override_5ghz,
+          attOverride6: wall.attenuation_override_6ghz,
+        },
+      });
+      continue;
+    }
+    const ap = floor?.access_points?.find((a) => a.id === id);
+    if (ap) {
+      capturedAps.push({
+        id,
+        data: {
+          floorId: ap.floor_id,
+          x: ap.x,
+          y: ap.y,
+          apModelId: ap.ap_model_id ?? undefined,
+          label: ap.label ?? undefined,
+          height_m: ap.height_m,
+          mounting: ap.mounting,
+          tx_power_24ghz_dbm: ap.tx_power_24ghz_dbm ?? undefined,
+          tx_power_5ghz_dbm: ap.tx_power_5ghz_dbm ?? undefined,
+          channel_24ghz: ap.channel_24ghz ?? undefined,
+          channel_5ghz: ap.channel_5ghz ?? undefined,
+          channel_width: ap.channel_width,
+          enabled: ap.enabled,
+        },
+      });
     }
   }
 
-  canvasStore.clearSelection();
-  await projectStore.refreshFloorData();
-  projectStore.markDirty();
+  // Track current IDs for redo (IDs change on re-creation)
+  let currentWallIds = capturedWalls.map((w) => w.id);
+  let currentApIds = capturedAps.map((a) => a.id);
+
+  const command: EditorCommand = {
+    label: `Delete ${ids.length} Items`,
+    async execute() {
+      for (const wallId of currentWallIds) {
+        await deleteWall(wallId);
+      }
+      for (const apId of currentApIds) {
+        await deleteAccessPoint(apId);
+      }
+      canvasStore.clearSelection();
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+    async undo() {
+      const newWallIds: string[] = [];
+      for (const { data } of capturedWalls) {
+        const result = await createWall(data.floorId, data.materialId, data.segments);
+        if (data.attOverride24 !== null || data.attOverride5 !== null || data.attOverride6 !== null) {
+          await updateWall(result.id, {
+            attenuationOverride24ghz: data.attOverride24,
+            attenuationOverride5ghz: data.attOverride5,
+            attenuationOverride6ghz: data.attOverride6,
+          });
+        }
+        newWallIds.push(result.id);
+      }
+      currentWallIds = newWallIds;
+
+      const newApIds: string[] = [];
+      for (const { data } of capturedAps) {
+        const result = await createAccessPoint(
+          data.floorId,
+          data.x,
+          data.y,
+          data.apModelId,
+          data.label,
+        );
+        await updateAccessPoint(result.id, {
+          height_m: data.height_m,
+          mounting: data.mounting,
+          tx_power_24ghz_dbm: data.tx_power_24ghz_dbm,
+          tx_power_5ghz_dbm: data.tx_power_5ghz_dbm,
+          channel_24ghz: data.channel_24ghz,
+          channel_5ghz: data.channel_5ghz,
+          channel_width: data.channel_width,
+          enabled: data.enabled,
+        });
+        newApIds.push(result.id);
+      }
+      currentApIds = newApIds;
+
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  };
+
+  try {
+    await undoStore.execute(command);
+  } catch (err) {
+    console.error('[Editor] Failed to delete selected items:', err);
+  }
 }
 
 // ── Wall creation callback (with undo support) ───────────────
@@ -986,7 +1130,20 @@ async function handleFileSelected(event: Event): Promise<void> {
     <!-- Material Picker (visible when wall tool is active) -->
     {#if canvasStore.activeTool === 'wall'}
       <div class="material-floating-panel">
-        <MaterialPicker />
+        <MaterialPicker
+          selectedMaterialId={canvasStore.selectedMaterialId}
+          onSelect={(id) => canvasStore.setSelectedMaterial(id)}
+        />
+      </div>
+    {/if}
+
+    <!-- AP Library Panel (visible when AP tool is active) -->
+    {#if canvasStore.activeTool === 'ap'}
+      <div class="ap-library-floating-panel">
+        <APLibraryPanel
+          selectedModelId={canvasStore.selectedApModelId}
+          onSelectModel={(modelId) => canvasStore.setSelectedApModel(modelId)}
+        />
       </div>
     {/if}
   {:else}
@@ -1058,6 +1215,22 @@ async function handleFileSelected(event: Event): Promise<void> {
     backdrop-filter: blur(8px);
     z-index: 20;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .ap-library-floating-panel {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    width: 260px;
+    background: rgba(26, 26, 46, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 10px;
+    backdrop-filter: blur(8px);
+    z-index: 20;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    max-height: 50vh;
+    overflow-y: auto;
   }
 
   .upload-btn {

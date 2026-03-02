@@ -12,6 +12,7 @@ import type {
 } from '$lib/api/invoke';
 import {
   getMeasurementRuns,
+  getMeasurementPoints,
   getMeasurementsByRun,
   checkIperfServer,
   createMeasurementRun,
@@ -113,6 +114,15 @@ function createMeasurementStore() {
         error = extractErrorMessage(err);
       } finally {
         isLoading = false;
+      }
+    },
+
+    async loadPoints(floorId: string): Promise<void> {
+      error = null;
+      try {
+        points = await getMeasurementPoints(floorId);
+      } catch (err: unknown) {
+        error = extractErrorMessage(err);
       }
     },
 

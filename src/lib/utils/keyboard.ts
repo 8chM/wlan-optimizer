@@ -36,9 +36,11 @@ export const SHORTCUTS: KeyboardShortcut[] = [
   { key: 'a', action: 'apTool', description_key: 'shortcuts.apTool' },
   { key: 'm', action: 'measureTool', description_key: 'shortcuts.measureTool' },
   { key: 't', action: 'textTool', description_key: 'shortcuts.textTool' },
-  { key: 's', action: 'selectTool', description_key: 'shortcuts.selectTool' },
+  { key: 'v', action: 'selectTool', description_key: 'shortcuts.selectTool' },
+  { key: 'h', action: 'panTool', description_key: 'shortcuts.panTool' },
+  { key: 'r', action: 'roomTool', description_key: 'shortcuts.roomTool' },
   { key: 'g', action: 'gridToggle', description_key: 'shortcuts.gridToggle' },
-  { key: 'h', action: 'heatmapToggle', description_key: 'shortcuts.heatmapToggle' },
+  { key: 'j', action: 'heatmapToggle', description_key: 'shortcuts.heatmapToggle' },
   { key: '?', shift: true, action: 'shortcutHelp', description_key: 'shortcuts.showHelp' },
 ];
 

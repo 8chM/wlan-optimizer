@@ -23,6 +23,8 @@ import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
 import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
 import CrosshairCursor from '$lib/canvas/CrosshairCursor.svelte';
 import ScaleReferenceLine from '$lib/canvas/ScaleReferenceLine.svelte';
+import RoomDrawingLayer from '$lib/canvas/RoomDrawingLayer.svelte';
+import RulerOverlay from '$lib/canvas/RulerOverlay.svelte';
 import WallDrawingLayer from '$lib/canvas/WallDrawingLayer.svelte';
 import ShortcutHelp from '$lib/components/common/ShortcutHelp.svelte';
 import APLibraryPanel from '$lib/components/editor/APLibraryPanel.svelte';
@@ -69,16 +71,19 @@ let annotations = $state<AnnotationData[]>([]);
 let editingAnnotationId = $state<string | null>(null);
 let textInputPosition = $state<{ x: number; y: number } | null>(null);
 let textInputValue = $state('');
-// Persistent scale reference line (stays visible after calibration)
+// Persistent scale reference line (stays visible after calibration, persisted in localStorage)
 let confirmedScalePoints = $state<Array<{ x: number; y: number }>>([]);
 let confirmedScaleDistanceM = $state<number | null>(null);
+let roomDrawingLayer: RoomDrawingLayer | undefined = $state();
 
 let settingScale = $derived(canvasStore.settingScale);
 
-// Cursor always crosshair in editor
+// Cursor per tool
 let canvasCursor = $derived.by(() => {
   if (settingScale) return 'crosshair';
   switch (canvasStore.activeTool) {
+    case 'pan': return 'grab';
+    case 'select': return 'default';
     case 'ap': return 'cell';
     case 'text': return 'text';
     default: return 'crosshair';
@@ -179,6 +184,22 @@ function saveAnnotations(): void {
   if (!floorId) return;
   localStorage.setItem(`wlan-opt:annotations:${floorId}`, JSON.stringify(annotations));
 }
+
+// ── Restore scale reference from localStorage ──────────────
+$effect(() => {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  const stored = localStorage.getItem(`wlan-opt:scale-ref:${floorId}`);
+  if (stored) {
+    try {
+      const data = JSON.parse(stored);
+      if (data.points?.length === 2 && typeof data.distanceM === 'number') {
+        confirmedScalePoints = data.points;
+        confirmedScaleDistanceM = data.distanceM;
+      }
+    } catch { /* ignore */ }
+  }
+});
 
 // ── Load floor image on mount ─────────────────────────────────
 $effect(() => {
@@ -528,9 +549,15 @@ async function confirmScale(): Promise<void> {
     heightM = floor.height_meters ?? 10;
   }
 
-  // Save scale reference line for persistent display
+  // Save scale reference line for persistent display (also persist to localStorage)
   confirmedScalePoints = [...scalePoints];
   confirmedScaleDistanceM = distance;
+  if (floor) {
+    localStorage.setItem(`wlan-opt:scale-ref:${floor.id}`, JSON.stringify({
+      points: confirmedScalePoints,
+      distanceM: distance,
+    }));
+  }
 
   try {
     await setFloorScale(floor.id, newPxPerMeter, widthM, heightM);
@@ -610,6 +637,12 @@ $effect(() => {
     selectTool: () => {
       canvasStore.setTool('select');
     },
+    panTool: () => {
+      canvasStore.setTool('pan');
+    },
+    roomTool: () => {
+      canvasStore.setTool('room');
+    },
     gridToggle: () => {
       canvasStore.toggleGrid();
     },
@@ -661,6 +694,11 @@ function handleCanvasClick(canvasX: number, canvasY: number): void {
     return;
   }
 
+  if (tool === 'room' && roomDrawingLayer) {
+    roomDrawingLayer.handleClick({ x: canvasX, y: canvasY });
+    return;
+  }
+
   if (tool === 'ap' && floor) {
     const xMeters = canvasX / scalePxPerMeter;
     const yMeters = canvasY / scalePxPerMeter;
@@ -691,7 +729,10 @@ function handleCanvasClick(canvasX: number, canvasY: number): void {
   }
 
   if (tool === 'select') {
-    canvasStore.clearSelection();
+    // Only clear selection if not Shift-clicking (Shift = additive selection)
+    if (!canvasStore.shiftHeld) {
+      canvasStore.clearSelection();
+    }
   }
 }
 
@@ -699,6 +740,9 @@ function handleCanvasDblClick(canvasX: number, canvasY: number): void {
   const tool = canvasStore.activeTool;
   if ((tool === 'wall' || tool === 'door' || tool === 'window') && wallDrawingLayer) {
     wallDrawingLayer.handleDoubleClick({ x: canvasX, y: canvasY });
+  }
+  if (tool === 'room' && roomDrawingLayer) {
+    roomDrawingLayer.handleDoubleClick({ x: canvasX, y: canvasY });
   }
 }
 
@@ -1029,6 +1073,33 @@ async function handleWallCreated(
   });
 }
 
+// ── Room creation callback (with undo support) ───────────────
+
+async function handleRoomCreated(wallIds: string[]): Promise<void> {
+  await projectStore.refreshFloorData();
+  projectStore.markDirty();
+
+  // Push undo command for all walls created by the room
+  const capturedIds = [...wallIds];
+  undoStore.pushExecuted({
+    label: `Create Room (${capturedIds.length} walls)`,
+    async execute() {
+      // Can't easily redo room creation with same IDs
+      // For now, redo is not supported for rooms
+      await projectStore.refreshFloorData();
+    },
+    async undo() {
+      for (const id of capturedIds) {
+        try {
+          await deleteWall(id);
+        } catch { /* wall may already be deleted */ }
+      }
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  });
+}
+
 // ── Floor plan image upload ───────────────────────────────────
 
 function handleUploadClick(): void {
@@ -1139,7 +1210,7 @@ async function handleFileSelected(event: Event): Promise<void> {
       floorplanWidthM={floor.width_meters ?? 10}
       floorplanHeightM={floor.height_meters ?? 10}
       {scalePxPerMeter}
-      draggable={canvasStore.activeTool === 'select'}
+      draggable={canvasStore.activeTool === 'select' || canvasStore.activeTool === 'pan'}
       onCanvasClick={handleCanvasClick}
       onCanvasDblClick={handleCanvasDblClick}
       onCanvasMouseMove={handleCanvasMouseMove}
@@ -1149,6 +1220,7 @@ async function handleFileSelected(event: Event): Promise<void> {
           imageData={floorImageDataUrl}
           {scalePxPerMeter}
           rotation={floorRotation}
+          opacity={canvasStore.gridVisible ? 0.7 : 1}
         />
         <GridOverlay
           widthPx={(floor.width_meters ?? 10) * scalePxPerMeter}
@@ -1214,6 +1286,19 @@ async function handleFileSelected(event: Event): Promise<void> {
           onWallCreated={handleWallCreated}
         />
 
+        <!-- Room drawing layer (closed polygon → multiple walls) -->
+        <RoomDrawingLayer
+          bind:this={roomDrawingLayer}
+          active={canvasStore.activeTool === 'room'}
+          {scalePxPerMeter}
+          stageScale={canvasStore.scale}
+          snapTargets={wallSnapTargets}
+          floorId={floor.id}
+          materialId={wallMaterialId}
+          {mousePosition}
+          onRoomCreated={handleRoomCreated}
+        />
+
         <!-- Text annotations (room labels) -->
         {#each annotations as annotation (annotation.id)}
           <TextAnnotation
@@ -1262,10 +1347,20 @@ async function handleFileSelected(event: Event): Promise<void> {
           />
         {/if}
 
-        <!-- Crosshair cursor (always visible when mouse is on canvas) -->
-        {#if mousePosition}
+        <!-- Crosshair cursor (always visible when mouse is on canvas, except pan/select) -->
+        {#if mousePosition && canvasStore.activeTool !== 'pan' && canvasStore.activeTool !== 'select'}
           <CrosshairCursor x={mousePosition.x} y={mousePosition.y} />
         {/if}
+
+        <!-- Ruler overlay (always visible, rendered last so it's on top) -->
+        <RulerOverlay
+          widthPx={containerWidth}
+          heightPx={containerHeight}
+          {scalePxPerMeter}
+          stageScale={canvasStore.scale}
+          stageOffsetX={canvasStore.offsetX}
+          stageOffsetY={canvasStore.offsetY}
+        />
       {/snippet}
     </FloorplanEditor>
 

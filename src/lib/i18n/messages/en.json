@@ -45,7 +45,11 @@
     "fitToScreen": "Fit to Screen",
     "toggleGrid": "Toggle Grid",
     "grid": "Grid",
-    "setScale": "Scale"
+    "setScale": "Scale",
+    "pan": "Pan",
+    "room": "Room",
+    "toggleSnap": "Toggle Snap",
+    "snap": "Snap"
   },
   "status": {
     "saved": "Saved",
@@ -204,6 +208,8 @@
     "measureTool": "Measure tool",
     "textTool": "Text annotation tool",
     "selectTool": "Select tool",
+    "panTool": "Pan tool",
+    "roomTool": "Room tool",
     "gridToggle": "Toggle grid",
     "heatmapToggle": "Toggle heatmap",
     "showHelp": "Show shortcuts"

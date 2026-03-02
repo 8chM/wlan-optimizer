@@ -45,7 +45,11 @@
     "fitToScreen": "An Bildschirm anpassen",
     "toggleGrid": "Raster umschalten",
     "grid": "Raster",
-    "setScale": "Massstab"
+    "setScale": "Massstab",
+    "pan": "Verschieben",
+    "room": "Raum",
+    "toggleSnap": "Einrasten umschalten",
+    "snap": "Einrasten"
   },
   "status": {
     "saved": "Gespeichert",
@@ -204,6 +208,8 @@
     "measureTool": "Mess-Werkzeug",
     "textTool": "Text-Werkzeug",
     "selectTool": "Auswahl-Werkzeug",
+    "panTool": "Verschieben-Werkzeug",
+    "roomTool": "Raum-Werkzeug",
     "gridToggle": "Raster umschalten",
     "heatmapToggle": "Heatmap umschalten",
     "showHelp": "Tastenkuerzel anzeigen"

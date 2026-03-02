@@ -104,6 +104,14 @@
   ondragend={handleDragEnd}
   oncontextmenu={handleContextMenu}
 >
+  <!-- Invisible hit area so the Group is clickable (children have listening={false}) -->
+  <Circle
+    x={0}
+    y={0}
+    radius={ICON_SIZE + 8}
+    fill="transparent"
+  />
+
   <!-- Selection highlight ring -->
   {#if selected}
     <Circle

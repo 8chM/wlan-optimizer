@@ -33,8 +33,8 @@
     gridSizeM = 1,
     scalePxPerMeter = 50,
     visible = true,
-    color = '#b0b0c0',
-    opacity = 0.4,
+    color = '#000000',
+    opacity = 0.15,
     majorInterval = 5,
   }: GridOverlayProps = $props();
 
@@ -92,8 +92,8 @@
       <Line
         points={line.points}
         stroke={color}
-        strokeWidth={line.isMajor ? 1 : 0.5}
-        opacity={line.isMajor ? opacity * 1.5 : opacity}
+        strokeWidth={line.isMajor ? 1.5 : 0.5}
+        opacity={line.isMajor ? opacity * 2.5 : opacity}
         listening={false}
       />
     {/each}
@@ -102,8 +102,8 @@
       <Line
         points={line.points}
         stroke={color}
-        strokeWidth={line.isMajor ? 1 : 0.5}
-        opacity={line.isMajor ? opacity * 1.5 : opacity}
+        strokeWidth={line.isMajor ? 1.5 : 0.5}
+        opacity={line.isMajor ? opacity * 2.5 : opacity}
         listening={false}
       />
     {/each}

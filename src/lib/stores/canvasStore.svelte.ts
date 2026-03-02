@@ -7,7 +7,7 @@
 
 // ─── Types ──────────────────────────────────────────────────────
 
-export type EditorTool = 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text';
+export type EditorTool = 'select' | 'pan' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text' | 'room';
 
 export interface CanvasState {
   readonly scale: number;
@@ -37,7 +37,7 @@ function createCanvasStore() {
   let settingScale = $state(false);
   let mouseXMeters = $state<number | null>(null);
   let mouseYMeters = $state<number | null>(null);
-  let snapToGridEnabled = $state(true);
+  let snapToGridEnabled = $state(false);
   let shiftHeld = $state(false);
 
   return {

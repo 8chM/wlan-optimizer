@@ -68,6 +68,8 @@ function handleSetScale(): void {
   onZoomOut={handleZoomOut}
   onFitToScreen={handleFitToScreen}
   onToggleGrid={handleToggleGrid}
+  onToggleSnap={() => canvasStore.toggleSnapToGrid()}
+  snapEnabled={canvasStore.snapToGridEnabled}
   onSetScale={handleSetScale}
 >
   {@render children()}

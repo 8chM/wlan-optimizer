@@ -43,11 +43,13 @@ interface LayoutProps {
   onZoomOut?: () => void;
   onFitToScreen?: () => void;
   onToggleGrid?: () => void;
+  onToggleSnap?: () => void;
   onSetScale?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  snapEnabled?: boolean;
   settingScale?: boolean;
 }
 
@@ -70,11 +72,13 @@ let {
   onZoomOut,
   onFitToScreen,
   onToggleGrid,
+  onToggleSnap,
   onSetScale,
   onUndo,
   onRedo,
   canUndo = false,
   canRedo = false,
+  snapEnabled = false,
   settingScale = false,
 }: LayoutProps = $props();
 
@@ -94,6 +98,8 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
       {onZoomOut}
       {onFitToScreen}
       {onToggleGrid}
+      {onToggleSnap}
+      {snapEnabled}
       {onSetScale}
       {onUndo}
       {onRedo}

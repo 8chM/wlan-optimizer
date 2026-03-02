@@ -19,12 +19,14 @@ interface ToolbarProps {
   onZoomOut?: () => void;
   onFitToScreen?: () => void;
   onToggleGrid?: () => void;
+  onToggleSnap?: () => void;
   onSetScale?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   gridVisible?: boolean;
+  snapEnabled?: boolean;
   settingScale?: boolean;
   children?: Snippet;
 }
@@ -38,19 +40,23 @@ let {
   onZoomOut,
   onFitToScreen,
   onToggleGrid,
+  onToggleSnap,
   onSetScale,
   onUndo,
   onRedo,
   canUndo = false,
   canRedo = false,
   gridVisible = true,
+  snapEnabled = false,
   settingScale = false,
   children,
 }: ToolbarProps = $props();
 
 const tools: Array<{ id: EditorTool; label: string; icon: string; shortcut: string }> = [
-  { id: 'select', label: 'toolbar.select', icon: '\u22B9', shortcut: 'S' },
+  { id: 'select', label: 'toolbar.select', icon: '\u22B9', shortcut: 'V' },
+  { id: 'pan', label: 'toolbar.pan', icon: '\u270B', shortcut: 'H' },
   { id: 'wall', label: 'toolbar.wall', icon: '\u25AC', shortcut: 'W' },
+  { id: 'room', label: 'toolbar.room', icon: '\u2B1C', shortcut: 'R' },
   { id: 'door', label: 'toolbar.door', icon: '\uD83D\uDEAA', shortcut: 'D' },
   { id: 'window', label: 'toolbar.window', icon: '\u25A1', shortcut: 'F' },
   { id: 'ap', label: 'toolbar.ap', icon: '\u25C9', shortcut: 'A' },
@@ -149,6 +155,15 @@ let themeLabel = $derived(
         >
           <span class="tool-icon">⊞</span>
           <span class="tool-label">{t('toolbar.grid')}</span>
+        </button>
+        <button
+          class="tool-btn"
+          class:active={snapEnabled}
+          onclick={onToggleSnap}
+          title={t('toolbar.toggleSnap')}
+        >
+          <span class="tool-icon">⊹</span>
+          <span class="tool-label">{t('toolbar.snap')}</span>
         </button>
         <button
           class="tool-btn"

@@ -23,6 +23,7 @@ import type {
   FloorBounds,
 } from './worker-types';
 import type { FrequencyBand, ColorScheme } from './color-schemes';
+import type { PlacementHint } from './placement-hints';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -53,6 +54,8 @@ export interface HeatmapStats {
   };
   /** Total number of grid cells */
   totalCells?: number;
+  /** AP placement hints for weak coverage zones */
+  placementHints?: PlacementHint[];
 }
 
 /** Parameters required for a heatmap calculation */
@@ -324,6 +327,7 @@ export class HeatmapManager {
           lodLevel: lodInfo?.lod ?? 2,
           coverageBins: response.stats.coverageBins,
           totalCells: response.stats.totalCells,
+          placementHints: response.stats.placementHints,
         };
 
         this.options.onResult(canvas, stats);

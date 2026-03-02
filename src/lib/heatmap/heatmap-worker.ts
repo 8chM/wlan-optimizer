@@ -18,6 +18,7 @@ import { RSSI_MAX, RSSI_MIN, getColorLUT, rssiToLutIndex } from './color-schemes
 
 import { computeRSSI, createRFConfig } from './rf-engine';
 import { buildSpatialGrid } from './spatial-grid';
+import { findPlacementHints } from './placement-hints';
 
 // ─── Bilinear Interpolation ────────────────────────────────────────
 
@@ -163,6 +164,9 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   const totalPoints = gridWidth * gridHeight;
   const avgRSSI = totalPoints > 0 ? sumRSSI / totalPoints : RSSI_MIN;
 
+  // Find weak coverage zones for AP placement suggestions
+  const placementHints = findPlacementHints(rssiGrid, gridWidth, gridHeight, gridStep);
+
   // Upscale to output resolution with bilinear interpolation and colorize
   const buffer = interpolateAndColorize(
     rssiGrid,
@@ -194,6 +198,7 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
         none: binNone,
       },
       totalCells: totalPoints,
+      placementHints,
     },
   };
 }

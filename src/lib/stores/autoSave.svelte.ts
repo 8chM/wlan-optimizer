@@ -33,12 +33,9 @@ function createAutoSaveStore() {
     saveError = null;
 
     try {
-      // The actual save is delegated to projectStore
-      // which calls the appropriate IPC commands
-      // For now, we just mark as saved since the individual
-      // operations (createWall, updateAccessPoint, etc.) already
-      // persist immediately via IPC
-      projectStore.markClean();
+      // Individual mutations (createWall, updateAP, etc.) persist immediately
+      // via IPC. This refresh ensures local state is in sync with backend.
+      await projectStore.saveCurrentProject();
       saveStatus = 'saved';
     } catch (err: unknown) {
       saveStatus = 'error';

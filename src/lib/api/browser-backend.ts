@@ -18,6 +18,10 @@ import type {
   AppSettingsResponse,
   HeatmapSettingsResponse,
   MeasurementPointResponse,
+  MeasurementRunResponse,
+  MeasurementResponse,
+  OptimizationPlanResponse,
+  OptimizationStepResponse,
   SegmentInput,
   CommandMap,
 } from './invoke';
@@ -44,6 +48,10 @@ const KEYS = {
   settings: `${STORAGE_PREFIX}settings`,
   heatmapSettings: `${STORAGE_PREFIX}heatmap-settings`,
   measurementPoints: `${STORAGE_PREFIX}measurement-points`,
+  measurementRuns: `${STORAGE_PREFIX}measurement-runs`,
+  measurements: `${STORAGE_PREFIX}measurements`,
+  optimizationPlans: `${STORAGE_PREFIX}optimization-plans`,
+  optimizationSteps: `${STORAGE_PREFIX}optimization-steps`,
   seeded: `${STORAGE_PREFIX}seeded`,
 } as const;
 
@@ -322,11 +330,14 @@ function dispatch(command: string, p: AnyParams): unknown {
     }
 
     case 'import_floor_image': {
-      // Browser can't persist large binary data easily; return floor as-is
       const floors = load<FloorResponse[]>(KEYS.floors, []);
-      const floor = floors.find((f) => f.id === p.floor_id);
-      if (!floor) throw { command, message: `Floor not found`, raw: null };
-      return floor;
+      const fi = floors.findIndex((f) => f.id === p.floor_id);
+      if (fi < 0) throw { command, message: `Floor not found`, raw: null };
+      // Update format in floor data (image bytes stored separately in localStorage by editor)
+      const format = p.format ?? 'png';
+      floors[fi] = { ...floors[fi]!, background_image_format: format, updated_at: now() };
+      save(KEYS.floors, floors);
+      return floors[fi]!;
     }
 
     // ── Walls ─────────────────────────────────────────────────
@@ -594,9 +605,10 @@ function dispatch(command: string, p: AnyParams): unknown {
       return newHs;
     }
 
-    // ── Measurements (stubs — no real hardware in browser) ───
-    case 'create_measurement_run':
-      return {
+    // ── Measurements ──────────────────────────────────────────
+    case 'create_measurement_run': {
+      const runs = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []);
+      const newRun: MeasurementRunResponse = {
         id: uuid(),
         floor_id: p.params.floor_id,
         run_number: p.params.run_number,
@@ -607,6 +619,10 @@ function dispatch(command: string, p: AnyParams): unknown {
         completed_at: null,
         created_at: now(),
       };
+      runs.push(newRun);
+      save(KEYS.measurementRuns, runs);
+      return newRun;
+    }
 
     case 'create_measurement_point': {
       const mps = load<MeasurementPointResponse[]>(KEYS.measurementPoints, []);
@@ -625,26 +641,115 @@ function dispatch(command: string, p: AnyParams): unknown {
       return newMp;
     }
 
-    case 'get_measurement_runs':
-      return [];
+    case 'get_measurement_runs': {
+      const runs = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []);
+      return runs.filter((r) => r.floor_id === p.floor_id);
+    }
 
-    case 'get_measurements_by_run':
-      return [];
+    case 'get_measurements_by_run': {
+      const measurements = load<MeasurementResponse[]>(KEYS.measurements, []);
+      return measurements.filter((m) => m.measurement_run_id === p.measurement_run_id);
+    }
 
-    case 'start_measurement':
-      throw { command, message: 'Measurements require the Tauri desktop app', raw: null };
+    case 'start_measurement': {
+      // Simulate a measurement in browser mode with realistic mock data
+      const measurements = load<MeasurementResponse[]>(KEYS.measurements, []);
+      const rssi = -40 - Math.floor(Math.random() * 40); // -40 to -80 dBm
+      const quality = rssi > -65 ? 'good' : rssi > -75 ? 'fair' : 'poor';
+      const newMeasurement: MeasurementResponse = {
+        id: uuid(),
+        measurement_point_id: p.measurement_point_id,
+        measurement_run_id: p.measurement_run_id,
+        timestamp: now(),
+        frequency_band: '5ghz',
+        rssi_dbm: rssi,
+        noise_dbm: -95,
+        snr_db: rssi - (-95),
+        connected_bssid: '00:11:22:33:44:55',
+        connected_ssid: 'WLAN-Demo',
+        frequency_mhz: 5180,
+        tx_rate_mbps: 866,
+        iperf_tcp_upload_bps: 150_000_000 + Math.floor(Math.random() * 100_000_000),
+        iperf_tcp_download_bps: 200_000_000 + Math.floor(Math.random() * 150_000_000),
+        iperf_tcp_retransmits: Math.floor(Math.random() * 10),
+        iperf_udp_throughput_bps: 100_000_000 + Math.floor(Math.random() * 50_000_000),
+        iperf_udp_jitter_ms: 0.5 + Math.random() * 2,
+        iperf_udp_lost_packets: Math.floor(Math.random() * 5),
+        iperf_udp_total_packets: 10000,
+        iperf_udp_lost_percent: Math.random() * 0.5,
+        quality,
+        raw_iperf_json: null,
+        created_at: now(),
+      };
+      measurements.push(newMeasurement);
+      save(KEYS.measurements, measurements);
+      return newMeasurement.id;
+    }
 
-    case 'cancel_measurement':
+    case 'cancel_measurement': {
+      const runs = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []);
+      const ri = runs.findIndex((r) => r.id === p.measurement_run_id);
+      if (ri >= 0) {
+        runs[ri] = { ...runs[ri]!, status: 'cancelled' };
+        save(KEYS.measurementRuns, runs);
+      }
       return null;
+    }
 
     case 'check_iperf_server':
-      return false;
+      // In browser mode, simulate server reachability
+      return true;
 
-    case 'update_measurement_run_status':
+    case 'update_measurement_run_status': {
+      const runs = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []);
+      const ri = runs.findIndex((r) => r.id === p.measurement_run_id);
+      if (ri >= 0) {
+        runs[ri] = {
+          ...runs[ri]!,
+          status: p.status,
+          ...(p.status === 'in_progress' && { started_at: now() }),
+          ...(p.status === 'completed' && { completed_at: now() }),
+        };
+        save(KEYS.measurementRuns, runs);
+      }
       return null;
+    }
 
-    case 'save_measurement':
-      return uuid();
+    case 'save_measurement': {
+      const measurements = load<MeasurementResponse[]>(KEYS.measurements, []);
+      const measId = uuid();
+      const newMeas: MeasurementResponse = {
+        id: measId,
+        measurement_point_id: p.params.measurement_point_id,
+        measurement_run_id: p.params.measurement_run_id,
+        timestamp: now(),
+        frequency_band: p.params.frequency_band,
+        rssi_dbm: p.params.rssi_dbm ?? null,
+        noise_dbm: p.params.noise_dbm ?? null,
+        snr_db: p.params.rssi_dbm && p.params.noise_dbm
+          ? p.params.rssi_dbm - p.params.noise_dbm : null,
+        connected_bssid: null,
+        connected_ssid: null,
+        frequency_mhz: null,
+        tx_rate_mbps: null,
+        iperf_tcp_upload_bps: p.params.iperf_tcp_upload_bps ?? null,
+        iperf_tcp_download_bps: p.params.iperf_tcp_download_bps ?? null,
+        iperf_tcp_retransmits: p.params.iperf_tcp_retransmits ?? null,
+        iperf_udp_throughput_bps: p.params.iperf_udp_throughput_bps ?? null,
+        iperf_udp_jitter_ms: p.params.iperf_udp_jitter_ms ?? null,
+        iperf_udp_lost_packets: p.params.iperf_udp_lost_packets ?? null,
+        iperf_udp_total_packets: p.params.iperf_udp_total_packets ?? null,
+        iperf_udp_lost_percent: p.params.iperf_udp_lost_packets && p.params.iperf_udp_total_packets
+          ? (p.params.iperf_udp_lost_packets / p.params.iperf_udp_total_packets) * 100 : null,
+        quality: (p.params.rssi_dbm ?? -100) > -65 ? 'good'
+          : (p.params.rssi_dbm ?? -100) > -75 ? 'fair' : 'poor',
+        raw_iperf_json: p.params.raw_iperf_json ?? null,
+        created_at: now(),
+      };
+      measurements.push(newMeas);
+      save(KEYS.measurements, measurements);
+      return measId;
+    }
 
     // ── Export ─────────────────────────────────────────────────
     case 'export_project': {
@@ -664,48 +769,152 @@ function dispatch(command: string, p: AnyParams): unknown {
     }
 
     // ── Floor Image ───────────────────────────────────────────
-    case 'get_floor_image':
-      return null;
+    case 'get_floor_image': {
+      // Check localStorage for base64 image data
+      const imageKey = `${STORAGE_PREFIX}floor-image:${p.floor_id}`;
+      const imageData = localStorage.getItem(imageKey);
+      if (!imageData) return null;
+      const floors = load<FloorResponse[]>(KEYS.floors, []);
+      const floor = floors.find((f) => f.id === p.floor_id);
+      return {
+        id: p.floor_id,
+        background_image: null, // Binary not needed, frontend uses localStorage directly
+        background_image_format: floor?.background_image_format ?? 'png',
+      };
+    }
 
     // ── Optimization ──────────────────────────────────────────
-    case 'generate_optimization_plan':
-      return {
-        plan: {
-          id: uuid(),
-          project_id: p.params.project_id,
-          name: p.params.name ?? 'Browser-Optimierung',
-          mode: 'forecast',
-          status: 'draft',
-          predicted_rmse_improvement_db: null,
-          created_at: now(),
-          updated_at: now(),
-        },
-        steps: [],
+    case 'generate_optimization_plan': {
+      const plans = load<OptimizationPlanResponse[]>(KEYS.optimizationPlans, []);
+      const allSteps = load<OptimizationStepResponse[]>(KEYS.optimizationSteps, []);
+
+      const planId = uuid();
+      const newPlan: OptimizationPlanResponse = {
+        id: planId,
+        project_id: p.params.project_id,
+        name: p.params.name ?? 'Browser-Optimierung',
+        mode: 'forecast',
+        status: 'draft',
+        predicted_rmse_improvement_db: null,
+        created_at: now(),
+        updated_at: now(),
       };
+      plans.push(newPlan);
 
-    case 'get_optimization_plan':
-      return {
-        plan: {
-          id: p.plan_id,
-          project_id: '',
-          name: '',
-          mode: 'forecast',
-          status: 'draft',
-          predicted_rmse_improvement_db: null,
-          created_at: now(),
-          updated_at: now(),
-        },
-        steps: [],
-      };
+      // Generate optimization steps based on existing APs
+      const aps = load<AccessPointResponse[]>(KEYS.aps, []);
+      const floors = load<FloorResponse[]>(KEYS.floors, []);
+      const floorAps = aps.filter((a) => {
+        const floor = floors.find((f) => f.id === a.floor_id);
+        return floor?.project_id === p.params.project_id;
+      });
 
-    case 'list_optimization_plans':
-      return [];
+      const steps: OptimizationStepResponse[] = [];
+      let stepOrder = 0;
 
-    case 'update_optimization_step':
+      // Generate channel optimization steps for APs on same channel
+      const channelGroups24 = new Map<number, AccessPointResponse[]>();
+      for (const ap of floorAps) {
+        if (!ap.enabled) continue;
+        const ch = ap.channel_24ghz ?? 1;
+        if (!channelGroups24.has(ch)) channelGroups24.set(ch, []);
+        channelGroups24.get(ch)!.push(ap);
+      }
+      const bestChannels = [1, 6, 11];
+      let chIdx = 0;
+      for (const [ch, group] of channelGroups24) {
+        if (group.length > 1) {
+          for (let i = 1; i < group.length; i++) {
+            const ap = group[i]!;
+            const newCh = bestChannels[chIdx % bestChannels.length]!;
+            if (newCh !== ch) {
+              steps.push({
+                id: uuid(),
+                plan_id: planId,
+                access_point_id: ap.id,
+                step_order: stepOrder++,
+                parameter: 'channel_24ghz',
+                old_value: String(ch),
+                new_value: String(newCh),
+                description_de: `${ap.label ?? 'AP'}: 2.4 GHz Kanal von ${ch} auf ${newCh} aendern`,
+                description_en: `${ap.label ?? 'AP'}: Change 2.4 GHz channel from ${ch} to ${newCh}`,
+                applied: false,
+                applied_at: null,
+              });
+            }
+            chIdx++;
+          }
+        }
+      }
+
+      // If no channel conflicts, suggest TX power adjustment
+      if (steps.length === 0) {
+        for (const ap of floorAps) {
+          if (!ap.enabled) continue;
+          const currentPower = ap.tx_power_24ghz_dbm ?? 17;
+          if (currentPower > 14) {
+            steps.push({
+              id: uuid(),
+              plan_id: planId,
+              access_point_id: ap.id,
+              step_order: stepOrder++,
+              parameter: 'tx_power_24ghz_dbm',
+              old_value: String(currentPower),
+              new_value: String(Math.max(8, currentPower - 3)),
+              description_de: `${ap.label ?? 'AP'}: 2.4 GHz Sendeleistung von ${currentPower} auf ${Math.max(8, currentPower - 3)} dBm reduzieren`,
+              description_en: `${ap.label ?? 'AP'}: Reduce 2.4 GHz TX power from ${currentPower} to ${Math.max(8, currentPower - 3)} dBm`,
+              applied: false,
+              applied_at: null,
+            });
+          }
+        }
+      }
+
+      allSteps.push(...steps);
+      save(KEYS.optimizationPlans, plans);
+      save(KEYS.optimizationSteps, allSteps);
+      return { plan: newPlan, steps };
+    }
+
+    case 'get_optimization_plan': {
+      const plans = load<OptimizationPlanResponse[]>(KEYS.optimizationPlans, []);
+      const plan = plans.find((pl) => pl.id === p.plan_id);
+      if (!plan) throw { command, message: `Plan not found: ${p.plan_id}`, raw: null };
+      const allSteps = load<OptimizationStepResponse[]>(KEYS.optimizationSteps, []);
+      const steps = allSteps
+        .filter((s) => s.plan_id === p.plan_id)
+        .sort((a, b) => a.step_order - b.step_order);
+      return { plan, steps };
+    }
+
+    case 'list_optimization_plans': {
+      const plans = load<OptimizationPlanResponse[]>(KEYS.optimizationPlans, []);
+      return plans.filter((pl) => pl.project_id === p.project_id);
+    }
+
+    case 'update_optimization_step': {
+      const allSteps = load<OptimizationStepResponse[]>(KEYS.optimizationSteps, []);
+      const si = allSteps.findIndex((s) => s.id === p.step_id);
+      if (si >= 0) {
+        allSteps[si] = {
+          ...allSteps[si]!,
+          applied: p.applied,
+          applied_at: p.applied ? now() : null,
+        };
+        save(KEYS.optimizationSteps, allSteps);
+      }
       return null;
+    }
 
-    case 'update_optimization_plan_status':
+    case 'update_optimization_plan_status': {
+      const plans = load<OptimizationPlanResponse[]>(KEYS.optimizationPlans, []);
+      const pi = plans.findIndex((pl) => pl.id === p.plan_id);
+      if (pi >= 0) {
+        plans[pi] = { ...plans[pi]!, status: p.status, updated_at: now() };
+        save(KEYS.optimizationPlans, plans);
+      }
       return null;
+    }
 
     default:
       console.warn(`[BrowserBackend] Unknown command: ${command}`);

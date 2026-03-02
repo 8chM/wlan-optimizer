@@ -35,7 +35,7 @@ import {
   calculateCoverageFromBins,
   estimateCoverageFromStats,
 } from '$lib/heatmap/coverage-stats';
-import type { PlacementHint } from '$lib/heatmap/placement-hints';
+import type { PlacementHint } from '$lib/heatmap';
 import { t } from '$lib/i18n';
 import type { Position } from '$lib/models/types';
 import { canvasStore } from '$lib/stores/canvasStore.svelte';
@@ -119,8 +119,8 @@ let coverageStats = $derived.by((): CoverageStats | null => {
   return estimateCoverageFromStats(s.minRSSI, s.maxRSSI, s.avgRSSI);
 });
 
-// ── Placement hints (computed when heatmap has stats) ──────────
-let placementHints = $state<PlacementHint[]>([]);
+// ── Placement hints (computed by heatmap worker, delivered via stats) ──
+let placementHints = $derived<PlacementHint[]>(editorHeatmapStore.stats?.placementHints ?? []);
 
 // ── Channel analysis (re-run when APs change) ──────────────
 $effect(() => {
@@ -434,6 +434,7 @@ function handleCanvasDblClick(canvasX: number, canvasY: number): void {
 
 function handleCanvasMouseMove(canvasX: number, canvasY: number): void {
   mousePosition = { x: canvasX, y: canvasY };
+  canvasStore.setMousePosition(canvasX / scalePxPerMeter, canvasY / scalePxPerMeter);
 }
 
 // ── AP placement ──────────────────────────────────────────────

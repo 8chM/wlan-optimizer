@@ -54,6 +54,8 @@ function handleSetScale(): void {
   gridVisible={canvasStore.gridVisible}
   gridSize={canvasStore.gridSize}
   saveStatus={projectStore.isDirty ? 'unsaved' : 'saved'}
+  mouseX={canvasStore.mouseXMeters}
+  mouseY={canvasStore.mouseYMeters}
   settingScale={canvasStore.settingScale}
   onToolChange={handleToolChange}
   onZoomIn={handleZoomIn}

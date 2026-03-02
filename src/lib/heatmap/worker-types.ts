@@ -6,6 +6,7 @@
  */
 
 import type { FrequencyBand, ColorScheme } from './color-schemes';
+import type { PlacementHint } from './placement-hints';
 
 // ─── Geometry Types ────────────────────────────────────────────────
 
@@ -99,6 +100,8 @@ export interface HeatmapWorkerResult {
     };
     /** Total number of grid cells computed */
     totalCells?: number;
+    /** AP placement hints for weak coverage zones */
+    placementHints?: PlacementHint[];
   };
 }
 

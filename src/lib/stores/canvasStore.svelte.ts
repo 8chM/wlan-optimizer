@@ -34,6 +34,8 @@ function createCanvasStore() {
   let selectedMaterialId = $state<string | null>(null);
   let sidebarCollapsed = $state(false);
   let settingScale = $state(false);
+  let mouseXMeters = $state<number | null>(null);
+  let mouseYMeters = $state<number | null>(null);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -47,6 +49,8 @@ function createCanvasStore() {
     get selectedMaterialId() { return selectedMaterialId; },
     get sidebarCollapsed() { return sidebarCollapsed; },
     get settingScale() { return settingScale; },
+    get mouseXMeters() { return mouseXMeters; },
+    get mouseYMeters() { return mouseYMeters; },
 
     get zoomPercent(): number {
       return scale * 100;
@@ -109,6 +113,11 @@ function createCanvasStore() {
       settingScale = v;
     },
 
+    setMousePosition(xM: number | null, yM: number | null): void {
+      mouseXMeters = xM;
+      mouseYMeters = yM;
+    },
+
     toggleSidebar(): void {
       sidebarCollapsed = !sidebarCollapsed;
     },
@@ -136,6 +145,8 @@ function createCanvasStore() {
       selectedMaterialId = null;
       sidebarCollapsed = false;
       settingScale = false;
+      mouseXMeters = null;
+      mouseYMeters = null;
     },
   };
 }

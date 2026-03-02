@@ -6,6 +6,7 @@
   when the window width is less than 1024px. Used in the editor layout.
 -->
 <script lang="ts">
+  import { page } from '$app/stores';
   import { t } from '$lib/i18n';
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
   import type { Snippet } from 'svelte';
@@ -39,6 +40,7 @@
   );
 
   let collapsed = $derived(canvasStore.sidebarCollapsed);
+  let currentPath = $derived($page.url.pathname);
 
   function toggleCollapsed(): void {
     canvasStore.toggleSidebar();
@@ -80,7 +82,12 @@
   {#if navItems.length > 0}
     <nav class="sidebar-nav">
       {#each navItems as item (item.id)}
-        <a href={item.href} class="nav-item" title={collapsed ? t(item.label) : ''}>
+        <a
+          href={item.href}
+          class="nav-item"
+          class:active={currentPath === item.href}
+          title={collapsed ? t(item.label) : ''}
+        >
           <span class="nav-icon">{item.icon}</span>
           {#if !collapsed}
             <span class="nav-label">{t(item.label)}</span>
@@ -97,13 +104,13 @@
   {/if}
 
   <div class="sidebar-footer">
-    <a href="/" class="nav-item" title={collapsed ? t('nav.projects') : ''}>
+    <a href="/" class="nav-item" class:active={currentPath === '/'} title={collapsed ? t('nav.projects') : ''}>
       <span class="nav-icon">{'\uD83C\uDFE0'}</span>
       {#if !collapsed}
         <span class="nav-label">{t('nav.projects')}</span>
       {/if}
     </a>
-    <a href="/settings" class="nav-item" title={collapsed ? t('nav.settings') : ''}>
+    <a href="/settings" class="nav-item" class:active={currentPath === '/settings'} title={collapsed ? t('nav.settings') : ''}>
       <span class="nav-icon">{'\u2699'}</span>
       {#if !collapsed}
         <span class="nav-label">{t('nav.settings')}</span>
@@ -187,6 +194,11 @@
   .nav-item:hover {
     background: #2a2a4e;
     color: #ffffff;
+  }
+
+  .nav-item.active {
+    background: rgba(74, 108, 247, 0.2);
+    color: #4a6cf7;
   }
 
   .nav-icon {

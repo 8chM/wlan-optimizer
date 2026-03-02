@@ -66,6 +66,11 @@ let {
 // We obtain the stage reference from the first event that fires
 let stageNode: Konva.Stage | null = null;
 
+// Middle-mouse / space-drag panning state
+let isPanning = $state(false);
+let panStartPointer = $state({ x: 0, y: 0 });
+let panStartOffset = $state({ x: 0, y: 0 });
+
 function captureStageRef(event: { target: Konva.Node }): void {
   if (!stageNode) {
     stageNode = event.target.getStage();
@@ -175,8 +180,32 @@ function handleDragEnd(event: KonvaDragTransformEvent): void {
   }
 }
 
+/**
+ * Start panning on middle-mouse-button or when space is held.
+ */
+function handleStageMouseDown(event: KonvaMouseEvent): void {
+  captureStageRef(event);
+  const evt = event.evt;
+  // Middle mouse button (button=1) or space key held → start pan
+  if (evt.button === 1 || canvasStore.spaceHeld) {
+    evt.preventDefault();
+    isPanning = true;
+    panStartPointer = { x: evt.clientX, y: evt.clientY };
+    panStartOffset = { x: canvasStore.offsetX, y: canvasStore.offsetY };
+  }
+}
+
+function handleStageMouseUp(event: KonvaMouseEvent): void {
+  if (isPanning) {
+    isPanning = false;
+    event.evt.preventDefault();
+  }
+}
+
 function handleStageClick(event: KonvaMouseEvent): void {
   captureStageRef(event);
+  // Suppress click after a pan gesture or middle-button click
+  if (event.evt.button === 1) return;
   // Only handle clicks on the stage itself (not on child shapes)
   if (event.target !== event.target.getStage()) return;
   const stage = stageNode;
@@ -196,6 +225,20 @@ function handleStageDblClick(event: KonvaMouseEvent): void {
 
 function handleStageMouseMove(event: KonvaMouseEvent): void {
   captureStageRef(event);
+
+  // If panning via middle-mouse or space+drag, update offset
+  if (isPanning) {
+    const evt = event.evt;
+    const dx = evt.clientX - panStartPointer.x;
+    const dy = evt.clientY - panStartPointer.y;
+    canvasStore.setOffset(panStartOffset.x + dx, panStartOffset.y + dy);
+    // Also update the Konva stage position directly to stay in sync
+    if (stageNode) {
+      stageNode.position({ x: panStartOffset.x + dx, y: panStartOffset.y + dy });
+    }
+    return;
+  }
+
   const stage = stageNode;
   if (!stage) return;
   const pos = pointerToCanvas(stage);
@@ -213,6 +256,8 @@ function handleStageMouseMove(event: KonvaMouseEvent): void {
   {draggable}
   onwheel={handleWheel}
   ondragend={handleDragEnd}
+  onmousedown={handleStageMouseDown}
+  onmouseup={handleStageMouseUp}
   onclick={handleStageClick}
   ondblclick={handleStageDblClick}
   onmousemove={handleStageMouseMove}

@@ -39,6 +39,7 @@ function createCanvasStore() {
   let mouseYMeters = $state<number | null>(null);
   let snapToGridEnabled = $state(false);
   let shiftHeld = $state(false);
+  let spaceHeld = $state(false);
   let backgroundVisible = $state(true);
 
   return {
@@ -58,6 +59,7 @@ function createCanvasStore() {
     get mouseYMeters() { return mouseYMeters; },
     get snapToGridEnabled() { return snapToGridEnabled; },
     get shiftHeld() { return shiftHeld; },
+    get spaceHeld() { return spaceHeld; },
     get backgroundVisible() { return backgroundVisible; },
 
     get zoomPercent(): number {
@@ -138,6 +140,10 @@ function createCanvasStore() {
       shiftHeld = v;
     },
 
+    setSpaceHeld(v: boolean): void {
+      spaceHeld = v;
+    },
+
     toggleBackground(): void {
       backgroundVisible = !backgroundVisible;
     },
@@ -181,6 +187,7 @@ function createCanvasStore() {
       mouseYMeters = null;
       snapToGridEnabled = true;
       shiftHeld = false;
+      spaceHeld = false;
       backgroundVisible = true;
     },
   };

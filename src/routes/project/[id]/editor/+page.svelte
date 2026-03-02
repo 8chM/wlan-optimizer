@@ -79,8 +79,9 @@ let roomDrawingLayer: RoomDrawingLayer | undefined = $state();
 
 let settingScale = $derived(canvasStore.settingScale);
 
-// Cursor per tool
+// Cursor per tool (space held = grab for panning)
 let canvasCursor = $derived.by(() => {
+  if (canvasStore.spaceHeld) return 'grab';
   if (settingScale) return 'crosshair';
   switch (canvasStore.activeTool) {
     case 'pan': return 'grab';
@@ -822,13 +823,20 @@ function handleItemSelect(id: string): void {
   }
 }
 
-// Track Shift key for angle snapping
+// Track modifier keys for snapping and panning
 function handleKeyDown(event: KeyboardEvent): void {
   if (event.key === 'Shift') canvasStore.setShiftHeld(true);
+  if (event.key === ' ' || event.code === 'Space') {
+    event.preventDefault();
+    canvasStore.setSpaceHeld(true);
+  }
 }
 
 function handleKeyUp(event: KeyboardEvent): void {
   if (event.key === 'Shift') canvasStore.setShiftHeld(false);
+  if (event.key === ' ' || event.code === 'Space') {
+    canvasStore.setSpaceHeld(false);
+  }
 }
 
 // ── AP placement (with undo support) ──────────────────────────

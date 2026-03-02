@@ -21,6 +21,7 @@ import AccessPointMarker from '$lib/canvas/AccessPointMarker.svelte';
 import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
 import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
 import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
+import CanvasScrollbars from '$lib/canvas/CanvasScrollbars.svelte';
 import CrosshairCursor from '$lib/canvas/CrosshairCursor.svelte';
 import ScaleReferenceLine from '$lib/canvas/ScaleReferenceLine.svelte';
 import RoomDrawingLayer from '$lib/canvas/RoomDrawingLayer.svelte';
@@ -1396,6 +1397,18 @@ async function handleFileSelected(event: Event): Promise<void> {
         />
       {/snippet}
     </FloorplanEditor>
+
+    <!-- Canvas scrollbars overlay -->
+    <CanvasScrollbars
+      viewportWidth={containerWidth}
+      viewportHeight={containerHeight}
+      contentWidth={(floor.width_meters ?? 10) * scalePxPerMeter}
+      contentHeight={(floor.height_meters ?? 10) * scalePxPerMeter}
+      scale={canvasStore.scale}
+      offsetX={canvasStore.offsetX}
+      offsetY={canvasStore.offsetY}
+      onOffsetChange={(x, y) => canvasStore.setOffset(x, y)}
+    />
 
     <!-- Floor plan upload/replace button -->
     {#if !floorImageDataUrl}

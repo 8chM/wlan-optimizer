@@ -2,6 +2,7 @@
 import { page } from '$app/stores';
 import Layout from '$lib/components/layout/Layout.svelte';
 import { canvasStore } from '$lib/stores/canvasStore.svelte';
+import type { EditorTool } from '$lib/stores/canvasStore.svelte';
 import { projectStore } from '$lib/stores/projectStore.svelte';
 import { undoStore } from '$lib/stores/undoStore.svelte';
 import type { Snippet } from 'svelte';
@@ -21,7 +22,7 @@ $effect(() => {
   }
 });
 
-function handleToolChange(tool: 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text'): void {
+function handleToolChange(tool: EditorTool): void {
   canvasStore.setTool(tool);
 }
 
@@ -34,7 +35,7 @@ function handleZoomOut(): void {
 }
 
 function handleFitToScreen(): void {
-  canvasStore.reset();
+  canvasStore.resetView();
 }
 
 function handleToggleGrid(): void {

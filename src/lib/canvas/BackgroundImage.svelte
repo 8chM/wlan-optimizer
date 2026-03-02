@@ -63,8 +63,8 @@
   let offsetConfig = $derived.by(() => {
     if (!imageElement) return { x: 0, y: 0, offsetX: 0, offsetY: 0 };
 
-    const w = imageElement.naturalWidth;
-    const h = imageElement.naturalHeight;
+    const w = imageElement.width || imageElement.naturalWidth;
+    const h = imageElement.height || imageElement.naturalHeight;
     const r = ((rotation % 360) + 360) % 360;
 
     if (r === 0) return { x: 0, y: 0, offsetX: 0, offsetY: 0 };

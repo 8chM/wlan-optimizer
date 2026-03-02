@@ -44,11 +44,15 @@
   let channel5 = $state(0);
   let channelWidth = $state('20');
 
-  // Sync state from props only when a different AP is selected (not on every prop change)
+  // Sync state from props when a different AP is selected or when the AP object reference
+  // changes with the same ID (e.g. after undo). We track a serialized version to detect changes.
   let lastSyncedApId = $state('');
+  let lastSyncedVersion = $state('');
   $effect(() => {
-    if (accessPoint.id !== lastSyncedApId) {
+    const version = `${accessPoint.id}-${accessPoint.label}-${accessPoint.tx_power_24ghz_dbm}-${accessPoint.tx_power_5ghz_dbm}-${accessPoint.enabled}-${accessPoint.mounting}-${accessPoint.height_m}-${accessPoint.channel_24ghz}-${accessPoint.channel_5ghz}-${accessPoint.channel_width}`;
+    if (accessPoint.id !== lastSyncedApId || version !== lastSyncedVersion) {
       lastSyncedApId = accessPoint.id;
+      lastSyncedVersion = version;
       labelValue = accessPoint.label ?? '';
       txPower24 = accessPoint.tx_power_24ghz_dbm ?? 17;
       txPower5 = accessPoint.tx_power_5ghz_dbm ?? 20;
@@ -84,7 +88,9 @@
   }
 
   function handleHeightChange(): void {
-    onUpdate?.(accessPoint.id, { height_m: heightM });
+    if (Number.isFinite(heightM) && heightM > 0) {
+      onUpdate?.(accessPoint.id, { height_m: heightM });
+    }
   }
 
   function handleChannel24Change(event: Event): void {

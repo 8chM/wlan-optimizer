@@ -45,7 +45,7 @@
   }: WallDrawingToolProps = $props();
 
   // Detect door/window material for special rendering
-  let isDoor = $derived(wall.material_id?.startsWith('mat-') && (wall.material_id === 'mat-wood-door' || wall.material_id === 'mat-metal-door' || wall.material_id === 'mat-glass-door'));
+  let isDoor = $derived(wall.material_id === 'mat-wood-door' || wall.material_id === 'mat-metal-door' || wall.material_id === 'mat-glass-door');
   let isWindow = $derived(wall.material_id === 'mat-window');
 
   // Material-based styling using category (with door/window overrides)

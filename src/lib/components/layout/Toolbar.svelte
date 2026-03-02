@@ -7,9 +7,8 @@
 <script lang="ts">
 import { t } from '$lib/i18n';
 import { themeStore } from '$lib/stores/themeStore.svelte';
+import type { EditorTool } from '$lib/stores/canvasStore.svelte';
 import type { Snippet } from 'svelte';
-
-type EditorTool = 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text';
 
 interface ToolbarProps {
   activeTool?: EditorTool;
@@ -83,7 +82,7 @@ let themeLabel = $derived(
   <div class="toolbar-section toolbar-left">
     <a href="/" class="toolbar-brand" title={t('app.title')}>
       <span class="brand-icon">📡</span>
-      <span class="brand-text">WLAN-Optimizer</span>
+      <span class="brand-text">{t('app.title')}</span>
     </a>
   </div>
 

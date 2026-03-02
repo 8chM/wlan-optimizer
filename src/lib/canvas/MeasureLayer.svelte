@@ -57,12 +57,11 @@
     distance !== null ? `${distance.toFixed(2)} m` : '',
   );
 
-  // Live preview distance
+  // Live preview distance (from start to mouse, shown before end point is placed)
   let previewDistance = $derived.by((): number | null => {
-    const fromPoint = endPoint ?? startPoint;
     if (!mousePosition || endPoint) return null;
-    const dx = mousePosition.x - fromPoint.x;
-    const dy = mousePosition.y - fromPoint.y;
+    const dx = mousePosition.x - startPoint.x;
+    const dy = mousePosition.y - startPoint.y;
     return Math.sqrt(dx * dx + dy * dy) / scalePxPerMeter;
   });
 

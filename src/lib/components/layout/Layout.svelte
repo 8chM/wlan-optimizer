@@ -9,12 +9,11 @@
 -->
 <script lang="ts">
 import { canvasStore } from '$lib/stores/canvasStore.svelte';
+import type { EditorTool } from '$lib/stores/canvasStore.svelte';
 import type { Snippet } from 'svelte';
 import Toolbar from './Toolbar.svelte';
 import Sidebar from './Sidebar.svelte';
 import StatusBar from './StatusBar.svelte';
-
-type EditorTool = 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text';
 
 interface LayoutProps {
   children: Snippet;
@@ -156,6 +155,15 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
       'toolbar'
       'main'
       'statusbar';
+  }
+
+  .app-layout.sidebar-collapsed {
+    grid-template-columns: 0px 1fr;
+  }
+
+  .app-layout.sidebar-collapsed .layout-sidebar {
+    overflow: hidden;
+    width: 0;
   }
 
   .layout-toolbar {

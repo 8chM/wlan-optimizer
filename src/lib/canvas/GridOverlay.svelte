@@ -34,16 +34,16 @@
     scalePxPerMeter = 50,
     visible = true,
     color = '#b0b0c0',
-    opacity = 0.25,
+    opacity = 0.4,
     majorInterval = 5,
   }: GridOverlayProps = $props();
 
   // Grid spacing in pixels
   let gridSizePx = $derived(gridSizeM * scalePxPerMeter);
 
-  // Generate vertical lines
-  let verticalLines = $derived(computeVerticalLines());
-  let horizontalLines = $derived(computeHorizontalLines());
+  // Generate grid lines (read reactive deps explicitly so Svelte tracks them)
+  let verticalLines = $derived.by(() => computeVerticalLines(visible, gridSizePx, widthPx, heightPx, majorInterval));
+  let horizontalLines = $derived.by(() => computeHorizontalLines(visible, gridSizePx, widthPx, heightPx, majorInterval));
 
   interface GridLine {
     key: string;
@@ -51,35 +51,35 @@
     isMajor: boolean;
   }
 
-  function computeVerticalLines(): GridLine[] {
-    if (!visible || gridSizePx < 2) return [];
+  function computeVerticalLines(_visible: boolean, _gridPx: number, _w: number, _h: number, _maj: number): GridLine[] {
+    if (!_visible || _gridPx < 2) return [];
 
     const lines: GridLine[] = [];
-    const count = Math.ceil(widthPx / gridSizePx);
+    const count = Math.ceil(_w / _gridPx);
 
     for (let i = 0; i <= count; i++) {
-      const x = i * gridSizePx;
+      const x = i * _gridPx;
       lines.push({
         key: `v-${i}`,
-        points: [x, 0, x, heightPx],
-        isMajor: i % majorInterval === 0,
+        points: [x, 0, x, _h],
+        isMajor: i % _maj === 0,
       });
     }
     return lines;
   }
 
-  function computeHorizontalLines(): GridLine[] {
-    if (!visible || gridSizePx < 2) return [];
+  function computeHorizontalLines(_visible: boolean, _gridPx: number, _w: number, _h: number, _maj: number): GridLine[] {
+    if (!_visible || _gridPx < 2) return [];
 
     const lines: GridLine[] = [];
-    const count = Math.ceil(heightPx / gridSizePx);
+    const count = Math.ceil(_h / _gridPx);
 
     for (let i = 0; i <= count; i++) {
-      const y = i * gridSizePx;
+      const y = i * _gridPx;
       lines.push({
         key: `h-${i}`,
-        points: [0, y, widthPx, y],
-        isMajor: i % majorInterval === 0,
+        points: [0, y, _w, y],
+        isMajor: i % _maj === 0,
       });
     }
     return lines;

@@ -21,6 +21,8 @@ import AccessPointMarker from '$lib/canvas/AccessPointMarker.svelte';
 import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
 import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
 import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
+import CrosshairCursor from '$lib/canvas/CrosshairCursor.svelte';
+import ScaleReferenceLine from '$lib/canvas/ScaleReferenceLine.svelte';
 import WallDrawingLayer from '$lib/canvas/WallDrawingLayer.svelte';
 import ShortcutHelp from '$lib/components/common/ShortcutHelp.svelte';
 import APLibraryPanel from '$lib/components/editor/APLibraryPanel.svelte';
@@ -67,20 +69,19 @@ let annotations = $state<AnnotationData[]>([]);
 let editingAnnotationId = $state<string | null>(null);
 let textInputPosition = $state<{ x: number; y: number } | null>(null);
 let textInputValue = $state('');
+// Persistent scale reference line (stays visible after calibration)
+let confirmedScalePoints = $state<Array<{ x: number; y: number }>>([]);
+let confirmedScaleDistanceM = $state<number | null>(null);
 
 let settingScale = $derived(canvasStore.settingScale);
 
-// Cursor changes based on active tool
+// Cursor always crosshair in editor
 let canvasCursor = $derived.by(() => {
   if (settingScale) return 'crosshair';
   switch (canvasStore.activeTool) {
-    case 'wall': return 'crosshair';
-    case 'door': return 'crosshair';
-    case 'window': return 'crosshair';
     case 'ap': return 'cell';
-    case 'measure': return 'crosshair';
     case 'text': return 'text';
-    default: return 'default';
+    default: return 'crosshair';
   }
 });
 
@@ -526,6 +527,10 @@ async function confirmScale(): Promise<void> {
     widthM = floor.width_meters ?? 10;
     heightM = floor.height_meters ?? 10;
   }
+
+  // Save scale reference line for persistent display
+  confirmedScalePoints = [...scalePoints];
+  confirmedScaleDistanceM = distance;
 
   try {
     await setFloorScale(floor.id, newPxPerMeter, widthM, heightM);
@@ -1248,6 +1253,19 @@ async function handleFileSelected(event: Event): Promise<void> {
             visible={channelStore.overlayVisible}
           />
         {/if}
+
+        <!-- Persistent scale reference line (visible after calibration) -->
+        {#if confirmedScalePoints.length === 2 && confirmedScaleDistanceM !== null}
+          <ScaleReferenceLine
+            points={confirmedScalePoints}
+            distanceM={confirmedScaleDistanceM}
+          />
+        {/if}
+
+        <!-- Crosshair cursor (always visible when mouse is on canvas) -->
+        {#if mousePosition}
+          <CrosshairCursor x={mousePosition.x} y={mousePosition.y} />
+        {/if}
       {/snippet}
     </FloorplanEditor>
 
@@ -1279,6 +1297,11 @@ async function handleFileSelected(event: Event): Promise<void> {
           {t('editor.rotateFloorplan')}
         </button>
         <div class="rotation-input-group">
+          <button
+            class="rotation-step-btn"
+            onclick={() => handleSetRotation(((floorRotation - 1) % 360 + 360) % 360)}
+            title="-1°"
+          >&minus;</button>
           <input
             type="number"
             class="rotation-input"
@@ -1290,6 +1313,11 @@ async function handleFileSelected(event: Event): Promise<void> {
             title={t('editor.rotationDegrees')}
           />
           <span class="rotation-suffix">&deg;</span>
+          <button
+            class="rotation-step-btn"
+            onclick={() => handleSetRotation((floorRotation + 1) % 360)}
+            title="+1°"
+          >+</button>
         </div>
       </div>
     {/if}
@@ -1816,5 +1844,27 @@ async function handleFileSelected(event: Event): Promise<void> {
   .rotation-suffix {
     font-size: 0.75rem;
     color: #a0a0b0;
+  }
+
+  .rotation-step-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(26, 26, 46, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+    color: #e0e0f0;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    line-height: 1;
+  }
+
+  .rotation-step-btn:hover {
+    background: rgba(74, 108, 247, 0.3);
+    border-color: rgba(74, 108, 247, 0.5);
   }
 </style>

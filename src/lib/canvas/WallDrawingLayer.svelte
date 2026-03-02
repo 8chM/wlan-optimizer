@@ -58,6 +58,14 @@
   let drawingPoints = $state<Position[]>([]);
   let isDrawing = $state(false);
 
+  // Reset drawing state when tool deactivates (e.g. tool switch or ESC at editor level)
+  $effect(() => {
+    if (!active && isDrawing) {
+      isDrawing = false;
+      drawingPoints = [];
+    }
+  });
+
   // Snap threshold adjusted for zoom level
   let snapThresholdCanvas = $derived(SNAP_THRESHOLD_SCREEN_PX / stageScale);
 
@@ -176,6 +184,9 @@
       isDrawing = true;
       drawingPoints = [snapped];
     } else {
+      // Guard against double-click phantom points: skip if identical to last point
+      const last = drawingPoints[drawingPoints.length - 1]!;
+      if (last.x === snapped.x && last.y === snapped.y) return;
       drawingPoints = [...drawingPoints, snapped];
     }
   }
@@ -214,6 +225,10 @@
       return;
     }
 
+    // Reset drawing state immediately so the UI is responsive
+    isDrawing = false;
+    drawingPoints = [];
+
     const segments: WallSegmentInput[] = [];
     for (let i = 0; i < points.length - 1; i++) {
       const startPoint = points[i]!;
@@ -233,9 +248,6 @@
     } catch (err) {
       console.error('[WallDrawingLayer] Failed to create wall:', err);
     }
-
-    isDrawing = false;
-    drawingPoints = [];
   }
 </script>
 

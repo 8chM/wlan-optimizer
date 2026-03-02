@@ -144,6 +144,13 @@ function createCanvasStore() {
       sidebarCollapsed = v;
     },
 
+    /** Reset only the view (scale + offset) without clearing tool/selection/grid state */
+    resetView(): void {
+      scale = 1;
+      offsetX = 0;
+      offsetY = 0;
+    },
+
     zoomIn(): void {
       scale = Math.min(10, scale * 1.2);
     },

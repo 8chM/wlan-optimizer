@@ -1183,7 +1183,7 @@ async function handleFileSelected(event: Event): Promise<void> {
               selected={canvasStore.isSelected(wall.id)}
               {scalePxPerMeter}
               editMode={canvasStore.activeTool === 'select'}
-              onSelect={(id) => canvasStore.selectItem(id)}
+              onSelect={(id) => canvasStore.selectItem(id, canvasStore.shiftHeld)}
               onSegmentsUpdate={handleWallSegmentsUpdate}
             />
           {/each}
@@ -1195,7 +1195,7 @@ async function handleFileSelected(event: Event): Promise<void> {
               accessPoint={ap}
               selected={canvasStore.isSelected(ap.id)}
               {scalePxPerMeter}
-              onSelect={(id) => canvasStore.selectItem(id)}
+              onSelect={(id) => canvasStore.selectItem(id, canvasStore.shiftHeld)}
               onPositionChange={handleApPositionChange}
             />
           {/each}
@@ -1220,7 +1220,7 @@ async function handleFileSelected(event: Event): Promise<void> {
             {annotation}
             {scalePxPerMeter}
             selected={canvasStore.isSelected(annotation.id)}
-            onSelect={(id) => canvasStore.selectItem(id)}
+            onSelect={(id) => canvasStore.selectItem(id, canvasStore.shiftHeld)}
             onPositionChange={handleAnnotationPositionChange}
             onEdit={handleAnnotationEdit}
           />

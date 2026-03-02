@@ -19,6 +19,7 @@
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { measurementStore } from '$lib/stores/measurementStore.svelte';
+  import { safeInvoke } from '$lib/api/invoke';
   import { t } from '$lib/i18n';
 
   // ─── Layout State ─────────────────────────────────────────────
@@ -83,9 +84,21 @@
     measurementStore.cancelCurrentMeasurement();
   }
 
-  function handleApplyCalibration(calibratedN: number): void {
-    // Apply calibrated path loss exponent to heatmap settings
-    console.log('[Measure] Apply calibration N =', calibratedN);
+  async function handleApplyCalibration(calibratedN: number): Promise<void> {
+    const projectId = projectStore.currentProject?.id;
+    if (!projectId) return;
+
+    // Persist the calibrated path loss exponent to heatmap settings
+    try {
+      await safeInvoke('update_heatmap_settings', {
+        params: {
+          project_id: projectId,
+          path_loss_exponent: calibratedN,
+        },
+      });
+    } catch (err) {
+      console.error('[Measure] Failed to persist calibration:', err);
+    }
   }
 
   function handlePointClick(pointId: string): void {

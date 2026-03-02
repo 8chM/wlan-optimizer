@@ -143,7 +143,7 @@
           type="number"
           class="prop-input"
           bind:value={att24Input}
-          onchange={handleAtt24Change}
+          onblur={handleAtt24Change}
           placeholder={currentMaterial ? String(currentMaterial.attenuation_24ghz_db) : '-'}
           min="0"
           step="0.5"
@@ -159,7 +159,7 @@
           type="number"
           class="prop-input"
           bind:value={att5Input}
-          onchange={handleAtt5Change}
+          onblur={handleAtt5Change}
           placeholder={currentMaterial ? String(currentMaterial.attenuation_5ghz_db) : '-'}
           min="0"
           step="0.5"

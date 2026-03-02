@@ -52,3 +52,17 @@ export async function importFloorImage(
     format,
   });
 }
+
+/**
+ * Sets the background image rotation for a floor.
+ * Rotation must be 0, 90, 180, or 270 degrees.
+ */
+export async function setFloorRotation(
+  floorId: string,
+  rotation: number,
+): Promise<FloorResponse> {
+  return safeInvoke('set_floor_rotation', {
+    floor_id: floorId,
+    rotation,
+  });
+}

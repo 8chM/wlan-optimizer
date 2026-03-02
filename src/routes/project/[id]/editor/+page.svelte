@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
 import { createAccessPoint, deleteAccessPoint, updateAccessPoint } from '$lib/api/accessPoint';
-import { importFloorImage, setFloorScale } from '$lib/api/floor';
+import { importFloorImage, setFloorScale, setFloorRotation } from '$lib/api/floor';
 import { safeInvoke, type MaterialResponse, type SegmentInput } from '$lib/api/invoke';
 import { deleteWall, updateWall } from '$lib/api/wall';
 import { FloorplanEditor } from '$lib/canvas';
@@ -63,6 +63,7 @@ let settingScale = $derived(canvasStore.settingScale);
 
 let floor = $derived(projectStore.activeFloor);
 let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
+let floorRotation = $derived(floor?.background_image_rotation ?? 0);
 
 // ── Floor bounds for heatmap ──────────────────────────────────
 let floorBounds = $derived({
@@ -504,6 +505,18 @@ function handleUploadClick(): void {
   fileInput?.click();
 }
 
+async function handleRotateFloorplan(): Promise<void> {
+  if (!floor) return;
+  const newRotation = ((floorRotation + 90) % 360);
+  try {
+    await setFloorRotation(floor.id, newRotation);
+    await projectStore.refreshFloorData();
+    projectStore.markDirty();
+  } catch (err) {
+    console.error('[Editor] Failed to rotate floor plan:', err);
+  }
+}
+
 async function handleFileSelected(event: Event): Promise<void> {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
@@ -587,6 +600,7 @@ async function handleFileSelected(event: Event): Promise<void> {
         <BackgroundImage
           imageData={floorImageDataUrl}
           {scalePxPerMeter}
+          rotation={floorRotation}
         />
         <GridOverlay
           widthPx={(floor.width_meters ?? 10) * scalePxPerMeter}
@@ -692,14 +706,23 @@ async function handleFileSelected(event: Event): Promise<void> {
         {t('editor.uploadFloorplan')}
       </button>
     {:else}
-      <button class="replace-btn" onclick={handleUploadClick} title={t('editor.replaceFloorplan')}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        {t('editor.replaceFloorplan')}
-      </button>
+      <div class="floorplan-actions">
+        <button class="replace-btn" onclick={handleUploadClick} title={t('editor.replaceFloorplan')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          {t('editor.replaceFloorplan')}
+        </button>
+        <button class="replace-btn" onclick={handleRotateFloorplan} title={t('editor.rotateFloorplan')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6"/>
+            <path d="M21.34 15.57a10 10 0 1 1-.57-8.38L21.5 8"/>
+          </svg>
+          {t('editor.rotateFloorplan')}
+        </button>
+      </div>
     {/if}
 
     <!-- Scale setting dialog -->
@@ -878,10 +901,16 @@ async function handleFileSelected(event: Event): Promise<void> {
     border-color: rgba(74, 108, 247, 0.6);
   }
 
-  .replace-btn {
+  .floorplan-actions {
     position: absolute;
     bottom: 12px;
     left: 12px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+  }
+
+  .replace-btn {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -894,7 +923,6 @@ async function handleFileSelected(event: Event): Promise<void> {
     font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
-    z-index: 10;
     backdrop-filter: blur(4px);
   }
 

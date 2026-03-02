@@ -127,7 +127,7 @@
         type="text"
         class="prop-input text-input"
         bind:value={labelValue}
-        onchange={handleLabelChange}
+        onblur={handleLabelChange}
         placeholder="AP-1"
       />
     </div>
@@ -195,7 +195,7 @@
           type="number"
           class="prop-input"
           bind:value={heightM}
-          onchange={handleHeightChange}
+          onblur={handleHeightChange}
           min="0.5"
           max="10"
           step="0.1"

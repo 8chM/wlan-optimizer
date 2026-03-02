@@ -126,6 +126,10 @@ export interface CommandMap {
     params: { floor_id: string; image_data: number[]; format: string };
     result: FloorResponse;
   };
+  set_floor_rotation: {
+    params: { floor_id: string; rotation: number };
+    result: FloorResponse;
+  };
 
   // ── Wall Commands ──────────────────────────────────────────
   create_wall: {
@@ -457,6 +461,7 @@ export interface FloorResponse {
   name: string;
   floor_number: number;
   background_image_format: string | null;
+  background_image_rotation: number;
   scale_px_per_meter: number | null;
   width_meters: number | null;
   height_meters: number | null;
@@ -472,6 +477,7 @@ export interface FloorDataResponse {
   name: string;
   floor_number: number;
   background_image_format: string | null;
+  background_image_rotation: number;
   scale_px_per_meter: number | null;
   width_meters: number | null;
   height_meters: number | null;
@@ -777,6 +783,7 @@ export function getErrorTitle(command: string): string {
     update_floor: 'Could not update floor',
     set_floor_scale: 'Could not update floor scale',
     import_floor_image: 'Could not import floor image',
+    set_floor_rotation: 'Could not set floor rotation',
     create_wall: 'Could not create wall',
     update_wall: 'Could not update wall',
     delete_wall: 'Could not delete wall',

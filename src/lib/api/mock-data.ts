@@ -277,6 +277,7 @@ export const MOCK_FLOOR: FloorResponse = {
   name: 'Erdgeschoss',
   floor_number: 0,
   background_image_format: null,
+  background_image_rotation: 0,
   scale_px_per_meter: 50,
   width_meters: 15,
   height_meters: 10,

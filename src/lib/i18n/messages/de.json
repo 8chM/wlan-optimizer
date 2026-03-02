@@ -105,7 +105,8 @@
     "uploadFloorplan": "Grundriss hochladen",
     "replaceFloorplan": "Grundriss austauschen",
     "setScaleFirst": "Bitte zuerst den Massstab setzen.",
-    "measureDistance": "Distanz"
+    "measureDistance": "Distanz",
+    "rotateFloorplan": "90° drehen"
   },
   "material": {
     "light": "Leicht",

@@ -187,6 +187,7 @@ function dispatch(command: string, p: AnyParams): unknown {
         name: 'Erdgeschoss',
         floor_number: 0,
         background_image_format: null,
+        background_image_rotation: 0,
         scale_px_per_meter: 50,
         width_meters: 15,
         height_meters: 10,
@@ -260,7 +261,9 @@ function dispatch(command: string, p: AnyParams): unknown {
     // ── Floors ────────────────────────────────────────────────
     case 'get_floors_by_project': {
       const floors = load<FloorResponse[]>(KEYS.floors, []);
-      return floors.filter((f) => f.project_id === p.project_id);
+      return floors
+        .filter((f) => f.project_id === p.project_id)
+        .map((f) => ({ ...f, background_image_rotation: f.background_image_rotation ?? 0 }));
     }
 
     case 'get_floor_data': {
@@ -277,6 +280,8 @@ function dispatch(command: string, p: AnyParams): unknown {
         .filter((mp) => mp.floor_id === p.floor_id);
       const result: FloorDataResponse = {
         ...floor,
+        // Default rotation for floors created before this field existed
+        background_image_rotation: floor.background_image_rotation ?? 0,
         walls,
         access_points: aps,
         measurement_points: mps,
@@ -292,6 +297,7 @@ function dispatch(command: string, p: AnyParams): unknown {
         name: p.params.name,
         floor_number: p.params.floor_number,
         background_image_format: null,
+        background_image_rotation: 0,
         scale_px_per_meter: 50,
         width_meters: 15,
         height_meters: 10,
@@ -336,6 +342,17 @@ function dispatch(command: string, p: AnyParams): unknown {
       // Update format in floor data (image bytes stored separately in localStorage by editor)
       const format = p.format ?? 'png';
       floors[fi] = { ...floors[fi]!, background_image_format: format, updated_at: now() };
+      save(KEYS.floors, floors);
+      return floors[fi]!;
+    }
+
+    case 'set_floor_rotation': {
+      const floors = load<FloorResponse[]>(KEYS.floors, []);
+      const fi = floors.findIndex((f) => f.id === p.floor_id);
+      if (fi < 0) throw { command, message: `Floor not found`, raw: null };
+      // Normalize rotation to 0, 90, 180, 270
+      const rotation = ((p.rotation % 360) + 360) % 360;
+      floors[fi] = { ...floors[fi]!, background_image_rotation: rotation, updated_at: now() };
       save(KEYS.floors, floors);
       return floors[fi]!;
     }
@@ -483,6 +500,7 @@ function dispatch(command: string, p: AnyParams): unknown {
       if (ai < 0) throw { command, message: `AP not found`, raw: null };
       const ap = aps[ai]!;
       const updates = p.params;
+      if (updates.label !== undefined) ap.label = updates.label;
       if (updates.x !== undefined) ap.x = updates.x;
       if (updates.y !== undefined) ap.y = updates.y;
       if (updates.height_m !== undefined) ap.height_m = updates.height_m;

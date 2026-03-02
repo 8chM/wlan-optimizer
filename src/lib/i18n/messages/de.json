@@ -35,8 +35,11 @@
   "toolbar": {
     "select": "Auswahl",
     "wall": "Wand",
+    "door": "Tuer",
+    "window": "Fenster",
     "ap": "Access Point",
     "measure": "Messen",
+    "text": "Text",
     "zoomIn": "Vergroessern",
     "zoomOut": "Verkleinern",
     "fitToScreen": "An Bildschirm anpassen",
@@ -106,7 +109,9 @@
     "replaceFloorplan": "Grundriss austauschen",
     "setScaleFirst": "Bitte zuerst den Massstab setzen.",
     "measureDistance": "Distanz",
-    "rotateFloorplan": "90° drehen",
+    "rotateFloorplan": "90\u00B0 drehen",
+    "rotationDegrees": "Rotation (Grad)",
+    "annotationPlaceholder": "Raumname...",
     "uploadFailed": "Grundriss-Upload fehlgeschlagen. Bitte erneut versuchen."
   },
   "material": {
@@ -121,6 +126,8 @@
     "concrete": "Beton",
     "reinforcedConcrete": "Stahlbeton",
     "metalDoor": "Metalltuer",
+    "glassDoor": "Glastuer",
+    "window": "Fenster",
     "elevator": "Aufzugsschacht",
     "attenuation": "Daempfung"
   },
@@ -191,8 +198,11 @@
     "save": "Projekt speichern",
     "deselect": "Abwaehlen / Werkzeug abbrechen",
     "wallTool": "Wand-Werkzeug",
+    "doorTool": "Tuer-Werkzeug",
+    "windowTool": "Fenster-Werkzeug",
     "apTool": "Access-Point-Werkzeug",
     "measureTool": "Mess-Werkzeug",
+    "textTool": "Text-Werkzeug",
     "selectTool": "Auswahl-Werkzeug",
     "gridToggle": "Raster umschalten",
     "heatmapToggle": "Heatmap umschalten",

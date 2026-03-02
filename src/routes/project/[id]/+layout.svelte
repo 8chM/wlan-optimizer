@@ -3,6 +3,7 @@ import { page } from '$app/stores';
 import Layout from '$lib/components/layout/Layout.svelte';
 import { canvasStore } from '$lib/stores/canvasStore.svelte';
 import { projectStore } from '$lib/stores/projectStore.svelte';
+import { undoStore } from '$lib/stores/undoStore.svelte';
 import type { Snippet } from 'svelte';
 
 interface Props {
@@ -20,7 +21,7 @@ $effect(() => {
   }
 });
 
-function handleToolChange(tool: 'select' | 'wall' | 'ap' | 'measure'): void {
+function handleToolChange(tool: 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text'): void {
   canvasStore.setTool(tool);
 }
 
@@ -57,6 +58,10 @@ function handleSetScale(): void {
   mouseX={canvasStore.mouseXMeters}
   mouseY={canvasStore.mouseYMeters}
   settingScale={canvasStore.settingScale}
+  canUndo={undoStore.canUndo}
+  canRedo={undoStore.canRedo}
+  onUndo={() => undoStore.undo()}
+  onRedo={() => undoStore.redo()}
   onToolChange={handleToolChange}
   onZoomIn={handleZoomIn}
   onZoomOut={handleZoomOut}

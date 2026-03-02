@@ -19,6 +19,8 @@ import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
 import WallDrawingTool from '$lib/canvas/WallDrawingTool.svelte';
 import AccessPointMarker from '$lib/canvas/AccessPointMarker.svelte';
 import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
+import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
+import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
 import WallDrawingLayer from '$lib/canvas/WallDrawingLayer.svelte';
 import ShortcutHelp from '$lib/components/common/ShortcutHelp.svelte';
 import APLibraryPanel from '$lib/components/editor/APLibraryPanel.svelte';
@@ -50,6 +52,8 @@ let containerHeight = $state(600);
 let shortcutHelpOpen = $state(false);
 let mousePosition = $state<Position | null>(null);
 let floorImageDataUrl = $state<string | null>(null);
+let loadedImageWidth = $state(0);
+let loadedImageHeight = $state(0);
 let fileInput: HTMLInputElement | undefined = $state();
 let materials = $state<MaterialResponse[]>([]);
 let uploadError = $state<string | null>(null);
@@ -59,8 +63,26 @@ let scaleDistanceInput = $state('');
 let scalePixelDistance = $state(0);
 let measureStart = $state<{ x: number; y: number } | null>(null);
 let measureEnd = $state<{ x: number; y: number } | null>(null);
+let annotations = $state<AnnotationData[]>([]);
+let editingAnnotationId = $state<string | null>(null);
+let textInputPosition = $state<{ x: number; y: number } | null>(null);
+let textInputValue = $state('');
 
 let settingScale = $derived(canvasStore.settingScale);
+
+// Cursor changes based on active tool
+let canvasCursor = $derived.by(() => {
+  if (settingScale) return 'crosshair';
+  switch (canvasStore.activeTool) {
+    case 'wall': return 'crosshair';
+    case 'door': return 'crosshair';
+    case 'window': return 'crosshair';
+    case 'ap': return 'cell';
+    case 'measure': return 'crosshair';
+    case 'text': return 'text';
+    default: return 'default';
+  }
+});
 
 let floor = $derived(projectStore.activeFloor);
 let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
@@ -72,8 +94,13 @@ let floorBounds = $derived({
   height: floor?.height_meters ?? 10,
 });
 
-// ── Default material for wall drawing ─────────────────────────
-let wallMaterialId = $derived(canvasStore.selectedMaterialId ?? 'mat-drywall');
+// ── Default material for wall/door/window drawing ─────────────
+let wallMaterialId = $derived.by(() => {
+  const tool = canvasStore.activeTool;
+  if (tool === 'door') return 'mat-wood-door';
+  if (tool === 'window') return 'mat-window';
+  return canvasStore.selectedMaterialId ?? 'mat-drywall';
+});
 
 // ── Snap targets from existing walls ──────────────────────────
 let wallSnapTargets = $derived.by((): Position[] => {
@@ -132,6 +159,26 @@ $effect(() => {
   }
 });
 
+// ── Load annotations from localStorage ────────────────────────
+$effect(() => {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  const stored = localStorage.getItem(`wlan-opt:annotations:${floorId}`);
+  if (stored) {
+    try {
+      annotations = JSON.parse(stored) as AnnotationData[];
+    } catch { /* ignore */ }
+  } else {
+    annotations = [];
+  }
+});
+
+function saveAnnotations(): void {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  localStorage.setItem(`wlan-opt:annotations:${floorId}`, JSON.stringify(annotations));
+}
+
 // ── Load floor image on mount ─────────────────────────────────
 $effect(() => {
   const floorId = floor?.id;
@@ -142,16 +189,27 @@ $effect(() => {
 async function loadFloorImage(floorId: string): Promise<void> {
   try {
     const result = await safeInvoke('get_floor_image', { floor_id: floorId });
+    let dataUrl: string | null = null;
     if (result?.background_image && result.background_image_format) {
       const bytes = new Uint8Array(result.background_image);
       const blob = new Blob([bytes], { type: `image/${result.background_image_format}` });
-      floorImageDataUrl = URL.createObjectURL(blob);
+      dataUrl = URL.createObjectURL(blob);
     } else {
       // Check localStorage for browser-mode image
       const stored = localStorage.getItem(`wlan-opt:floor-image:${floorId}`);
       if (stored) {
-        floorImageDataUrl = stored;
+        dataUrl = stored;
       }
+    }
+    if (dataUrl) {
+      floorImageDataUrl = dataUrl;
+      // Probe image dimensions for correct scale calculation
+      const img = new Image();
+      img.onload = () => {
+        loadedImageWidth = img.naturalWidth;
+        loadedImageHeight = img.naturalHeight;
+      };
+      img.src = dataUrl;
     }
   } catch {
     // No image available
@@ -458,9 +516,16 @@ async function confirmScale(): Promise<void> {
   if (!floor || isNaN(distance) || distance <= 0 || scalePixelDistance <= 0) return;
 
   const newPxPerMeter = scalePixelDistance / distance;
-  // Estimate floor dimensions from image or use defaults
-  const widthM = (containerWidth / canvasStore.scale) / newPxPerMeter;
-  const heightM = (containerHeight / canvasStore.scale) / newPxPerMeter;
+  // Use actual image dimensions for accurate floor size calculation
+  let widthM: number;
+  let heightM: number;
+  if (loadedImageWidth > 0 && loadedImageHeight > 0) {
+    widthM = loadedImageWidth / newPxPerMeter;
+    heightM = loadedImageHeight / newPxPerMeter;
+  } else {
+    widthM = floor.width_meters ?? 10;
+    heightM = floor.height_meters ?? 10;
+  }
 
   try {
     await setFloorScale(floor.id, newPxPerMeter, widthM, heightM);
@@ -522,11 +587,20 @@ $effect(() => {
     wallTool: () => {
       canvasStore.setTool('wall');
     },
+    doorTool: () => {
+      canvasStore.setTool('door');
+    },
+    windowTool: () => {
+      canvasStore.setTool('window');
+    },
     apTool: () => {
       canvasStore.setTool('ap');
     },
     measureTool: () => {
       canvasStore.setTool('measure');
+    },
+    textTool: () => {
+      canvasStore.setTool('text');
     },
     selectTool: () => {
       canvasStore.setTool('select');
@@ -577,7 +651,7 @@ function handleCanvasClick(canvasX: number, canvasY: number): void {
     return;
   }
 
-  if (tool === 'wall' && wallDrawingLayer) {
+  if ((tool === 'wall' || tool === 'door' || tool === 'window') && wallDrawingLayer) {
     wallDrawingLayer.handleClick({ x: canvasX, y: canvasY });
     return;
   }
@@ -586,6 +660,14 @@ function handleCanvasClick(canvasX: number, canvasY: number): void {
     const xMeters = canvasX / scalePxPerMeter;
     const yMeters = canvasY / scalePxPerMeter;
     placeAccessPoint(xMeters, yMeters);
+    return;
+  }
+
+  if (tool === 'text') {
+    const xMeters = canvasX / scalePxPerMeter;
+    const yMeters = canvasY / scalePxPerMeter;
+    textInputPosition = { x: xMeters, y: yMeters };
+    textInputValue = '';
     return;
   }
 
@@ -609,7 +691,8 @@ function handleCanvasClick(canvasX: number, canvasY: number): void {
 }
 
 function handleCanvasDblClick(canvasX: number, canvasY: number): void {
-  if (canvasStore.activeTool === 'wall' && wallDrawingLayer) {
+  const tool = canvasStore.activeTool;
+  if ((tool === 'wall' || tool === 'door' || tool === 'window') && wallDrawingLayer) {
     wallDrawingLayer.handleDoubleClick({ x: canvasX, y: canvasY });
   }
 }
@@ -617,6 +700,75 @@ function handleCanvasDblClick(canvasX: number, canvasY: number): void {
 function handleCanvasMouseMove(canvasX: number, canvasY: number): void {
   mousePosition = { x: canvasX, y: canvasY };
   canvasStore.setMousePosition(canvasX / scalePxPerMeter, canvasY / scalePxPerMeter);
+}
+
+// ── Annotation management ─────────────────────────────────────
+
+function confirmTextAnnotation(): void {
+  if (!textInputPosition || !textInputValue.trim()) {
+    textInputPosition = null;
+    textInputValue = '';
+    return;
+  }
+  const newAnnotation: AnnotationData = {
+    id: crypto.randomUUID(),
+    x: textInputPosition.x,
+    y: textInputPosition.y,
+    text: textInputValue.trim(),
+    fontSize: 14,
+  };
+  annotations = [...annotations, newAnnotation];
+  saveAnnotations();
+  textInputPosition = null;
+  textInputValue = '';
+}
+
+function cancelTextAnnotation(): void {
+  textInputPosition = null;
+  textInputValue = '';
+  editingAnnotationId = null;
+}
+
+function handleAnnotationPositionChange(id: string, x: number, y: number): void {
+  annotations = annotations.map((a) => a.id === id ? { ...a, x, y } : a);
+  saveAnnotations();
+}
+
+function handleAnnotationEdit(id: string): void {
+  editingAnnotationId = id;
+  const ann = annotations.find((a) => a.id === id);
+  if (ann) {
+    textInputValue = ann.text;
+    textInputPosition = { x: ann.x, y: ann.y };
+  }
+}
+
+function confirmEditAnnotation(): void {
+  if (!editingAnnotationId || !textInputValue.trim()) {
+    cancelTextAnnotation();
+    return;
+  }
+  annotations = annotations.map((a) =>
+    a.id === editingAnnotationId ? { ...a, text: textInputValue.trim() } : a,
+  );
+  saveAnnotations();
+  editingAnnotationId = null;
+  textInputPosition = null;
+  textInputValue = '';
+}
+
+function handleDeleteAnnotation(id: string): void {
+  annotations = annotations.filter((a) => a.id !== id);
+  saveAnnotations();
+}
+
+// Track Shift key for angle snapping
+function handleKeyDown(event: KeyboardEvent): void {
+  if (event.key === 'Shift') canvasStore.setShiftHeld(true);
+}
+
+function handleKeyUp(event: KeyboardEvent): void {
+  if (event.key === 'Shift') canvasStore.setShiftHeld(false);
 }
 
 // ── AP placement (with undo support) ──────────────────────────
@@ -890,6 +1042,18 @@ async function handleRotateFloorplan(): Promise<void> {
   }
 }
 
+async function handleSetRotation(degrees: number): Promise<void> {
+  if (!floor) return;
+  const clamped = ((degrees % 360) + 360) % 360;
+  try {
+    await setFloorRotation(floor.id, clamped);
+    await projectStore.refreshFloorData();
+    projectStore.markDirty();
+  } catch (err) {
+    console.error('[Editor] Failed to set rotation:', err);
+  }
+}
+
 async function handleFileSelected(event: Event): Promise<void> {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
@@ -939,6 +1103,8 @@ async function handleFileSelected(event: Event): Promise<void> {
   <title>{t('nav.editor')} - {t('app.title')}</title>
 </svelte:head>
 
+<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
+
 <!-- Hidden file input for floor plan upload -->
 <input
   bind:this={fileInput}
@@ -960,7 +1126,7 @@ async function handleFileSelected(event: Event): Promise<void> {
   />
 {/if}
 
-<div class="editor-container" bind:clientWidth={containerWidth} bind:clientHeight={containerHeight}>
+<div class="editor-container" bind:clientWidth={containerWidth} bind:clientHeight={containerHeight} style:cursor={canvasCursor}>
   {#if floor}
     <FloorplanEditor
       width={containerWidth}
@@ -1030,10 +1196,10 @@ async function handleFileSelected(event: Event): Promise<void> {
           {/each}
         {/if}
 
-        <!-- Wall drawing layer (active when wall tool is selected) -->
+        <!-- Wall drawing layer (active when wall/door/window tool is selected) -->
         <WallDrawingLayer
           bind:this={wallDrawingLayer}
-          active={canvasStore.activeTool === 'wall'}
+          active={canvasStore.activeTool === 'wall' || canvasStore.activeTool === 'door' || canvasStore.activeTool === 'window'}
           {scalePxPerMeter}
           stageScale={canvasStore.scale}
           snapTargets={wallSnapTargets}
@@ -1042,6 +1208,18 @@ async function handleFileSelected(event: Event): Promise<void> {
           {mousePosition}
           onWallCreated={handleWallCreated}
         />
+
+        <!-- Text annotations (room labels) -->
+        {#each annotations as annotation (annotation.id)}
+          <TextAnnotation
+            {annotation}
+            {scalePxPerMeter}
+            selected={canvasStore.isSelected(annotation.id)}
+            onSelect={(id) => canvasStore.selectItem(id)}
+            onPositionChange={handleAnnotationPositionChange}
+            onEdit={handleAnnotationEdit}
+          />
+        {/each}
 
         <!-- Placement hint markers (visible when heatmap is active) -->
         {#if editorHeatmapStore.visible && placementHints.length > 0}
@@ -1057,6 +1235,7 @@ async function handleFileSelected(event: Event): Promise<void> {
             startPoint={measureStart}
             endPoint={measureEnd}
             {scalePxPerMeter}
+            {mousePosition}
           />
         {/if}
 
@@ -1099,6 +1278,19 @@ async function handleFileSelected(event: Event): Promise<void> {
           </svg>
           {t('editor.rotateFloorplan')}
         </button>
+        <div class="rotation-input-group">
+          <input
+            type="number"
+            class="rotation-input"
+            min="0"
+            max="359"
+            step="1"
+            value={floorRotation}
+            onchange={(e) => handleSetRotation(parseInt((e.target as HTMLInputElement).value, 10) || 0)}
+            title={t('editor.rotationDegrees')}
+          />
+          <span class="rotation-suffix">&deg;</span>
+        </div>
       </div>
     {/if}
 
@@ -1132,6 +1324,33 @@ async function handleFileSelected(event: Event): Promise<void> {
             <button class="btn-primary" onclick={confirmScale}>{t('editor.setScale')}</button>
             <button class="btn-secondary" onclick={cancelScaleSetting}>{t('project.cancel')}</button>
           </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Text annotation input -->
+    {#if textInputPosition}
+      <div class="text-annotation-input" style="left: 50%; top: 50%; transform: translate(-50%, -50%);">
+        <input
+          type="text"
+          class="annotation-input"
+          bind:value={textInputValue}
+          placeholder={t('editor.annotationPlaceholder')}
+          autofocus
+          onkeydown={(e) => {
+            if (e.key === 'Enter') {
+              if (editingAnnotationId) confirmEditAnnotation();
+              else confirmTextAnnotation();
+            }
+            if (e.key === 'Escape') cancelTextAnnotation();
+          }}
+        />
+        <div class="annotation-actions">
+          <button class="btn-primary btn-sm" onclick={() => {
+            if (editingAnnotationId) confirmEditAnnotation();
+            else confirmTextAnnotation();
+          }}>{t('action.confirm')}</button>
+          <button class="btn-secondary btn-sm" onclick={cancelTextAnnotation}>{t('project.cancel')}</button>
         </div>
       </div>
     {/if}
@@ -1183,8 +1402,8 @@ async function handleFileSelected(event: Event): Promise<void> {
       </div>
     {/if}
 
-    <!-- Material Picker (visible when wall tool is active) -->
-    {#if canvasStore.activeTool === 'wall'}
+    <!-- Material Picker (visible when wall/door/window tool is active) -->
+    {#if canvasStore.activeTool === 'wall' || canvasStore.activeTool === 'door' || canvasStore.activeTool === 'window'}
       <div class="material-floating-panel">
         <MaterialPicker
           selectedMaterialId={canvasStore.selectedMaterialId}
@@ -1529,5 +1748,73 @@ async function handleFileSelected(event: Event): Promise<void> {
 
   .toast-close:hover {
     color: #fff;
+  }
+
+  .text-annotation-input {
+    position: absolute;
+    z-index: 50;
+    background: rgba(26, 26, 46, 0.95);
+    border: 1px solid rgba(74, 108, 247, 0.4);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+  }
+
+  .annotation-input {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: #e0e0f0;
+    font-size: 0.9rem;
+    font-family: inherit;
+    min-width: 200px;
+  }
+
+  .annotation-input:focus {
+    outline: none;
+    border-color: rgba(74, 108, 247, 0.5);
+  }
+
+  .annotation-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+
+  .rotation-input-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .rotation-input {
+    width: 48px;
+    padding: 4px 6px;
+    background: rgba(26, 26, 46, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    color: #e0e0f0;
+    font-size: 0.75rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: center;
+  }
+
+  .rotation-input:focus {
+    outline: none;
+    border-color: rgba(74, 108, 247, 0.5);
+  }
+
+  .rotation-suffix {
+    font-size: 0.75rem;
+    color: #a0a0b0;
   }
 </style>

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-02",
-  "currentPhase": "functional-audit-fixes",
+  "currentPhase": "editor-overhaul-complete",
   "phases": {
     "0": { "name": "Autonomie-Recherche", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
     "1": { "name": "Projektsetup", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
@@ -71,6 +71,27 @@
         "15-6": { "name": "Wand-Bearbeitung", "status": "completed", "auditResult": "PASSED - Draggable Endpoints im Select-Modus" },
         "15-7": { "name": "Mess-Tool", "status": "completed", "auditResult": "PASSED - 2-Punkt-Messung mit Distanz-Anzeige" },
         "15-8": { "name": "Ctrl+S Save-Handler", "status": "completed", "auditResult": "PASSED - projectStore.saveCurrentProject() aufgerufen" }
+      }
+    },
+    "16": {
+      "name": "Editor-Grundueberarbeitung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-02",
+      "auditResult": "PASSED - 11 von 12 Bloecken implementiert, Build 0 Errors, svelte-check 0 Errors",
+      "subtasks": {
+        "16-1": { "name": "AP-Editing reparieren", "status": "completed", "auditResult": "PASSED - $effect nur bei AP-ID-Wechsel, dragDistance=3" },
+        "16-2": { "name": "Scale-Persistenz", "status": "completed", "auditResult": "PASSED - Bild-Dimensionen statt Viewport fuer pxPerMeter" },
+        "16-3": { "name": "Freie Rotation", "status": "completed", "auditResult": "PASSED - Trigonometrische Bounding Box statt 90°-Switch" },
+        "16-4": { "name": "Cursor/Crosshair pro Werkzeug", "status": "completed", "auditResult": "PASSED - Tool-abhaengiger Cursor" },
+        "16-5": { "name": "StatusBar Integration", "status": "completed", "auditResult": "PASSED - Bereits in Layout.svelte integriert" },
+        "16-6": { "name": "Laengenanzeige beim Zeichnen", "status": "completed", "auditResult": "PASSED - Live-Segment + Gesamtlaenge" },
+        "16-7": { "name": "Winkel-/Grid-Snapping", "status": "completed", "auditResult": "PASSED - Shift=Winkel, Grid-Snap, Endpoint-Snap" },
+        "16-8": { "name": "Tueren und Fenster", "status": "completed", "auditResult": "PASSED - 4 neue Materialien, Tool-Buttons, visuelles Rendering" },
+        "16-9": { "name": "Raum-Labels/Text-Annotationen", "status": "completed", "auditResult": "PASSED - TextAnnotation.svelte, localStorage-Persistenz" },
+        "16-10": { "name": "Erweiterte Messwerkzeuge", "status": "completed", "auditResult": "PASSED - Live-Preview, Tick-Marks, Winkelanzeige" },
+        "16-11": { "name": "Undo/Redo-Buttons", "status": "completed", "auditResult": "PASSED - Toolbar-Buttons mit canUndo/canRedo" },
+        "16-12": { "name": "Konstruktionslinien", "status": "deferred", "auditResult": "DEFERRED - Niedrige Prioritaet, Grid-Snapping reicht fuer MVP" }
       }
     }
   },

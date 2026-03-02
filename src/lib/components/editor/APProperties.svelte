@@ -44,17 +44,21 @@
   let channel5 = $state(0);
   let channelWidth = $state('20');
 
-  // Sync state from props
+  // Sync state from props only when a different AP is selected (not on every prop change)
+  let lastSyncedApId = $state('');
   $effect(() => {
-    labelValue = accessPoint.label ?? '';
-    txPower24 = accessPoint.tx_power_24ghz_dbm ?? 17;
-    txPower5 = accessPoint.tx_power_5ghz_dbm ?? 20;
-    enabled = accessPoint.enabled;
-    mounting = accessPoint.mounting ?? 'ceiling';
-    heightM = accessPoint.height_m ?? 2.5;
-    channel24 = accessPoint.channel_24ghz ?? 0;
-    channel5 = accessPoint.channel_5ghz ?? 0;
-    channelWidth = accessPoint.channel_width ?? '20';
+    if (accessPoint.id !== lastSyncedApId) {
+      lastSyncedApId = accessPoint.id;
+      labelValue = accessPoint.label ?? '';
+      txPower24 = accessPoint.tx_power_24ghz_dbm ?? 17;
+      txPower5 = accessPoint.tx_power_5ghz_dbm ?? 20;
+      enabled = accessPoint.enabled;
+      mounting = accessPoint.mounting ?? 'ceiling';
+      heightM = accessPoint.height_m ?? 2.5;
+      channel24 = accessPoint.channel_24ghz ?? 0;
+      channel5 = accessPoint.channel_5ghz ?? 0;
+      channelWidth = accessPoint.channel_width ?? '20';
+    }
   });
 
   function handleLabelChange(): void {

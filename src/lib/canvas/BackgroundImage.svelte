@@ -3,7 +3,7 @@
 
   Loads image data (Base64 or Blob URL) and renders as a Konva.Image
   on the Background layer. Non-interactive.
-  Supports rotation in 90-degree increments (0, 90, 180, 270).
+  Supports arbitrary rotation angles (0-359 degrees).
 -->
 <script lang="ts">
   import { Image as KonvaImage } from 'svelte-konva';
@@ -15,7 +15,7 @@
     scalePxPerMeter: number;
     /** Optional opacity for the background image */
     opacity?: number;
-    /** Rotation in degrees (0, 90, 180, 270). Default: 0 */
+    /** Rotation in degrees (0-359). Default: 0 */
     rotation?: number;
   }
 
@@ -57,6 +57,7 @@
   });
 
   // Calculate offset to keep the image properly positioned after rotation.
+  // Supports arbitrary angles via trigonometric bounding box calculation.
   // Konva rotates around the (x, y) point by default, so we use offset
   // to rotate around the image center and then reposition.
   let offsetConfig = $derived.by(() => {
@@ -64,20 +65,32 @@
 
     const w = imageElement.naturalWidth;
     const h = imageElement.naturalHeight;
-    const r = rotation % 360;
+    const r = ((rotation % 360) + 360) % 360;
 
-    // We rotate around the center of the image using offset,
-    // then adjust x/y so the top-left corner lands at (0, 0).
-    switch (r) {
-      case 90:
-        return { x: h, y: 0, offsetX: 0, offsetY: 0 };
-      case 180:
-        return { x: w, y: h, offsetX: 0, offsetY: 0 };
-      case 270:
-        return { x: 0, y: w, offsetX: 0, offsetY: 0 };
-      default:
-        return { x: 0, y: 0, offsetX: 0, offsetY: 0 };
-    }
+    if (r === 0) return { x: 0, y: 0, offsetX: 0, offsetY: 0 };
+
+    // Rotate around the image center, then shift so bounding box starts at (0,0)
+    const cx = w / 2;
+    const cy = h / 2;
+    const rad = (r * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+
+    // Compute all four corners after rotation around center
+    const corners = [
+      { x: -cx, y: -cy },
+      { x: w - cx, y: -cy },
+      { x: w - cx, y: h - cy },
+      { x: -cx, y: h - cy },
+    ].map((c) => ({
+      x: c.x * cos - c.y * sin + cx,
+      y: c.x * sin + c.y * cos + cy,
+    }));
+
+    const minX = Math.min(...corners.map((c) => c.x));
+    const minY = Math.min(...corners.map((c) => c.y));
+
+    return { x: -minX, y: -minY, offsetX: 0, offsetY: 0 };
   });
 </script>
 

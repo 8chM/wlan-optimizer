@@ -7,7 +7,7 @@
 
 // ─── Types ──────────────────────────────────────────────────────
 
-export type EditorTool = 'select' | 'wall' | 'ap' | 'measure';
+export type EditorTool = 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text';
 
 export interface CanvasState {
   readonly scale: number;
@@ -37,6 +37,8 @@ function createCanvasStore() {
   let settingScale = $state(false);
   let mouseXMeters = $state<number | null>(null);
   let mouseYMeters = $state<number | null>(null);
+  let snapToGridEnabled = $state(true);
+  let shiftHeld = $state(false);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -53,6 +55,8 @@ function createCanvasStore() {
     get settingScale() { return settingScale; },
     get mouseXMeters() { return mouseXMeters; },
     get mouseYMeters() { return mouseYMeters; },
+    get snapToGridEnabled() { return snapToGridEnabled; },
+    get shiftHeld() { return shiftHeld; },
 
     get zoomPercent(): number {
       return scale * 100;
@@ -124,6 +128,14 @@ function createCanvasStore() {
       mouseYMeters = yM;
     },
 
+    toggleSnapToGrid(): void {
+      snapToGridEnabled = !snapToGridEnabled;
+    },
+
+    setShiftHeld(v: boolean): void {
+      shiftHeld = v;
+    },
+
     toggleSidebar(): void {
       sidebarCollapsed = !sidebarCollapsed;
     },
@@ -154,6 +166,8 @@ function createCanvasStore() {
       settingScale = false;
       mouseXMeters = null;
       mouseYMeters = null;
+      snapToGridEnabled = true;
+      shiftHeld = false;
     },
   };
 }

@@ -35,8 +35,11 @@
   "toolbar": {
     "select": "Select",
     "wall": "Wall",
+    "door": "Door",
+    "window": "Window",
     "ap": "Access Point",
     "measure": "Measure",
+    "text": "Text",
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out",
     "fitToScreen": "Fit to Screen",
@@ -106,7 +109,9 @@
     "replaceFloorplan": "Replace Floor Plan",
     "setScaleFirst": "Please set the scale first.",
     "measureDistance": "Distance",
-    "rotateFloorplan": "Rotate 90°",
+    "rotateFloorplan": "Rotate 90\u00B0",
+    "rotationDegrees": "Rotation (degrees)",
+    "annotationPlaceholder": "Room name...",
     "uploadFailed": "Failed to upload floor plan. Please try again."
   },
   "material": {
@@ -121,6 +126,8 @@
     "concrete": "Concrete",
     "reinforcedConcrete": "Reinforced Concrete",
     "metalDoor": "Metal Door",
+    "glassDoor": "Glass Door",
+    "window": "Window",
     "elevator": "Elevator Shaft",
     "attenuation": "Attenuation"
   },
@@ -191,8 +198,11 @@
     "save": "Save project",
     "deselect": "Deselect / Cancel tool",
     "wallTool": "Wall tool",
+    "doorTool": "Door tool",
+    "windowTool": "Window tool",
     "apTool": "Access Point tool",
     "measureTool": "Measure tool",
+    "textTool": "Text annotation tool",
     "selectTool": "Select tool",
     "gridToggle": "Toggle grid",
     "heatmapToggle": "Toggle heatmap",

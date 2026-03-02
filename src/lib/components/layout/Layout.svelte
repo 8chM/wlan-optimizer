@@ -14,7 +14,7 @@ import Toolbar from './Toolbar.svelte';
 import Sidebar from './Sidebar.svelte';
 import StatusBar from './StatusBar.svelte';
 
-type EditorTool = 'select' | 'wall' | 'ap' | 'measure';
+type EditorTool = 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text';
 
 interface LayoutProps {
   children: Snippet;
@@ -45,6 +45,10 @@ interface LayoutProps {
   onFitToScreen?: () => void;
   onToggleGrid?: () => void;
   onSetScale?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
   settingScale?: boolean;
 }
 
@@ -68,6 +72,10 @@ let {
   onFitToScreen,
   onToggleGrid,
   onSetScale,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
   settingScale = false,
 }: LayoutProps = $props();
 
@@ -88,6 +96,10 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
       {onFitToScreen}
       {onToggleGrid}
       {onSetScale}
+      {onUndo}
+      {onRedo}
+      {canUndo}
+      {canRedo}
     >
       {#if toolbarExtra}
         {@render toolbarExtra()}

@@ -166,6 +166,37 @@ export function pointToSegmentDistance(
 }
 
 /**
+ * Snaps a point to the nearest grid intersection.
+ */
+export function snapToGrid(point: Position, gridSizePx: number): Position {
+  return {
+    x: Math.round(point.x / gridSizePx) * gridSizePx,
+    y: Math.round(point.y / gridSizePx) * gridSizePx,
+  };
+}
+
+/**
+ * Snaps the line from origin to target to the nearest angle increment.
+ * Default: 45-degree increments (0, 45, 90, 135, 180, 225, 270, 315).
+ */
+export function snapToAngle(
+  origin: Position,
+  target: Position,
+  snapDegrees: number = 45,
+): Position {
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  const angle = Math.atan2(dy, dx);
+  const snapRad = (snapDegrees * Math.PI) / 180;
+  const snappedAngle = Math.round(angle / snapRad) * snapRad;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  return {
+    x: origin.x + dist * Math.cos(snappedAngle),
+    y: origin.y + dist * Math.sin(snappedAngle),
+  };
+}
+
+/**
  * Extracts all unique endpoints from wall segment data.
  * Useful for snap targets.
  */

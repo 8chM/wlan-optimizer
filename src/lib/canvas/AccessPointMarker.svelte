@@ -98,6 +98,7 @@
   x={posX}
   y={posY}
   draggable={draggable && enabled}
+  dragDistance={3}
   opacity={enabled ? 1 : 0.4}
   onclick={handleClick}
   ondragend={handleDragEnd}

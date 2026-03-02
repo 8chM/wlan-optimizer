@@ -9,7 +9,7 @@ import { t } from '$lib/i18n';
 import { themeStore } from '$lib/stores/themeStore.svelte';
 import type { Snippet } from 'svelte';
 
-type EditorTool = 'select' | 'wall' | 'ap' | 'measure';
+type EditorTool = 'select' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text';
 
 interface ToolbarProps {
   activeTool?: EditorTool;
@@ -21,6 +21,10 @@ interface ToolbarProps {
   onFitToScreen?: () => void;
   onToggleGrid?: () => void;
   onSetScale?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
   gridVisible?: boolean;
   settingScale?: boolean;
   children?: Snippet;
@@ -36,16 +40,23 @@ let {
   onFitToScreen,
   onToggleGrid,
   onSetScale,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
   gridVisible = true,
   settingScale = false,
   children,
 }: ToolbarProps = $props();
 
 const tools: Array<{ id: EditorTool; label: string; icon: string; shortcut: string }> = [
-  { id: 'select', label: 'toolbar.select', icon: '⊹', shortcut: 'S' },
-  { id: 'wall', label: 'toolbar.wall', icon: '▬', shortcut: 'W' },
-  { id: 'ap', label: 'toolbar.ap', icon: '◉', shortcut: 'A' },
-  { id: 'measure', label: 'toolbar.measure', icon: '⊞', shortcut: 'M' },
+  { id: 'select', label: 'toolbar.select', icon: '\u22B9', shortcut: 'S' },
+  { id: 'wall', label: 'toolbar.wall', icon: '\u25AC', shortcut: 'W' },
+  { id: 'door', label: 'toolbar.door', icon: '\uD83D\uDEAA', shortcut: 'D' },
+  { id: 'window', label: 'toolbar.window', icon: '\u25A1', shortcut: 'F' },
+  { id: 'ap', label: 'toolbar.ap', icon: '\u25C9', shortcut: 'A' },
+  { id: 'measure', label: 'toolbar.measure', icon: '\u229E', shortcut: 'M' },
+  { id: 'text', label: 'toolbar.text', icon: 'T', shortcut: 'T' },
 ];
 
 function selectTool(tool: EditorTool): void {
@@ -104,6 +115,27 @@ let themeLabel = $derived(
         </button>
         <button class="tool-btn" onclick={onFitToScreen} title={t('toolbar.fitToScreen')}>
           <span class="tool-icon">⊡</span>
+        </button>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="tool-group">
+        <button
+          class="tool-btn"
+          onclick={onUndo}
+          disabled={!canUndo}
+          title="{t('action.undo')} (\u2318Z)"
+        >
+          <span class="tool-icon">\u21A9</span>
+        </button>
+        <button
+          class="tool-btn"
+          onclick={onRedo}
+          disabled={!canRedo}
+          title="{t('action.redo')} (\u21E7\u2318Z)"
+        >
+          <span class="tool-icon">\u21AA</span>
         </button>
       </div>
 
@@ -235,6 +267,16 @@ let themeLabel = $derived(
     background: var(--accent-light, #e8ecff);
     border-color: var(--accent, #4a6cf7);
     color: var(--accent, #4a6cf7);
+  }
+
+  .tool-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .tool-btn:disabled:hover {
+    background: transparent;
+    border-color: transparent;
   }
 
   .tool-icon {

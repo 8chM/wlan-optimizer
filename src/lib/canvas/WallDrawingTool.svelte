@@ -44,9 +44,18 @@
     onSegmentsUpdate,
   }: WallDrawingToolProps = $props();
 
-  // Material-based styling using category
-  let strokeColor = $derived(getStrokeColor(materialCategory));
-  let strokeWidth = $derived(selected ? 5 : 3);
+  // Detect door/window material for special rendering
+  let isDoor = $derived(wall.material_id?.startsWith('mat-') && (wall.material_id === 'mat-wood-door' || wall.material_id === 'mat-metal-door' || wall.material_id === 'mat-glass-door'));
+  let isWindow = $derived(wall.material_id === 'mat-window');
+
+  // Material-based styling using category (with door/window overrides)
+  let strokeColor = $derived(
+    isDoor ? (wall.material_id === 'mat-metal-door' ? '#5a5a6a' : '#8B6914')
+    : isWindow ? '#64B5F6'
+    : getStrokeColor(materialCategory)
+  );
+  let strokeWidth = $derived(selected ? 5 : isDoor || isWindow ? 4 : 3);
+  let strokeDash = $derived(isDoor ? [6, 4] : isWindow ? [2, 3] : []);
 
   // Convert wall segments to a flat array of points in pixels
   // Use .slice() to avoid mutating the original array with .sort()
@@ -156,6 +165,7 @@
       points={deduplicatedPoints}
       stroke={selected ? '#4a6cf7' : strokeColor}
       {strokeWidth}
+      dash={strokeDash}
       lineCap="round"
       lineJoin="round"
       hitStrokeWidth={20}

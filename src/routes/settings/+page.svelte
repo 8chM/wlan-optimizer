@@ -8,61 +8,61 @@
   - themeStore for theme preference
 -->
 <script lang="ts">
-  import { t, setLocale, getLocale, type Locale } from '$lib/i18n';
-  import { settingsStore } from '$lib/stores/settingsStore.svelte';
-  import { themeStore, type ThemePreference } from '$lib/stores/themeStore.svelte';
-  import Layout from '$lib/components/layout/Layout.svelte';
+import Layout from '$lib/components/layout/Layout.svelte';
+import { t, type Locale, getLocale, setLocale } from '$lib/i18n';
+import { settingsStore } from '$lib/stores/settingsStore.svelte';
+import { type ThemePreference, themeStore } from '$lib/stores/themeStore.svelte';
 
-  // ─── Load Settings on Mount ─────────────────────────────────────
+// ─── Load Settings on Mount ─────────────────────────────────────
 
-  $effect(() => {
-    if (!settingsStore.initialized) {
-      settingsStore.loadSettings();
-    }
-  });
-
-  // ─── Local State (bound to form controls) ──────────────────────
-
-  let currentLocale = $derived(getLocale());
-  let currentTheme = $derived(themeStore.theme);
-  let colorScheme = $derived(settingsStore.defaultColorScheme);
-  let gridResolution = $derived(settingsStore.defaultGridResolutionM);
-  let iperfIp = $derived(settingsStore.iperfServerIp ?? '');
-  let iperfPort = $derived(settingsStore.iperfServerPort);
-
-  // ─── Handlers ──────────────────────────────────────────────────
-
-  function handleLocaleChange(locale: Locale): void {
-    setLocale(locale);
-    settingsStore.updateSetting('locale', locale);
+$effect(() => {
+  if (!settingsStore.initialized) {
+    settingsStore.loadSettings();
   }
+});
 
-  function handleThemeChange(theme: ThemePreference): void {
-    themeStore.setTheme(theme);
-    settingsStore.updateSetting('theme', theme);
-  }
+// ─── Local State (bound to form controls) ──────────────────────
 
-  function handleColorSchemeChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    settingsStore.updateSetting('default_color_scheme', value);
-  }
+let currentLocale = $derived(getLocale());
+let currentTheme = $derived(themeStore.theme);
+let colorScheme = $derived(settingsStore.defaultColorScheme);
+let gridResolution = $derived(settingsStore.defaultGridResolutionM);
+let iperfIp = $derived(settingsStore.iperfServerIp ?? '');
+let iperfPort = $derived(settingsStore.iperfServerPort);
 
-  function handleGridResolutionChange(event: Event): void {
-    const value = parseFloat((event.target as HTMLInputElement).value);
-    settingsStore.updateSetting('default_grid_resolution_m', value);
-  }
+// ─── Handlers ──────────────────────────────────────────────────
 
-  function handleIperfIpChange(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    settingsStore.updateSetting('iperf_server_ip', value || null);
-  }
+function handleLocaleChange(locale: Locale): void {
+  setLocale(locale);
+  settingsStore.updateSetting('locale', locale);
+}
 
-  function handleIperfPortChange(event: Event): void {
-    const value = parseInt((event.target as HTMLInputElement).value, 10);
-    if (!isNaN(value) && value > 0 && value <= 65535) {
-      settingsStore.updateSetting('iperf_server_port', value);
-    }
+function handleThemeChange(theme: ThemePreference): void {
+  themeStore.setTheme(theme);
+  settingsStore.updateSetting('theme', theme);
+}
+
+function handleColorSchemeChange(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  settingsStore.updateSetting('default_color_scheme', value);
+}
+
+function handleGridResolutionChange(event: Event): void {
+  const value = Number.parseFloat((event.target as HTMLInputElement).value);
+  settingsStore.updateSetting('default_grid_resolution_m', value);
+}
+
+function handleIperfIpChange(event: Event): void {
+  const value = (event.target as HTMLInputElement).value;
+  settingsStore.updateSetting('iperf_server_ip', value || null);
+}
+
+function handleIperfPortChange(event: Event): void {
+  const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
+  if (!isNaN(value) && value > 0 && value <= 65535) {
+    settingsStore.updateSetting('iperf_server_port', value);
   }
+}
 </script>
 
 <svelte:head>
@@ -241,7 +241,7 @@
   .settings-page {
     height: 100%;
     overflow-y: auto;
-    background: #16162e;
+    background: var(--bg-primary, #16162e);
   }
 
   .settings-container {
@@ -254,7 +254,7 @@
     margin: 0 0 24px;
     font-size: 1.3rem;
     font-weight: 700;
-    color: #e0e0f0;
+    color: var(--text-primary, #e0e0f0);
   }
 
   /* ── Save Indicator ──────────────────────────────────────── */
@@ -278,7 +278,7 @@
   .settings-section {
     margin-bottom: 28px;
     padding-bottom: 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   }
 
   .settings-section:last-of-type {
@@ -290,7 +290,7 @@
     margin: 0 0 14px;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #e0e0f0;
+    color: var(--text-primary, #e0e0f0);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }

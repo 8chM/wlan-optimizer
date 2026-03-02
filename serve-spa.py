@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple SPA server with fallback to index.html for client-side routing."""
+"""Simple SPA server with fallback to index.html and cache-control headers."""
 
 import http.server
 import os
@@ -12,13 +12,23 @@ class SPAHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=BUILD_DIR, **kwargs)
 
     def do_GET(self):
-        # Try to serve the file directly
         path = self.translate_path(self.path)
         if os.path.isfile(path):
             return super().do_GET()
         # Fallback to index.html for SPA routing
         self.path = "/index.html"
         return super().do_GET()
+
+    def end_headers(self):
+        # Immutable hashed assets can be cached forever
+        if "/_app/immutable/" in self.path:
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        else:
+            # HTML and other files: never cache
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+        super().end_headers()
 
 
 if __name__ == "__main__":

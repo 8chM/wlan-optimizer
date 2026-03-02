@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
-  "lastUpdated": "2026-02-27",
-  "currentPhase": 14,
+  "lastUpdated": "2026-03-02",
+  "currentPhase": 15,
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -127,6 +127,23 @@
         "14a": { "name": "AP Placement Hints", "status": "completed", "notes": "placement-hints.ts (BFS flood-fill, centroid), PlacementHintMarker (Konva). 11 Tests." },
         "14b": { "name": "Code Quality & Finalisierung", "status": "completed", "notes": "svelte-check 0 errors, npm run build OK. 575/576 Tests pass (1 flaky perf test pre-existing)." }
       }
+    },
+    "15": {
+      "name": "UI-Funktionalitaet vervollstaendigen",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-02",
+      "subtasks": {
+        "15-1": { "name": "PropertiesPanel verdrahten", "status": "completed", "notes": "Materials laden, Wall-Callbacks (update/delete), AP-Callbacks (update/delete), wall.ts + accessPoint.ts API erweitert (attenuation overrides, mounting, channels, height)." },
+        "15-2": { "name": "AP-Einstellungen erweitern", "status": "completed", "notes": "APProperties: Montage-Typ (ceiling/wall), Hoehe, Channel 2.4/5 GHz, Kanalbreite. Alle Felder an IPC durchgereicht." },
+        "15-3": { "name": "Grid vor Grundriss", "status": "completed", "notes": "Render-Reihenfolge: BackgroundImage vor GridOverlay, Grid liegt nun ueber dem Bild." },
+        "15-4": { "name": "Grundriss austauschen", "status": "completed", "notes": "Upload-Button immer sichtbar: 'Grundriss hochladen' wenn leer, 'Grundriss austauschen' wenn Bild vorhanden." },
+        "15-5": { "name": "Massstab setzen", "status": "completed", "notes": "Toolbar-Button 'Massstab', 2-Punkt-Klick auf Canvas, Dialog fuer Distanz-Eingabe, set_floor_scale IPC. ScaleIndicator zeigt Punkte+Linie. ESC zum Abbrechen." },
+        "15-6": { "name": "Wand-Bearbeitung", "status": "completed", "notes": "WallDrawingTool: Endpunkte als draggable Circles wenn selektiert + Select-Tool aktiv. DragEnd aktualisiert Segmente via updateWall API." },
+        "15-7": { "name": "Mess-Tool", "status": "completed", "notes": "MeasureLayer.svelte: 2-Punkt-Klick, gestrichelte Linie + Distanz-Label (Konva), Entfernung in Metern. Floating-Anzeige ueber Canvas." },
+        "15-8": { "name": "Ctrl+S Save-Handler", "status": "completed", "notes": "Bereits implementiert in Phase 8f (projectStore.saveCurrentProject)." }
+      },
+      "notes": "8 Bloecke: PropertiesPanel verdrahtet, AP-Einstellungen erweitert (Montage/Hoehe/Channels), Grid-Reihenfolge gefixt, Grundriss austauschbar, Massstab-Kalibrierung, Wand-Endpunkte editierbar, Mess-Tool funktional. Build OK, svelte-check 0 errors, 575/576 Tests pass. 22 Dateien geaendert, 1 neue Komponente (MeasureLayer.svelte)."
     }
   },
   "blockers": [],

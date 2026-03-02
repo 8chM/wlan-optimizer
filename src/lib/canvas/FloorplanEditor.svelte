@@ -10,186 +10,212 @@
   Scale is clamped between MIN_SCALE and MAX_SCALE.
 -->
 <script lang="ts">
-  import { Stage, Layer } from 'svelte-konva';
-  import type Konva from 'konva';
-  import type { KonvaWheelEvent, KonvaDragTransformEvent } from 'svelte-konva';
-  import type { Snippet } from 'svelte';
+import { canvasStore } from '$lib/stores/canvasStore.svelte';
+import type Konva from 'konva';
+import type { Snippet } from 'svelte';
+import { Stage, Layer } from 'svelte-konva';
+import type { KonvaDragTransformEvent, KonvaMouseEvent, KonvaWheelEvent } from 'svelte-konva';
 
-  const MIN_SCALE = 0.1;
-  const MAX_SCALE = 10;
-  const ZOOM_FACTOR = 1.05;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 10;
+const ZOOM_FACTOR = 1.05;
 
-  // Props using Svelte 5 runes
-  interface FloorplanEditorProps {
-    /** Container width in pixels */
-    width?: number;
-    /** Container height in pixels */
-    height?: number;
-    /** Floorplan width in meters (for fitToScreen) */
-    floorplanWidthM?: number;
-    /** Floorplan height in meters (for fitToScreen) */
-    floorplanHeightM?: number;
-    /** Scale in pixels per meter */
-    scalePxPerMeter?: number;
-    /** Whether panning via drag is enabled */
-    draggable?: boolean;
-    /** Snippet for background layer content */
-    background?: Snippet;
-    /** Snippet for heatmap layer content */
-    heatmap?: Snippet;
-    /** Snippet for UI layer content */
-    ui?: Snippet;
+// Props using Svelte 5 runes
+interface FloorplanEditorProps {
+  /** Container width in pixels */
+  width?: number;
+  /** Container height in pixels */
+  height?: number;
+  /** Floorplan width in meters (for fitToScreen) */
+  floorplanWidthM?: number;
+  /** Floorplan height in meters (for fitToScreen) */
+  floorplanHeightM?: number;
+  /** Scale in pixels per meter */
+  scalePxPerMeter?: number;
+  /** Whether panning via drag is enabled */
+  draggable?: boolean;
+  /** Snippet for background layer content */
+  background?: Snippet;
+  /** Snippet for heatmap layer content */
+  heatmap?: Snippet;
+  /** Snippet for UI layer content */
+  ui?: Snippet;
+  /** Callback when canvas is clicked (for wall/AP placement) */
+  onCanvasClick?: (canvasX: number, canvasY: number) => void;
+  /** Callback when canvas is double-clicked */
+  onCanvasDblClick?: (canvasX: number, canvasY: number) => void;
+  /** Callback when mouse moves on canvas */
+  onCanvasMouseMove?: (canvasX: number, canvasY: number) => void;
+}
+
+let {
+  width = $bindable(800),
+  height = $bindable(600),
+  floorplanWidthM = 10,
+  floorplanHeightM = 10,
+  scalePxPerMeter = 50,
+  draggable = true,
+  background,
+  heatmap,
+  ui,
+  onCanvasClick,
+  onCanvasDblClick,
+  onCanvasMouseMove,
+}: FloorplanEditorProps = $props();
+
+// We obtain the stage reference from the first event that fires
+let stageNode: Konva.Stage | null = null;
+
+function captureStageRef(event: { target: Konva.Node }): void {
+  if (!stageNode) {
+    stageNode = event.target.getStage();
   }
+}
 
-  let {
-    width = $bindable(800),
-    height = $bindable(600),
-    floorplanWidthM = 10,
-    floorplanHeightM = 10,
-    scalePxPerMeter = 50,
-    draggable = true,
-    background,
-    heatmap,
-    ui,
-  }: FloorplanEditorProps = $props();
+/**
+ * Convert screen pointer coordinates to canvas (content) coordinates.
+ */
+function pointerToCanvas(stage: Konva.Stage): { x: number; y: number } | null {
+  const pointer = stage.getPointerPosition();
+  if (!pointer) return null;
+  const scale = canvasStore.scale;
+  return {
+    x: (pointer.x - canvasStore.offsetX) / scale,
+    y: (pointer.y - canvasStore.offsetY) / scale,
+  };
+}
 
-  // Reactive stage configuration
-  let stageScale = $state(1);
-  let stageX = $state(0);
-  let stageY = $state(0);
+/**
+ * Handles mouse wheel events for pointer-relative zoom.
+ */
+export function handleWheel(event: KonvaWheelEvent): void {
+  event.evt.preventDefault();
+  captureStageRef(event);
 
-  // We obtain the stage reference from the first event that fires
-  let stageNode: Konva.Stage | null = null;
+  const stage = stageNode;
+  if (!stage) return;
 
-  function captureStageRef(event: { target: Konva.Node }): void {
-    if (!stageNode) {
-      stageNode = event.target.getStage();
-    }
+  const oldScale = canvasStore.scale;
+  const pointer = stage.getPointerPosition();
+  if (!pointer) return;
+
+  const direction = event.evt.deltaY > 0 ? -1 : 1;
+  const newScale = clampScale(direction > 0 ? oldScale * ZOOM_FACTOR : oldScale / ZOOM_FACTOR);
+
+  const mousePointTo = {
+    x: (pointer.x - canvasStore.offsetX) / oldScale,
+    y: (pointer.y - canvasStore.offsetY) / oldScale,
+  };
+
+  canvasStore.setScale(newScale);
+  canvasStore.setOffset(
+    pointer.x - mousePointTo.x * newScale,
+    pointer.y - mousePointTo.y * newScale,
+  );
+}
+
+/**
+ * Fits the floorplan to fill the visible stage area with some padding.
+ */
+export function fitToScreen(padding = 40): void {
+  const effectiveWidth = floorplanWidthM * scalePxPerMeter;
+  const effectiveHeight = floorplanHeightM * scalePxPerMeter;
+
+  if (effectiveWidth <= 0 || effectiveHeight <= 0) return;
+
+  const availableWidth = width - padding * 2;
+  const availableHeight = height - padding * 2;
+
+  const scaleX = availableWidth / effectiveWidth;
+  const scaleY = availableHeight / effectiveHeight;
+  const newScale = clampScale(Math.min(scaleX, scaleY));
+
+  const scaledWidth = effectiveWidth * newScale;
+  const scaledHeight = effectiveHeight * newScale;
+
+  canvasStore.setScale(newScale);
+  canvasStore.setOffset((width - scaledWidth) / 2, (height - scaledHeight) / 2);
+}
+
+/**
+ * Zooms to a specific scale level, centered on the stage.
+ */
+export function zoomTo(targetScale: number): void {
+  const newScale = clampScale(targetScale);
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  const mousePointTo = {
+    x: (centerX - canvasStore.offsetX) / canvasStore.scale,
+    y: (centerY - canvasStore.offsetY) / canvasStore.scale,
+  };
+
+  canvasStore.setScale(newScale);
+  canvasStore.setOffset(centerX - mousePointTo.x * newScale, centerY - mousePointTo.y * newScale);
+}
+
+export function getScale(): number {
+  return canvasStore.scale;
+}
+
+export function getPosition(): { x: number; y: number } {
+  return { x: canvasStore.offsetX, y: canvasStore.offsetY };
+}
+
+function clampScale(value: number): number {
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
+}
+
+function handleDragEnd(event: KonvaDragTransformEvent): void {
+  captureStageRef(event);
+  const target = event.target;
+  const stage = target.getStage();
+  if (target === stage) {
+    canvasStore.setOffset(target.x(), target.y());
   }
+}
 
-  /**
-   * Handles mouse wheel events for pointer-relative zoom.
-   * Zooms toward the current pointer position so that the point
-   * under the cursor stays fixed on screen.
-   */
-  export function handleWheel(event: KonvaWheelEvent): void {
-    event.evt.preventDefault();
-    captureStageRef(event);
+function handleStageClick(event: KonvaMouseEvent): void {
+  captureStageRef(event);
+  // Only handle clicks on the stage itself (not on child shapes)
+  if (event.target !== event.target.getStage()) return;
+  const stage = stageNode;
+  if (!stage) return;
+  const pos = pointerToCanvas(stage);
+  if (pos) onCanvasClick?.(pos.x, pos.y);
+}
 
-    const stage = stageNode;
-    if (!stage) return;
+function handleStageDblClick(event: KonvaMouseEvent): void {
+  captureStageRef(event);
+  if (event.target !== event.target.getStage()) return;
+  const stage = stageNode;
+  if (!stage) return;
+  const pos = pointerToCanvas(stage);
+  if (pos) onCanvasDblClick?.(pos.x, pos.y);
+}
 
-    const oldScale = stageScale;
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-
-    // Determine zoom direction
-    const direction = event.evt.deltaY > 0 ? -1 : 1;
-    const newScale = clampScale(
-      direction > 0 ? oldScale * ZOOM_FACTOR : oldScale / ZOOM_FACTOR
-    );
-
-    // Calculate new position to keep pointer fixed
-    const mousePointTo = {
-      x: (pointer.x - stageX) / oldScale,
-      y: (pointer.y - stageY) / oldScale,
-    };
-
-    stageScale = newScale;
-    stageX = pointer.x - mousePointTo.x * newScale;
-    stageY = pointer.y - mousePointTo.y * newScale;
-  }
-
-  /**
-   * Fits the floorplan to fill the visible stage area with some padding.
-   * Keeps aspect ratio and centers the result.
-   */
-  export function fitToScreen(padding = 40): void {
-    const effectiveWidth = floorplanWidthM * scalePxPerMeter;
-    const effectiveHeight = floorplanHeightM * scalePxPerMeter;
-
-    if (effectiveWidth <= 0 || effectiveHeight <= 0) return;
-
-    const availableWidth = width - padding * 2;
-    const availableHeight = height - padding * 2;
-
-    const scaleX = availableWidth / effectiveWidth;
-    const scaleY = availableHeight / effectiveHeight;
-    const newScale = clampScale(Math.min(scaleX, scaleY));
-
-    // Center the floorplan
-    const scaledWidth = effectiveWidth * newScale;
-    const scaledHeight = effectiveHeight * newScale;
-
-    stageScale = newScale;
-    stageX = (width - scaledWidth) / 2;
-    stageY = (height - scaledHeight) / 2;
-  }
-
-  /**
-   * Zooms to a specific scale level, centered on the stage.
-   */
-  export function zoomTo(targetScale: number): void {
-    const newScale = clampScale(targetScale);
-    const centerX = width / 2;
-    const centerY = height / 2;
-
-    const mousePointTo = {
-      x: (centerX - stageX) / stageScale,
-      y: (centerY - stageY) / stageScale,
-    };
-
-    stageScale = newScale;
-    stageX = centerX - mousePointTo.x * newScale;
-    stageY = centerY - mousePointTo.y * newScale;
-  }
-
-  /**
-   * Returns the current scale level (useful for LOD decisions).
-   */
-  export function getScale(): number {
-    return stageScale;
-  }
-
-  /**
-   * Returns the current viewport position.
-   */
-  export function getPosition(): { x: number; y: number } {
-    return { x: stageX, y: stageY };
-  }
-
-  /**
-   * Clamps a scale value between MIN_SCALE and MAX_SCALE.
-   */
-  function clampScale(value: number): number {
-    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
-  }
-
-  /**
-   * Handles drag end events to update position state.
-   */
-  function handleDragEnd(event: KonvaDragTransformEvent): void {
-    captureStageRef(event);
-    const target = event.target;
-    // Only update if it's the stage that was dragged (not a child node)
-    const stage = target.getStage();
-    if (target === stage) {
-      stageX = target.x();
-      stageY = target.y();
-    }
-  }
+function handleStageMouseMove(event: KonvaMouseEvent): void {
+  captureStageRef(event);
+  const stage = stageNode;
+  if (!stage) return;
+  const pos = pointerToCanvas(stage);
+  if (pos) onCanvasMouseMove?.(pos.x, pos.y);
+}
 </script>
 
 <Stage
   width={width}
   height={height}
-  scaleX={stageScale}
-  scaleY={stageScale}
-  x={stageX}
-  y={stageY}
+  scaleX={canvasStore.scale}
+  scaleY={canvasStore.scale}
+  x={canvasStore.offsetX}
+  y={canvasStore.offsetY}
   {draggable}
   onwheel={handleWheel}
   ondragend={handleDragEnd}
+  onclick={handleStageClick}
+  ondblclick={handleStageDblClick}
+  onmousemove={handleStageMouseMove}
 >
   <!-- Background layer: floorplan image + grid (non-interactive) -->
   <Layer listening={false}>

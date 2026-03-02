@@ -33,6 +33,7 @@ function createCanvasStore() {
   let gridSize = $state(1); // meters
   let selectedMaterialId = $state<string | null>(null);
   let sidebarCollapsed = $state(false);
+  let settingScale = $state(false);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -45,6 +46,7 @@ function createCanvasStore() {
     get gridSize() { return gridSize; },
     get selectedMaterialId() { return selectedMaterialId; },
     get sidebarCollapsed() { return sidebarCollapsed; },
+    get settingScale() { return settingScale; },
 
     get zoomPercent(): number {
       return scale * 100;
@@ -103,6 +105,10 @@ function createCanvasStore() {
       selectedMaterialId = materialId;
     },
 
+    setSettingScale(v: boolean): void {
+      settingScale = v;
+    },
+
     toggleSidebar(): void {
       sidebarCollapsed = !sidebarCollapsed;
     },
@@ -129,6 +135,7 @@ function createCanvasStore() {
       gridSize = 1;
       selectedMaterialId = null;
       sidebarCollapsed = false;
+      settingScale = false;
     },
   };
 }

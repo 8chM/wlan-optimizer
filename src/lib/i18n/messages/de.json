@@ -41,7 +41,8 @@
     "zoomOut": "Verkleinern",
     "fitToScreen": "An Bildschirm anpassen",
     "toggleGrid": "Raster umschalten",
-    "grid": "Raster"
+    "grid": "Raster",
+    "setScale": "Massstab"
   },
   "status": {
     "saved": "Gespeichert",
@@ -102,7 +103,9 @@
     "properties": "Eigenschaften",
     "noFloorplan": "Kein Grundrissbild geladen.",
     "uploadFloorplan": "Grundriss hochladen",
-    "setScaleFirst": "Bitte zuerst den Massstab setzen."
+    "replaceFloorplan": "Grundriss austauschen",
+    "setScaleFirst": "Bitte zuerst den Massstab setzen.",
+    "measureDistance": "Distanz"
   },
   "material": {
     "light": "Leicht",
@@ -245,7 +248,14 @@
     "deleteConfirmAp": "Moechtest du diesen Access Point wirklich loeschen?",
     "enabled": "Aktiviert",
     "position": "Position",
-    "label": "Bezeichnung"
+    "label": "Bezeichnung",
+    "mounting": "Montage",
+    "mountingCeiling": "Deckenmontage",
+    "mountingWall": "Wandmontage",
+    "height": "Hoehe",
+    "channel24": "Kanal 2.4 GHz",
+    "channel5": "Kanal 5 GHz",
+    "channelWidth": "Kanalbreite"
   },
   "toast": {
     "close": "Schliessen"

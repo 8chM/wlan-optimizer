@@ -5,44 +5,44 @@
   Includes a "New Project" button to open the creation dialog.
 -->
 <script lang="ts">
-  import { goto } from '$app/navigation';
-  import { t } from '$lib/i18n';
-  import { projectStore } from '$lib/stores/projectStore.svelte';
-  import NewProjectDialog from './NewProjectDialog.svelte';
-  import type { ProjectResponse } from '$lib/api/invoke';
+import { goto } from '$app/navigation';
+import type { ProjectResponse } from '$lib/api/invoke';
+import { t } from '$lib/i18n';
+import { projectStore } from '$lib/stores/projectStore.svelte';
+import NewProjectDialog from './NewProjectDialog.svelte';
 
-  let showNewDialog = $state(false);
-  let deleteConfirmId = $state<string | null>(null);
+let showNewDialog = $state(false);
+let deleteConfirmId = $state<string | null>(null);
 
-  // Load projects on mount
-  $effect(() => {
-    projectStore.loadProjects();
-  });
+// Load projects on mount
+$effect(() => {
+  projectStore.loadProjects();
+});
 
-  function formatDate(isoString: string): string {
-    try {
-      return new Date(isoString).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return isoString;
-    }
+function formatDate(isoString: string): string {
+  try {
+    return new Date(isoString).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return isoString;
   }
+}
 
-  async function handleDelete(id: string): Promise<void> {
-    await projectStore.deleteProject(id);
-    deleteConfirmId = null;
-  }
+async function handleDelete(id: string): Promise<void> {
+  await projectStore.deleteProject(id);
+  deleteConfirmId = null;
+}
 
-  function handleProjectCreated(project: ProjectResponse): void {
-    showNewDialog = false;
-    // Navigate to new project using SvelteKit client-side routing
-    goto(`/project/${project.id}/editor`);
-  }
+function handleProjectCreated(project: ProjectResponse): void {
+  showNewDialog = false;
+  // Navigate to new project using SvelteKit client-side routing
+  goto(`/project/${project.id}/editor`);
+}
 </script>
 
 <div class="project-list-page">
@@ -145,44 +145,46 @@
     margin: 0;
     font-size: 1.8rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: var(--text-primary, #1a1a2e);
   }
 
   .subtitle {
     margin: 0.25rem 0 0;
-    color: #6a6a8a;
+    color: var(--text-muted, #6a6a8a);
     font-size: 0.9rem;
   }
 
   .btn-primary {
     padding: 10px 20px;
-    background: #4a6cf7;
+    background: var(--accent, #4a6cf7);
     color: white;
     border: none;
     border-radius: 8px;
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 500;
+    font-family: inherit;
     transition: background 0.15s ease;
     white-space: nowrap;
   }
 
   .btn-primary:hover {
-    background: #3a5ce7;
+    background: var(--accent-hover, #3a5ce7);
   }
 
   .btn-secondary {
     padding: 8px 16px;
-    background: #f0f0f5;
-    color: #4a4a6a;
-    border: 1px solid #d0d0e0;
+    background: var(--bg-tertiary, #f0f0f5);
+    color: var(--text-secondary, #4a4a6a);
+    border: 1px solid var(--border, #d0d0e0);
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
+    font-family: inherit;
   }
 
   .btn-secondary:hover {
-    background: #e8e8f0;
+    background: var(--bg-tertiary, #e8e8f0);
   }
 
   .loading {
@@ -213,7 +215,7 @@
   .empty-state {
     text-align: center;
     padding: 4rem 2rem;
-    color: #6a6a8a;
+    color: var(--text-muted, #6a6a8a);
   }
 
   .empty-icon {
@@ -236,15 +238,15 @@
     display: flex;
     flex-direction: column;
     padding: 1.25rem;
-    background: #ffffff;
-    border: 1px solid #e8e8f0;
+    background: var(--bg-primary, #ffffff);
+    border: 1px solid var(--border-light, #e8e8f0);
     border-radius: 10px;
     transition: box-shadow 0.15s ease, border-color 0.15s ease;
   }
 
   .project-card:hover {
-    border-color: #c8c8e0;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border-color: var(--border, #c8c8e0);
+    box-shadow: var(--shadow-md, 0 2px 12px rgba(0, 0, 0, 0.06));
   }
 
   .card-header {
@@ -258,7 +260,7 @@
     margin: 0;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #1a1a2e;
+    color: var(--text-primary, #1a1a2e);
   }
 
   .card-actions {
@@ -298,7 +300,7 @@
 
   .project-description {
     margin: 0.5rem 0 0;
-    color: #6a6a8a;
+    color: var(--text-muted, #6a6a8a);
     font-size: 0.85rem;
     line-height: 1.4;
   }
@@ -309,15 +311,15 @@
     gap: 2px;
     margin-top: 0.75rem;
     font-size: 0.72rem;
-    color: #9a9ab0;
+    color: var(--text-muted, #9a9ab0);
   }
 
   .btn-open {
     display: inline-block;
     margin-top: 1rem;
     padding: 8px 16px;
-    background: #f0f0ff;
-    color: #4a6cf7;
+    background: var(--accent-light, #f0f0ff);
+    color: var(--accent, #4a6cf7);
     text-decoration: none;
     border-radius: 6px;
     font-size: 0.85rem;
@@ -327,6 +329,7 @@
   }
 
   .btn-open:hover {
-    background: #e0e0ff;
+    background: var(--accent-light, #e0e0ff);
+    filter: brightness(0.95);
   }
 </style>

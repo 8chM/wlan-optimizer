@@ -41,7 +41,8 @@
     "zoomOut": "Zoom Out",
     "fitToScreen": "Fit to Screen",
     "toggleGrid": "Toggle Grid",
-    "grid": "Grid"
+    "grid": "Grid",
+    "setScale": "Scale"
   },
   "status": {
     "saved": "Saved",
@@ -102,7 +103,9 @@
     "properties": "Properties",
     "noFloorplan": "No floor plan image loaded.",
     "uploadFloorplan": "Upload Floor Plan",
-    "setScaleFirst": "Please set the scale first."
+    "replaceFloorplan": "Replace Floor Plan",
+    "setScaleFirst": "Please set the scale first.",
+    "measureDistance": "Distance"
   },
   "material": {
     "light": "Light",
@@ -245,7 +248,14 @@
     "deleteConfirmAp": "Are you sure you want to delete this access point?",
     "enabled": "Enabled",
     "position": "Position",
-    "label": "Label"
+    "label": "Label",
+    "mounting": "Mounting",
+    "mountingCeiling": "Ceiling",
+    "mountingWall": "Wall",
+    "height": "Height",
+    "channel24": "Channel 2.4 GHz",
+    "channel5": "Channel 5 GHz",
+    "channelWidth": "Channel Width"
   },
   "toast": {
     "close": "Close"

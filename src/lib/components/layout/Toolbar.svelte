@@ -5,63 +5,67 @@
   (zoom in, zoom out, fit to screen). Emits events when tools or zoom change.
 -->
 <script lang="ts">
-  import { t } from '$lib/i18n';
-  import { themeStore } from '$lib/stores/themeStore.svelte';
-  import type { Snippet } from 'svelte';
+import { t } from '$lib/i18n';
+import { themeStore } from '$lib/stores/themeStore.svelte';
+import type { Snippet } from 'svelte';
 
-  type EditorTool = 'select' | 'wall' | 'ap' | 'measure';
+type EditorTool = 'select' | 'wall' | 'ap' | 'measure';
 
-  interface ToolbarProps {
-    activeTool?: EditorTool;
-    zoomLevel?: number;
-    showEditorTools?: boolean;
-    onToolChange?: (tool: EditorTool) => void;
-    onZoomIn?: () => void;
-    onZoomOut?: () => void;
-    onFitToScreen?: () => void;
-    onToggleGrid?: () => void;
-    gridVisible?: boolean;
-    children?: Snippet;
-  }
+interface ToolbarProps {
+  activeTool?: EditorTool;
+  zoomLevel?: number;
+  showEditorTools?: boolean;
+  onToolChange?: (tool: EditorTool) => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onFitToScreen?: () => void;
+  onToggleGrid?: () => void;
+  onSetScale?: () => void;
+  gridVisible?: boolean;
+  settingScale?: boolean;
+  children?: Snippet;
+}
 
-  let {
-    activeTool = 'select',
-    zoomLevel = 100,
-    showEditorTools = false,
-    onToolChange,
-    onZoomIn,
-    onZoomOut,
-    onFitToScreen,
-    onToggleGrid,
-    gridVisible = true,
-    children,
-  }: ToolbarProps = $props();
+let {
+  activeTool = 'select',
+  zoomLevel = 100,
+  showEditorTools = false,
+  onToolChange,
+  onZoomIn,
+  onZoomOut,
+  onFitToScreen,
+  onToggleGrid,
+  onSetScale,
+  gridVisible = true,
+  settingScale = false,
+  children,
+}: ToolbarProps = $props();
 
-  const tools: Array<{ id: EditorTool; label: string; icon: string; shortcut: string }> = [
-    { id: 'select', label: 'toolbar.select', icon: '⊹', shortcut: 'S' },
-    { id: 'wall', label: 'toolbar.wall', icon: '▬', shortcut: 'W' },
-    { id: 'ap', label: 'toolbar.ap', icon: '◉', shortcut: 'A' },
-    { id: 'measure', label: 'toolbar.measure', icon: '⊞', shortcut: 'M' },
-  ];
+const tools: Array<{ id: EditorTool; label: string; icon: string; shortcut: string }> = [
+  { id: 'select', label: 'toolbar.select', icon: '⊹', shortcut: 'S' },
+  { id: 'wall', label: 'toolbar.wall', icon: '▬', shortcut: 'W' },
+  { id: 'ap', label: 'toolbar.ap', icon: '◉', shortcut: 'A' },
+  { id: 'measure', label: 'toolbar.measure', icon: '⊞', shortcut: 'M' },
+];
 
-  function selectTool(tool: EditorTool): void {
-    onToolChange?.(tool);
-  }
+function selectTool(tool: EditorTool): void {
+  onToolChange?.(tool);
+}
 
-  const themeIcons: Record<string, string> = {
-    light: '\u2600',
-    dark: '\uD83C\uDF19',
-    system: '\uD83D\uDCBB',
-  };
+const themeIcons: Record<string, string> = {
+  light: '\u2600',
+  dark: '\uD83C\uDF19',
+  system: '\uD83D\uDCBB',
+};
 
-  let themeIcon = $derived(themeIcons[themeStore.theme] ?? '\u2600');
-  let themeLabel = $derived(
-    themeStore.theme === 'light'
-      ? t('settings.themeLight')
-      : themeStore.theme === 'dark'
-        ? t('settings.themeDark')
-        : t('settings.themeSystem')
-  );
+let themeIcon = $derived(themeIcons[themeStore.theme] ?? '\u2600');
+let themeLabel = $derived(
+  themeStore.theme === 'light'
+    ? t('settings.themeLight')
+    : themeStore.theme === 'dark'
+      ? t('settings.themeDark')
+      : t('settings.themeSystem'),
+);
 </script>
 
 <div class="toolbar">
@@ -115,6 +119,15 @@
           <span class="tool-icon">⊞</span>
           <span class="tool-label">{t('toolbar.grid')}</span>
         </button>
+        <button
+          class="tool-btn"
+          class:active={settingScale}
+          onclick={onSetScale}
+          title={t('toolbar.setScale')}
+        >
+          <span class="tool-icon">↔</span>
+          <span class="tool-label">{t('toolbar.setScale')}</span>
+        </button>
       </div>
     </div>
   {/if}
@@ -138,8 +151,8 @@
     display: flex;
     align-items: center;
     height: 48px;
-    background: #ffffff;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--bg-primary, #ffffff);
+    border-bottom: 1px solid var(--border, #e0e0e0);
     padding: 0 12px;
     gap: 12px;
     flex-shrink: 0;
@@ -171,7 +184,7 @@
     align-items: center;
     gap: 6px;
     text-decoration: none;
-    color: #1a1a2e;
+    color: var(--text-primary, #1a1a2e);
     font-weight: 600;
     font-size: 0.9rem;
   }
@@ -193,7 +206,7 @@
   .separator {
     width: 1px;
     height: 28px;
-    background: #e0e0e0;
+    background: var(--border, #e0e0e0);
     margin: 0 8px;
   }
 
@@ -206,21 +219,22 @@
     border: 1px solid transparent;
     border-radius: 6px;
     cursor: pointer;
-    color: #4a4a6a;
+    color: var(--text-secondary, #4a4a6a);
     font-size: 0.8rem;
     transition: all 0.15s ease;
     white-space: nowrap;
+    font-family: inherit;
   }
 
   .tool-btn:hover {
-    background: #f0f0f5;
-    border-color: #d0d0e0;
+    background: var(--bg-tertiary, #f0f0f5);
+    border-color: var(--border, #d0d0e0);
   }
 
   .tool-btn.active {
-    background: #e8ecff;
-    border-color: #4a6cf7;
-    color: #4a6cf7;
+    background: var(--accent-light, #e8ecff);
+    border-color: var(--accent, #4a6cf7);
+    color: var(--accent, #4a6cf7);
   }
 
   .tool-icon {
@@ -237,7 +251,7 @@
     text-align: center;
     font-size: 0.8rem;
     font-variant-numeric: tabular-nums;
-    color: #4a4a6a;
+    color: var(--text-secondary, #4a4a6a);
     user-select: none;
   }
 </style>

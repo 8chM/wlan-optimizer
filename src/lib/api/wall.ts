@@ -31,13 +31,16 @@ export async function createWall(
 }
 
 /**
- * Updates an existing wall's material or segments.
+ * Updates an existing wall's material, segments, or attenuation overrides.
  */
 export async function updateWall(
   wallId: string,
   updates: {
     materialId?: string;
     segments?: SegmentInput[];
+    attenuationOverride24ghz?: number | null;
+    attenuationOverride5ghz?: number | null;
+    attenuationOverride6ghz?: number | null;
   },
 ): Promise<WallResponse> {
   return safeInvoke('update_wall', {
@@ -45,6 +48,9 @@ export async function updateWall(
       wall_id: wallId,
       material_id: updates.materialId,
       segments: updates.segments,
+      attenuation_override_24ghz: updates.attenuationOverride24ghz ?? undefined,
+      attenuation_override_5ghz: updates.attenuationOverride5ghz ?? undefined,
+      attenuation_override_6ghz: updates.attenuationOverride6ghz ?? undefined,
     },
   });
 }

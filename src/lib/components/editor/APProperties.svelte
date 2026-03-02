@@ -17,6 +17,11 @@
       txPower24ghzDbm?: number;
       txPower5ghzDbm?: number;
       enabled?: boolean;
+      height_m?: number;
+      mounting?: string;
+      channel_24ghz?: number;
+      channel_5ghz?: number;
+      channel_width?: string;
     }) => void;
     /** Callback when AP is deleted */
     onDelete?: (apId: string) => void;
@@ -33,6 +38,11 @@
   let txPower24 = $state(17);
   let txPower5 = $state(20);
   let enabled = $state(true);
+  let mounting = $state('ceiling');
+  let heightM = $state(2.5);
+  let channel24 = $state(0);
+  let channel5 = $state(0);
+  let channelWidth = $state('20');
 
   // Sync state from props
   $effect(() => {
@@ -40,6 +50,11 @@
     txPower24 = accessPoint.tx_power_24ghz_dbm ?? 17;
     txPower5 = accessPoint.tx_power_5ghz_dbm ?? 20;
     enabled = accessPoint.enabled;
+    mounting = accessPoint.mounting ?? 'ceiling';
+    heightM = accessPoint.height_m ?? 2.5;
+    channel24 = accessPoint.channel_24ghz ?? 0;
+    channel5 = accessPoint.channel_5ghz ?? 0;
+    channelWidth = accessPoint.channel_width ?? '20';
   });
 
   function handleLabelChange(): void {
@@ -58,6 +73,34 @@
     enabled = !enabled;
     onUpdate?.(accessPoint.id, { enabled });
   }
+
+  function handleMountingChange(event: Event): void {
+    mounting = (event.target as HTMLSelectElement).value;
+    onUpdate?.(accessPoint.id, { mounting });
+  }
+
+  function handleHeightChange(): void {
+    onUpdate?.(accessPoint.id, { height_m: heightM });
+  }
+
+  function handleChannel24Change(event: Event): void {
+    channel24 = parseInt((event.target as HTMLSelectElement).value, 10);
+    onUpdate?.(accessPoint.id, { channel_24ghz: channel24 || undefined });
+  }
+
+  function handleChannel5Change(event: Event): void {
+    channel5 = parseInt((event.target as HTMLSelectElement).value, 10);
+    onUpdate?.(accessPoint.id, { channel_5ghz: channel5 || undefined });
+  }
+
+  function handleChannelWidthChange(event: Event): void {
+    channelWidth = (event.target as HTMLSelectElement).value;
+    onUpdate?.(accessPoint.id, { channel_width: channelWidth });
+  }
+
+  const channels24 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+  const channels5 = [0, 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165];
+  const channelWidths = ['20', '40', '80', '160'];
 
   function handleDeleteClick(): void {
     confirmingDelete = true;
@@ -132,6 +175,65 @@
         />
         <span class="slider-value">{txPower5} dBm</span>
       </div>
+    </div>
+  </div>
+
+  <!-- Mounting & Height -->
+  <div class="prop-section">
+    <div class="prop-row">
+      <span class="prop-label">{t('properties.mounting')}</span>
+      <select class="prop-select" value={mounting} onchange={handleMountingChange}>
+        <option value="ceiling">{t('properties.mountingCeiling')}</option>
+        <option value="wall">{t('properties.mountingWall')}</option>
+      </select>
+    </div>
+
+    <div class="prop-row">
+      <span class="prop-label">{t('properties.height')}</span>
+      <div class="input-group">
+        <input
+          type="number"
+          class="prop-input"
+          bind:value={heightM}
+          onchange={handleHeightChange}
+          min="0.5"
+          max="10"
+          step="0.1"
+        />
+        <span class="input-suffix">m</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channels -->
+  <div class="prop-section">
+    <h4 class="section-title">{t('label.channel')}</h4>
+
+    <div class="prop-row">
+      <span class="prop-label">{t('properties.channel24')}</span>
+      <select class="prop-select" value={String(channel24)} onchange={handleChannel24Change}>
+        {#each channels24 as ch (ch)}
+          <option value={String(ch)}>{ch === 0 ? 'Auto' : String(ch)}</option>
+        {/each}
+      </select>
+    </div>
+
+    <div class="prop-row">
+      <span class="prop-label">{t('properties.channel5')}</span>
+      <select class="prop-select" value={String(channel5)} onchange={handleChannel5Change}>
+        {#each channels5 as ch (ch)}
+          <option value={String(ch)}>{ch === 0 ? 'Auto' : String(ch)}</option>
+        {/each}
+      </select>
+    </div>
+
+    <div class="prop-row">
+      <span class="prop-label">{t('properties.channelWidth')}</span>
+      <select class="prop-select" value={channelWidth} onchange={handleChannelWidthChange}>
+        {#each channelWidths as cw (cw)}
+          <option value={cw}>{cw} MHz</option>
+        {/each}
+      </select>
     </div>
   </div>
 
@@ -260,6 +362,39 @@
   .text-input {
     flex: 1;
     min-width: 0;
+  }
+
+  .prop-select {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    color: #e0e0f0;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .prop-select:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .prop-select option {
+    background: #1a1a2e;
+    color: #e0e0f0;
+  }
+
+  .input-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .input-suffix {
+    font-size: 0.65rem;
+    color: #6a6a8a;
+    font-family: 'SF Mono', 'Fira Code', monospace;
   }
 
   .slider-row {

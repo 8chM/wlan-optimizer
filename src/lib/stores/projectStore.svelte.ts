@@ -5,12 +5,7 @@
  * its floors, and dirty state for auto-save.
  */
 
-import {
-  safeInvoke,
-  type ProjectResponse,
-  type FloorDataResponse,
-  type FloorResponse,
-} from '$lib/api/invoke';
+import { type FloorDataResponse, type ProjectResponse, safeInvoke } from '$lib/api/invoke';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -47,13 +42,27 @@ function createProjectStore() {
 
   return {
     // ── Getters (reactive via $state) ───────────────────────
-    get projects() { return projects; },
-    get currentProject() { return currentProject; },
-    get floors() { return floors; },
-    get activeFloorId() { return activeFloorId; },
-    get isDirty() { return isDirty; },
-    get isLoading() { return isLoading; },
-    get error() { return error; },
+    get projects() {
+      return projects;
+    },
+    get currentProject() {
+      return currentProject;
+    },
+    get floors() {
+      return floors;
+    },
+    get activeFloorId() {
+      return activeFloorId;
+    },
+    get isDirty() {
+      return isDirty;
+    },
+    get isLoading() {
+      return isLoading;
+    },
+    get error() {
+      return error;
+    },
 
     get activeFloor(): FloorDataResponse | null {
       if (!activeFloorId) return floors[0] ?? null;
@@ -140,6 +149,31 @@ function createProjectStore() {
       } finally {
         isLoading = false;
       }
+    },
+
+    async refreshFloorData(): Promise<void> {
+      if (!activeFloorId) return;
+      try {
+        const floorData = await safeInvoke('get_floor_data', { floor_id: activeFloorId });
+        floors = floors.map((f) => (f.id === activeFloorId ? floorData : f));
+      } catch (err: unknown) {
+        error = err instanceof Error ? err.message : String(err);
+      }
+    },
+
+    async saveCurrentProject(): Promise<void> {
+      // In browser mode, all mutations are already persisted via localStorage.
+      // In Tauri mode, the backend persists on each IPC call.
+      // This method refreshes state and marks as clean.
+      if (activeFloorId) {
+        try {
+          const floorData = await safeInvoke('get_floor_data', { floor_id: activeFloorId });
+          floors = floors.map((f) => (f.id === activeFloorId ? floorData : f));
+        } catch {
+          // ignore
+        }
+      }
+      isDirty = false;
     },
 
     setActiveFloor(id: string): void {

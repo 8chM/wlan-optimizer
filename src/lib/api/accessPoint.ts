@@ -34,7 +34,7 @@ export async function createAccessPoint(
 }
 
 /**
- * Updates an access point's position or properties.
+ * Updates an access point's position, power, channels, or other properties.
  */
 export async function updateAccessPoint(
   accessPointId: string,
@@ -43,6 +43,13 @@ export async function updateAccessPoint(
     y?: number;
     label?: string;
     enabled?: boolean;
+    height_m?: number;
+    mounting?: string;
+    tx_power_24ghz_dbm?: number;
+    tx_power_5ghz_dbm?: number;
+    channel_24ghz?: number;
+    channel_5ghz?: number;
+    channel_width?: string;
   },
 ): Promise<AccessPointResponse> {
   return safeInvoke('update_access_point', {

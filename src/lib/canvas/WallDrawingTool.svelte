@@ -9,8 +9,8 @@
 -->
 <script lang="ts">
   import { Line, Circle, Group } from 'svelte-konva';
-  import type { WallResponse } from '$lib/api/invoke';
-  import type { KonvaMouseEvent } from 'svelte-konva';
+  import type { WallResponse, SegmentInput } from '$lib/api/invoke';
+  import type { KonvaMouseEvent, KonvaDragTransformEvent } from 'svelte-konva';
 
   type MaterialCategory = 'light' | 'medium' | 'heavy' | 'blocking';
 
@@ -23,10 +23,14 @@
     selected?: boolean;
     /** Scale: pixels per meter */
     scalePxPerMeter: number;
+    /** Whether endpoints can be dragged to edit wall geometry */
+    editMode?: boolean;
     /** Callback when wall is clicked/selected */
     onSelect?: (wallId: string) => void;
     /** Callback when wall should be deleted */
     onDelete?: (wallId: string) => void;
+    /** Callback when wall segments are updated via drag */
+    onSegmentsUpdate?: (wallId: string, segments: SegmentInput[]) => void;
   }
 
   let {
@@ -34,8 +38,10 @@
     materialCategory = 'medium',
     selected = false,
     scalePxPerMeter = 50,
+    editMode = false,
     onSelect,
     onDelete,
+    onSegmentsUpdate,
   }: WallDrawingToolProps = $props();
 
   // Material-based styling using category
@@ -88,9 +94,58 @@
     }
   }
 
+  /** Whether the endpoint circles should be draggable */
+  let endpointsDraggable = $derived(selected && editMode);
+
+  /** Unique endpoint positions from deduplicated points (as [x,y] pairs) */
+  let endpoints = $derived.by((): Array<{ x: number; y: number; index: number }> => {
+    const result: Array<{ x: number; y: number; index: number }> = [];
+    for (let i = 0; i < deduplicatedPoints.length; i += 2) {
+      result.push({ x: deduplicatedPoints[i]!, y: deduplicatedPoints[i + 1]!, index: i });
+    }
+    return result;
+  });
+
   function handleClick(event: KonvaMouseEvent): void {
     event.cancelBubble = true;
     onSelect?.(wall.id);
+  }
+
+  function handleEndpointDragEnd(pointIndex: number, event: KonvaDragTransformEvent): void {
+    event.cancelBubble = true;
+    const target = event.target;
+    const newX = target.x();
+    const newY = target.y();
+
+    // Convert pixel position back to meters
+    const newXMeters = newX / scalePxPerMeter;
+    const newYMeters = newY / scalePxPerMeter;
+
+    // Find the original point position in meters
+    const origXPx = deduplicatedPoints[pointIndex]!;
+    const origYPx = deduplicatedPoints[pointIndex + 1]!;
+    const origXMeters = origXPx / scalePxPerMeter;
+    const origYMeters = origYPx / scalePxPerMeter;
+
+    // Update segments that reference this original point
+    const sortedSegments = wall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
+    const newSegments: SegmentInput[] = sortedSegments.map((seg) => {
+      let { x1, y1, x2, y2 } = seg;
+      const eps = 0.001;
+
+      if (Math.abs(x1 - origXMeters) < eps && Math.abs(y1 - origYMeters) < eps) {
+        x1 = newXMeters;
+        y1 = newYMeters;
+      }
+      if (Math.abs(x2 - origXMeters) < eps && Math.abs(y2 - origYMeters) < eps) {
+        x2 = newXMeters;
+        y2 = newYMeters;
+      }
+
+      return { segment_order: seg.segment_order, x1, y1, x2, y2 };
+    });
+
+    onSegmentsUpdate?.(wall.id, newSegments);
   }
 </script>
 
@@ -107,26 +162,21 @@
       onclick={handleClick}
     />
 
-    <!-- Selection highlight endpoints -->
+    <!-- Endpoint circles (draggable when in edit mode) -->
     {#if selected}
-      <Circle
-        x={deduplicatedPoints[0]!}
-        y={deduplicatedPoints[1]!}
-        radius={5}
-        fill="#4a6cf7"
-        stroke="#ffffff"
-        strokeWidth={2}
-        listening={false}
-      />
-      <Circle
-        x={deduplicatedPoints[deduplicatedPoints.length - 2]!}
-        y={deduplicatedPoints[deduplicatedPoints.length - 1]!}
-        radius={5}
-        fill="#4a6cf7"
-        stroke="#ffffff"
-        strokeWidth={2}
-        listening={false}
-      />
+      {#each endpoints as ep (ep.index)}
+        <Circle
+          x={ep.x}
+          y={ep.y}
+          radius={endpointsDraggable ? 7 : 5}
+          fill="#4a6cf7"
+          stroke="#ffffff"
+          strokeWidth={2}
+          draggable={endpointsDraggable}
+          listening={endpointsDraggable}
+          ondragend={(e) => handleEndpointDragEnd(ep.index, e)}
+        />
+      {/each}
     {/if}
   {/if}
 </Group>

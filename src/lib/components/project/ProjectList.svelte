@@ -13,6 +13,8 @@ import NewProjectDialog from './NewProjectDialog.svelte';
 
 let showNewDialog = $state(false);
 let deleteConfirmId = $state<string | null>(null);
+let renameId = $state<string | null>(null);
+let renameValue = $state('');
 
 // Load projects on mount
 $effect(() => {
@@ -36,6 +38,31 @@ function formatDate(isoString: string): string {
 async function handleDelete(id: string): Promise<void> {
   await projectStore.deleteProject(id);
   deleteConfirmId = null;
+}
+
+function startRename(project: ProjectResponse): void {
+  renameId = project.id;
+  renameValue = project.name;
+}
+
+async function confirmRename(): Promise<void> {
+  if (!renameId || !renameValue.trim()) return;
+  await projectStore.renameProject(renameId, renameValue.trim());
+  renameId = null;
+  renameValue = '';
+}
+
+function cancelRename(): void {
+  renameId = null;
+  renameValue = '';
+}
+
+function handleRenameKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Enter') {
+    confirmRename();
+  } else if (event.key === 'Escape') {
+    cancelRename();
+  }
 }
 
 function handleProjectCreated(project: ProjectResponse): void {
@@ -80,7 +107,25 @@ function handleProjectCreated(project: ProjectResponse): void {
       {#each projectStore.projects as project (project.id)}
         <div class="project-card">
           <div class="card-header">
-            <h3 class="project-name">{project.name}</h3>
+            {#if renameId === project.id}
+              <div class="rename-inline">
+                <input
+                  type="text"
+                  class="rename-input"
+                  bind:value={renameValue}
+                  onkeydown={handleRenameKeydown}
+                  autofocus
+                />
+                <button class="btn-ghost-sm btn-confirm-rename" onclick={confirmRename}>
+                  {t('action.confirm')}
+                </button>
+                <button class="btn-ghost-sm" onclick={cancelRename}>
+                  {t('project.cancel')}
+                </button>
+              </div>
+            {:else}
+              <h3 class="project-name">{project.name}</h3>
+            {/if}
             <div class="card-actions">
               {#if deleteConfirmId === project.id}
                 <button class="btn-danger-sm" onclick={() => handleDelete(project.id)}>
@@ -89,7 +134,17 @@ function handleProjectCreated(project: ProjectResponse): void {
                 <button class="btn-ghost-sm" onclick={() => (deleteConfirmId = null)}>
                   {t('project.cancel')}
                 </button>
-              {:else}
+              {:else if renameId !== project.id}
+                <button
+                  class="btn-ghost-sm btn-rename"
+                  onclick={() => startRename(project)}
+                  title="Rename"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
                 <button
                   class="btn-ghost-sm btn-delete"
                   onclick={() => (deleteConfirmId = project.id)}
@@ -331,5 +386,41 @@ function handleProjectCreated(project: ProjectResponse): void {
   .btn-open:hover {
     background: var(--accent-light, #e0e0ff);
     filter: brightness(0.95);
+  }
+
+  .rename-inline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .rename-input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    border: 1px solid var(--accent, #4a6cf7);
+    border-radius: 4px;
+    background: var(--bg-primary, #ffffff);
+    color: var(--text-primary, #1a1a2e);
+    outline: none;
+  }
+
+  .rename-input:focus {
+    box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.2);
+  }
+
+  .btn-confirm-rename {
+    color: var(--accent, #4a6cf7) !important;
+    font-weight: 500;
+  }
+
+  .btn-rename:hover {
+    color: var(--accent, #4a6cf7);
+    background: rgba(74, 108, 247, 0.08);
   }
 </style>

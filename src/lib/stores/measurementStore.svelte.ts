@@ -18,6 +18,9 @@ import {
   createMeasurementPoint,
   startMeasurement,
   cancelMeasurement,
+  deleteMeasurementRun,
+  deleteMeasurementPoint,
+  updateMeasurementRunStatus,
 } from '$lib/api/measurement';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -232,6 +235,59 @@ function createMeasurementStore() {
         error = extractErrorMessage(err);
       } finally {
         isMeasuring = false;
+      }
+    },
+
+    async deleteRun(runId: string): Promise<boolean> {
+      error = null;
+      try {
+        await deleteMeasurementRun(runId);
+        runs = runs.filter((r) => r.id !== runId);
+        measurements = measurements.filter((m) => m.measurement_run_id !== runId);
+        if (currentRunId === runId) {
+          currentRunId = null;
+        }
+        return true;
+      } catch (err: unknown) {
+        error = extractErrorMessage(err);
+        return false;
+      }
+    },
+
+    async deletePoint(pointId: string): Promise<boolean> {
+      error = null;
+      try {
+        await deleteMeasurementPoint(pointId);
+        points = points.filter((p) => p.id !== pointId);
+        measurements = measurements.filter((m) => m.measurement_point_id !== pointId);
+        return true;
+      } catch (err: unknown) {
+        error = extractErrorMessage(err);
+        return false;
+      }
+    },
+
+    async updateRunStatus(
+      runId: string,
+      status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled',
+    ): Promise<boolean> {
+      error = null;
+      try {
+        await updateMeasurementRunStatus(runId, status);
+        runs = runs.map((r) =>
+          r.id === runId
+            ? {
+                ...r,
+                status,
+                ...(status === 'in_progress' && { started_at: new Date().toISOString() }),
+                ...(status === 'completed' && { completed_at: new Date().toISOString() }),
+              }
+            : r,
+        );
+        return true;
+      } catch (err: unknown) {
+        error = extractErrorMessage(err);
+        return false;
       }
     },
 

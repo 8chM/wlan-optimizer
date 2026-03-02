@@ -10,7 +10,7 @@
 import { createAccessPoint, deleteAccessPoint, updateAccessPoint } from '$lib/api/accessPoint';
 import { importFloorImage, setFloorScale, setFloorRotation } from '$lib/api/floor';
 import { safeInvoke, type MaterialResponse, type SegmentInput } from '$lib/api/invoke';
-import { deleteWall, updateWall } from '$lib/api/wall';
+import { createWall, deleteWall, updateWall, type WallSegmentInput } from '$lib/api/wall';
 import { FloorplanEditor } from '$lib/canvas';
 import BackgroundImage from '$lib/canvas/BackgroundImage.svelte';
 import GridOverlay from '$lib/canvas/GridOverlay.svelte';
@@ -42,7 +42,7 @@ import { canvasStore } from '$lib/stores/canvasStore.svelte';
 import { channelStore } from '$lib/stores/channelStore.svelte';
 import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
 import { projectStore } from '$lib/stores/projectStore.svelte';
-import { undoStore } from '$lib/stores/undoStore.svelte';
+import { undoStore, type EditorCommand } from '$lib/stores/undoStore.svelte';
 import { registerShortcuts } from '$lib/utils/keyboard';
 
 let containerWidth = $state(800);
@@ -189,10 +189,30 @@ async function handleWallUpdate(
     attenuationOverride5ghz?: number | null;
   },
 ): Promise<void> {
+  // Capture old wall properties for undo
+  const wall = floor?.walls?.find((w) => w.id === wallId);
+  const oldValues = {
+    materialId: wall?.material_id,
+    attenuationOverride24ghz: wall?.attenuation_override_24ghz,
+    attenuationOverride5ghz: wall?.attenuation_override_5ghz,
+  };
+
+  const command: EditorCommand = {
+    label: 'Update Wall',
+    async execute() {
+      await updateWall(wallId, updates);
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+    async undo() {
+      await updateWall(wallId, oldValues);
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  };
+
   try {
-    await updateWall(wallId, updates);
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
+    await undoStore.execute(command);
   } catch (err) {
     console.error('[Editor] Failed to update wall:', err);
   }
@@ -209,11 +229,52 @@ async function handleWallSegmentsUpdate(wallId: string, segments: SegmentInput[]
 }
 
 async function handleDeleteWall(wallId: string): Promise<void> {
+  // Capture wall data before deletion for undo
+  const wall = floor?.walls?.find((w) => w.id === wallId);
+  if (!wall) return;
+  const wallFloorId = wall.floor_id;
+  const wallMaterial = wall.material_id;
+  const wallSegments: WallSegmentInput[] = wall.segments.map((s) => ({
+    segment_order: s.segment_order,
+    x1: s.x1,
+    y1: s.y1,
+    x2: s.x2,
+    y2: s.y2,
+  }));
+  const wallOverrides = {
+    att24: wall.attenuation_override_24ghz,
+    att5: wall.attenuation_override_5ghz,
+    att6: wall.attenuation_override_6ghz,
+  };
+
+  let currentWallId = wallId;
+
+  const command: EditorCommand = {
+    label: 'Delete Wall',
+    async execute() {
+      await deleteWall(currentWallId);
+      canvasStore.clearSelection();
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+    async undo() {
+      const result = await createWall(wallFloorId, wallMaterial, wallSegments);
+      currentWallId = result.id;
+      // Restore attenuation overrides if any were set
+      if (wallOverrides.att24 !== null || wallOverrides.att5 !== null || wallOverrides.att6 !== null) {
+        await updateWall(currentWallId, {
+          attenuationOverride24ghz: wallOverrides.att24,
+          attenuationOverride5ghz: wallOverrides.att5,
+          attenuationOverride6ghz: wallOverrides.att6,
+        });
+      }
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  };
+
   try {
-    await deleteWall(wallId);
-    canvasStore.clearSelection();
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
+    await undoStore.execute(command);
   } catch (err) {
     console.error('[Editor] Failed to delete wall:', err);
   }
@@ -253,11 +314,62 @@ async function handleApUpdate(
 }
 
 async function handleDeleteAp(apId: string): Promise<void> {
+  // Capture AP data before deletion for undo
+  const ap = floor?.access_points?.find((a) => a.id === apId);
+  if (!ap) return;
+  const apData = {
+    floorId: ap.floor_id,
+    x: ap.x,
+    y: ap.y,
+    apModelId: ap.ap_model_id ?? undefined,
+    label: ap.label ?? undefined,
+    height_m: ap.height_m,
+    mounting: ap.mounting,
+    tx_power_24ghz_dbm: ap.tx_power_24ghz_dbm ?? undefined,
+    tx_power_5ghz_dbm: ap.tx_power_5ghz_dbm ?? undefined,
+    channel_24ghz: ap.channel_24ghz ?? undefined,
+    channel_5ghz: ap.channel_5ghz ?? undefined,
+    channel_width: ap.channel_width,
+    enabled: ap.enabled,
+  };
+
+  let currentApId = apId;
+
+  const command: EditorCommand = {
+    label: 'Delete AP',
+    async execute() {
+      await deleteAccessPoint(currentApId);
+      canvasStore.clearSelection();
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+    async undo() {
+      const result = await createAccessPoint(
+        apData.floorId,
+        apData.x,
+        apData.y,
+        apData.apModelId,
+        apData.label,
+      );
+      currentApId = result.id;
+      // Restore AP properties
+      await updateAccessPoint(currentApId, {
+        height_m: apData.height_m,
+        mounting: apData.mounting,
+        tx_power_24ghz_dbm: apData.tx_power_24ghz_dbm,
+        tx_power_5ghz_dbm: apData.tx_power_5ghz_dbm,
+        channel_24ghz: apData.channel_24ghz,
+        channel_5ghz: apData.channel_5ghz,
+        channel_width: apData.channel_width,
+        enabled: apData.enabled,
+      });
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  };
+
   try {
-    await deleteAccessPoint(apId);
-    canvasStore.clearSelection();
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
+    await undoStore.execute(command);
   } catch (err) {
     console.error('[Editor] Failed to delete AP:', err);
   }
@@ -438,27 +550,63 @@ function handleCanvasMouseMove(canvasX: number, canvasY: number): void {
   canvasStore.setMousePosition(canvasX / scalePxPerMeter, canvasY / scalePxPerMeter);
 }
 
-// ── AP placement ──────────────────────────────────────────────
+// ── AP placement (with undo support) ──────────────────────────
 
 async function placeAccessPoint(x: number, y: number): Promise<void> {
   if (!floor) return;
+  const apFloorId = floor.id;
+  const apLabel = `AP ${(floor.access_points?.length ?? 0) + 1}`;
+  let currentApId = '';
+
+  const command: EditorCommand = {
+    label: 'Place AP',
+    async execute() {
+      const result = await createAccessPoint(apFloorId, x, y, undefined, apLabel);
+      currentApId = result.id;
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+    async undo() {
+      await deleteAccessPoint(currentApId);
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  };
+
   try {
-    const apCount = (floor.access_points?.length ?? 0) + 1;
-    await createAccessPoint(floor.id, x, y, undefined, `AP ${apCount}`);
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
+    await undoStore.execute(command);
   } catch (err) {
     console.error('[Editor] Failed to place AP:', err);
   }
 }
 
-// ── AP drag position update ───────────────────────────────────
+// ── AP drag position update (with undo support) ──────────────
 
 async function handleApPositionChange(apId: string, x: number, y: number): Promise<void> {
+  // Capture old position before updating
+  const ap = floor?.access_points?.find((a) => a.id === apId);
+  const oldX = ap?.x ?? x;
+  const oldY = ap?.y ?? y;
+
   try {
     await updateAccessPoint(apId, { x, y });
     await projectStore.refreshFloorData();
     projectStore.markDirty();
+
+    // Push undo command (move already happened)
+    undoStore.pushExecuted({
+      label: 'Move AP',
+      async execute() {
+        await updateAccessPoint(apId, { x, y });
+        await projectStore.refreshFloorData();
+        projectStore.markDirty();
+      },
+      async undo() {
+        await updateAccessPoint(apId, { x: oldX, y: oldY });
+        await projectStore.refreshFloorData();
+        projectStore.markDirty();
+      },
+    });
   } catch (err) {
     console.error('[Editor] Failed to update AP position:', err);
   }
@@ -470,9 +618,24 @@ async function handleDeleteSelected(): Promise<void> {
   const ids = canvasStore.selectedIds;
   if (ids.length === 0) return;
 
+  // For single selection, delegate to the typed delete handlers for proper undo
+  if (ids.length === 1) {
+    const id = ids[0]!;
+    const wall = floor?.walls?.find((w) => w.id === id);
+    if (wall) {
+      await handleDeleteWall(id);
+      return;
+    }
+    const ap = floor?.access_points?.find((a) => a.id === id);
+    if (ap) {
+      await handleDeleteAp(id);
+      return;
+    }
+  }
+
+  // Multi-selection: delete all without undo (rare case)
   for (const id of ids) {
     try {
-      // Try as wall first, then as AP
       const wall = floor?.walls?.find((w) => w.id === id);
       if (wall) {
         await deleteWall(id);
@@ -492,11 +655,33 @@ async function handleDeleteSelected(): Promise<void> {
   projectStore.markDirty();
 }
 
-// ── Wall creation callback ────────────────────────────────────
+// ── Wall creation callback (with undo support) ───────────────
 
-async function handleWallCreated(): Promise<void> {
+async function handleWallCreated(
+  wallId: string,
+  wallFloorId: string,
+  wallMaterial: string,
+  segments: WallSegmentInput[],
+): Promise<void> {
   await projectStore.refreshFloorData();
   projectStore.markDirty();
+
+  // Push undo command (wall was already created by WallDrawingLayer)
+  let currentWallId = wallId;
+  undoStore.pushExecuted({
+    label: 'Create Wall',
+    async execute() {
+      const result = await createWall(wallFloorId, wallMaterial, segments);
+      currentWallId = result.id;
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+    async undo() {
+      await deleteWall(currentWallId);
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  });
 }
 
 // ── Floor plan image upload ───────────────────────────────────

@@ -353,6 +353,14 @@ export interface CommandMap {
     };
     result: null;
   };
+  delete_measurement_run: {
+    params: { run_id: string };
+    result: { success: boolean };
+  };
+  delete_measurement_point: {
+    params: { point_id: string };
+    result: { success: boolean };
+  };
 
   // ── Export Commands ──────────────────────────────────────────
   export_project: {
@@ -808,6 +816,8 @@ export function getErrorTitle(command: string): string {
     cancel_measurement: 'Could not cancel measurement',
     check_iperf_server: 'Server check failed',
     update_measurement_run_status: 'Could not update run status',
+    delete_measurement_run: 'Could not delete measurement run',
+    delete_measurement_point: 'Could not delete measurement point',
     export_project: 'Could not export project',
     get_floor_image: 'Could not load floor image',
     save_measurement: 'Could not save measurement',

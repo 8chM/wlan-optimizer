@@ -26,6 +26,7 @@
 
   let containerWidth = $state(800);
   let containerHeight = $state(600);
+  let floorImageDataUrl = $state<string | null>(null);
 
   let floor = $derived(projectStore.activeFloor);
   let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
@@ -35,6 +36,39 @@
   let activeRunNumber = $derived(
     measurementStore.currentRun?.run_number ?? 1,
   );
+
+  // ─── Load floor image ────────────────────────────────────────
+
+  $effect(() => {
+    const currentFloorId = floor?.id;
+    if (!currentFloorId) return;
+    loadFloorImage(currentFloorId);
+
+    return () => {
+      if (floorImageDataUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(floorImageDataUrl);
+      }
+    };
+  });
+
+  async function loadFloorImage(id: string): Promise<void> {
+    try {
+      const result = await safeInvoke('get_floor_image', { floor_id: id });
+      if (result?.background_image && result.background_image_format) {
+        const bytes = new Uint8Array(result.background_image);
+        const blob = new Blob([bytes], { type: `image/${result.background_image_format}` });
+        floorImageDataUrl = URL.createObjectURL(blob);
+      } else {
+        // Check localStorage for browser-mode image
+        const stored = localStorage.getItem(`wlan-opt:floor-image:${id}`);
+        if (stored) {
+          floorImageDataUrl = stored;
+        }
+      }
+    } catch {
+      // No image available
+    }
+  }
 
   // ─── Load Data on Mount ───────────────────────────────────────
 
@@ -106,6 +140,21 @@
     console.log('[Measure] Point clicked:', pointId);
   }
 
+  async function handleDeleteRun(runId: string): Promise<void> {
+    await measurementStore.deleteRun(runId);
+  }
+
+  async function handleUpdateRunStatus(
+    runId: string,
+    status: 'completed' | 'cancelled',
+  ): Promise<void> {
+    await measurementStore.updateRunStatus(runId, status);
+  }
+
+  async function handleDeletePoint(pointId: string): Promise<void> {
+    await measurementStore.deletePoint(pointId);
+  }
+
   /**
    * Handle canvas click to add measurement points in measure mode.
    */
@@ -114,12 +163,24 @@
     if (!floorId) return;
 
     // Convert screen coordinates to world coordinates (meters),
-    // accounting for canvas zoom level
+    // accounting for canvas pan offset and zoom level
     const target = event.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
     const scale = canvasStore.scale ?? 1;
-    const x = (event.clientX - rect.left) / (scalePxPerMeter * scale);
-    const y = (event.clientY - rect.top) / (scalePxPerMeter * scale);
+    const offsetX = canvasStore.offsetX ?? 0;
+    const offsetY = canvasStore.offsetY ?? 0;
+
+    // Screen position relative to container
+    const containerX = event.clientX - rect.left;
+    const containerY = event.clientY - rect.top;
+
+    // Convert to world pixel coordinates (accounting for pan and zoom)
+    const worldPxX = (containerX - offsetX) / scale;
+    const worldPxY = (containerY - offsetY) / scale;
+
+    // Convert pixels to meters
+    const x = worldPxX / scalePxPerMeter;
+    const y = worldPxY / scalePxPerMeter;
 
     const pointIndex = measurementStore.points.length + 1;
     const label = `P${pointIndex}`;
@@ -160,6 +221,9 @@
       onStartMeasurement={handleStartMeasurement}
       onCancelMeasurement={handleCancelMeasurement}
       onApplyCalibration={handleApplyCalibration}
+      onDeleteRun={handleDeleteRun}
+      onUpdateRunStatus={handleUpdateRunStatus}
+      onDeletePoint={handleDeletePoint}
     />
   </aside>
 
@@ -191,7 +255,7 @@
             visible={canvasStore.gridVisible}
           />
           <BackgroundImage
-            imageData={null}
+            imageData={floorImageDataUrl}
             {scalePxPerMeter}
           />
           <ScaleIndicator

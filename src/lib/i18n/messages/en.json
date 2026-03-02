@@ -174,7 +174,13 @@
     "noRuns": "No measurement runs yet",
     "addPoint": "Click on the floor plan to add a measurement point",
     "maxDeviation": "Max. Deviation",
-    "pointsCount": "measurement points"
+    "pointsCount": "measurement points",
+    "deleteRun": "Delete Run",
+    "deleteRunConfirm": "Are you sure you want to delete this run and all its measurements?",
+    "deletePoint": "Delete Point",
+    "deletePointConfirm": "Are you sure you want to delete this measurement point?",
+    "completeRun": "Complete",
+    "cancelRun": "Cancel Run"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

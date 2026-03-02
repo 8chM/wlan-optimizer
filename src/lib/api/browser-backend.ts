@@ -733,6 +733,30 @@ function dispatch(command: string, p: AnyParams): unknown {
       return null;
     }
 
+    case 'delete_measurement_run': {
+      let runs = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []);
+      const runId = p.run_id;
+      runs = runs.filter((r) => r.id !== runId);
+      save(KEYS.measurementRuns, runs);
+      // Also remove all measurements belonging to this run
+      let allMeasurements = load<MeasurementResponse[]>(KEYS.measurements, []);
+      allMeasurements = allMeasurements.filter((m) => m.measurement_run_id !== runId);
+      save(KEYS.measurements, allMeasurements);
+      return { success: true };
+    }
+
+    case 'delete_measurement_point': {
+      let mps = load<MeasurementPointResponse[]>(KEYS.measurementPoints, []);
+      const pointId = p.point_id;
+      mps = mps.filter((mp) => mp.id !== pointId);
+      save(KEYS.measurementPoints, mps);
+      // Also remove all measurements for this point
+      let allMeasurements = load<MeasurementResponse[]>(KEYS.measurements, []);
+      allMeasurements = allMeasurements.filter((m) => m.measurement_point_id !== pointId);
+      save(KEYS.measurements, allMeasurements);
+      return { success: true };
+    }
+
     case 'save_measurement': {
       const measurements = load<MeasurementResponse[]>(KEYS.measurements, []);
       const measId = uuid();

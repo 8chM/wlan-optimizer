@@ -78,6 +78,41 @@ function changeKey(apId: string, parameter: string): string {
   return `${apId}::${parameter}`;
 }
 
+/** Persists AP changes to localStorage for the given plan ID */
+function persistChanges(planId: string | null, changes: Map<string, APChange>): void {
+  if (!planId) return;
+  try {
+    const key = `wlan-opt:mixing-changes:${planId}`;
+    const data = Array.from(changes.entries());
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    // localStorage may be unavailable
+  }
+}
+
+/** Restores AP changes from localStorage for the given plan ID */
+function restoreChanges(planId: string): Map<string, APChange> {
+  try {
+    const key = `wlan-opt:mixing-changes:${planId}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return new Map();
+    const entries: [string, APChange][] = JSON.parse(raw);
+    return new Map(entries);
+  } catch {
+    return new Map();
+  }
+}
+
+/** Clears persisted AP changes from localStorage for the given plan ID */
+function clearPersistedChanges(planId: string | null): void {
+  if (!planId) return;
+  try {
+    localStorage.removeItem(`wlan-opt:mixing-changes:${planId}`);
+  } catch {
+    // localStorage may be unavailable
+  }
+}
+
 // ─── Store ──────────────────────────────────────────────────────
 
 function createMixingStore() {
@@ -176,6 +211,15 @@ function createMixingStore() {
             applied: step.applied,
           });
         }
+
+        // Merge with any persisted local changes from localStorage
+        const persisted = restoreChanges(planId);
+        for (const [key, change] of persisted) {
+          if (!newChanges.has(key)) {
+            newChanges.set(key, change);
+          }
+        }
+
         apChanges = newChanges;
         forecastMode = true;
       } catch (err: unknown) {
@@ -228,6 +272,7 @@ function createMixingStore() {
       }
 
       forecastMode = true;
+      persistChanges(currentPlan?.id ?? null, apChanges);
     },
 
     /**
@@ -265,6 +310,7 @@ function createMixingStore() {
      * Resets all changes across all APs.
      */
     resetAll(): void {
+      clearPersistedChanges(currentPlan?.id ?? null);
       apChanges = new Map();
       forecastMode = false;
     },

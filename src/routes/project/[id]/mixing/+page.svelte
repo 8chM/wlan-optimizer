@@ -24,12 +24,14 @@
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { mixingStore } from '$lib/stores/mixingStore.svelte';
   import { comparisonStore } from '$lib/stores/comparisonStore.svelte';
+  import { safeInvoke } from '$lib/api/invoke';
   import { t } from '$lib/i18n';
 
   // ─── Layout State ─────────────────────────────────────────────
 
   let containerWidth = $state(800);
   let containerHeight = $state(600);
+  let floorImageDataUrl = $state<string | null>(null);
 
   let floor = $derived(projectStore.activeFloor);
   let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
@@ -51,6 +53,38 @@
 
   // Changes as an array for components
   let changesArray = $derived(mixingStore.getChangeSummary());
+
+  // ─── Load Floor Image ──────────────────────────────────────────
+
+  $effect(() => {
+    const currentFloorId = floor?.id;
+    if (!currentFloorId) return;
+    loadFloorImage(currentFloorId);
+
+    return () => {
+      if (floorImageDataUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(floorImageDataUrl);
+      }
+    };
+  });
+
+  async function loadFloorImage(id: string): Promise<void> {
+    try {
+      const result = await safeInvoke('get_floor_image', { floor_id: id });
+      if (result?.background_image && result.background_image_format) {
+        const bytes = new Uint8Array(result.background_image);
+        const blob = new Blob([bytes], { type: `image/${result.background_image_format}` });
+        floorImageDataUrl = URL.createObjectURL(blob);
+      } else {
+        const stored = localStorage.getItem(`wlan-opt:floor-image:${id}`);
+        if (stored) {
+          floorImageDataUrl = stored;
+        }
+      }
+    } catch {
+      // No image available
+    }
+  }
 
   // ─── Cleanup on Mount/Unmount ──────────────────────────────────
 
@@ -152,6 +186,7 @@
       changes={changesArray}
       isGenerating={mixingStore.isGenerating}
       hasChanges={mixingStore.hasChanges}
+      planStatus={mixingStore.currentPlan?.status ?? null}
       error={mixingStore.error}
       onGeneratePlan={handleGeneratePlan}
       onChange={handleChange}
@@ -203,7 +238,7 @@
             visible={canvasStore.gridVisible}
           />
           <BackgroundImage
-            imageData={null}
+            imageData={floorImageDataUrl}
             {scalePxPerMeter}
           />
           <ScaleIndicator

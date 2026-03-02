@@ -24,6 +24,10 @@
     onSelectRun?: (runId: string) => void;
     /** Callback when creating a new run */
     onCreateRun?: (runNumber: number, runType: string) => void;
+    /** Callback when deleting a run */
+    onDeleteRun?: (runId: string) => void;
+    /** Callback when changing run status */
+    onUpdateRunStatus?: (runId: string, status: 'completed' | 'cancelled') => void;
   }
 
   let {
@@ -32,6 +36,8 @@
     activeRunId = null,
     onSelectRun,
     onCreateRun,
+    onDeleteRun,
+    onUpdateRunStatus,
   }: RunOverviewProps = $props();
 
   // ─── Run Definitions ──────────────────────────────────────────
@@ -86,6 +92,23 @@
   function handleCreateClick(slot: RunSlot): void {
     onCreateRun?.(slot.number, slot.type);
   }
+
+  function handleDeleteRun(event: MouseEvent, runId: string): void {
+    event.stopPropagation();
+    if (confirm(t('measurement.deleteRunConfirm'))) {
+      onDeleteRun?.(runId);
+    }
+  }
+
+  function handleCompleteRun(event: MouseEvent, runId: string): void {
+    event.stopPropagation();
+    onUpdateRunStatus?.(runId, 'completed');
+  }
+
+  function handleCancelRun(event: MouseEvent, runId: string): void {
+    event.stopPropagation();
+    onUpdateRunStatus?.(runId, 'cancelled');
+  }
 </script>
 
 <div class="run-overview">
@@ -95,18 +118,33 @@
     {#each RUN_SLOTS as slot (slot.number)}
       {@const run = getRunForSlot(slot)}
       {#if run}
-        <button
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
           class="run-card"
           class:active={activeRunId === run.id}
           onclick={() => handleRunClick(run.id)}
+          onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') handleRunClick(run.id); }}
+          role="button"
+          tabindex="0"
         >
           <div class="run-header">
             <span class="run-label">
               {t('measurement.run')} {slot.number}: {t(slot.labelKey)}
             </span>
-            <span class="run-badge {getStatusBadgeClass(run.status)}">
-              {run.status}
-            </span>
+            <div class="run-header-actions">
+              <span class="run-badge {getStatusBadgeClass(run.status)}">
+                {run.status}
+              </span>
+              <button
+                class="run-action-btn delete-btn"
+                onclick={(e: MouseEvent) => handleDeleteRun(e, run.id)}
+                title={t('measurement.deleteRun')}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="run-meta">
             <span class="run-points">
@@ -114,7 +152,23 @@
             </span>
             <span class="run-date">{formatDate(run.created_at)}</span>
           </div>
-        </button>
+          {#if run.status === 'in_progress' || run.status === 'pending'}
+            <div class="run-status-actions">
+              <button
+                class="status-action-btn complete-btn"
+                onclick={(e: MouseEvent) => handleCompleteRun(e, run.id)}
+              >
+                {t('measurement.completeRun')}
+              </button>
+              <button
+                class="status-action-btn cancel-btn"
+                onclick={(e: MouseEvent) => handleCancelRun(e, run.id)}
+              >
+                {t('measurement.cancelRun')}
+              </button>
+            </div>
+          {/if}
+        </div>
       {:else}
         <button
           class="run-card empty"
@@ -253,5 +307,75 @@
   .run-empty-hint {
     font-size: 0.7rem;
     color: #606070;
+  }
+
+  .run-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .run-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: #808090;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
+
+  .run-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .delete-btn:hover {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
+  }
+
+  .run-status-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  .status-action-btn {
+    flex: 1;
+    padding: 3px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    background: transparent;
+  }
+
+  .complete-btn {
+    color: #4ade80;
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+
+  .complete-btn:hover {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.5);
+  }
+
+  .cancel-btn {
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .cancel-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
   }
 </style>

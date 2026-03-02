@@ -25,6 +25,8 @@
     isGenerating?: boolean;
     /** Whether changes exist */
     hasChanges?: boolean;
+    /** Current plan status ('draft' | 'applied' | 'verified' | null) */
+    planStatus?: string | null;
     /** Error message to display */
     error?: string | null;
     /** Callback to generate an optimization plan */
@@ -44,6 +46,7 @@
     changes,
     isGenerating = false,
     hasChanges = false,
+    planStatus = null,
     error = null,
     onGeneratePlan,
     onChange,
@@ -61,8 +64,21 @@
 </script>
 
 <div class="mixing-console">
-  <!-- Title -->
-  <h3 class="console-title">{t('mixing.title')}</h3>
+  <!-- Title with plan status badge -->
+  <div class="console-header">
+    <h3 class="console-title">{t('mixing.title')}</h3>
+    {#if planStatus}
+      <span class="plan-status-badge status-{planStatus}">
+        {#if planStatus === 'draft'}
+          {t('mixing.draft')}
+        {:else if planStatus === 'applied'}
+          {t('mixing.applied')}
+        {:else if planStatus === 'verified'}
+          {t('mixing.verified')}
+        {/if}
+      </span>
+    {/if}
+  </div>
 
   <!-- Error display -->
   {#if error}
@@ -125,13 +141,49 @@
     padding: 4px 0;
   }
 
+  .console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
   .console-title {
-    margin: 0 0 8px;
+    margin: 0;
     font-size: 0.8rem;
     font-weight: 600;
     color: #e0e0f0;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+  }
+
+  .plan-status-badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+
+  .status-draft {
+    background: rgba(156, 163, 175, 0.2);
+    color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+  }
+
+  .status-applied {
+    background: rgba(34, 197, 94, 0.15);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  .status-verified {
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.3);
   }
 
   .error-banner {

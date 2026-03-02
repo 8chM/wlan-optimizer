@@ -69,6 +69,12 @@
     onCancelMeasurement?: () => void;
     /** Callback: apply calibration to heatmap */
     onApplyCalibration?: (calibratedN: number) => void;
+    /** Callback: delete a run */
+    onDeleteRun?: (runId: string) => void;
+    /** Callback: update run status */
+    onUpdateRunStatus?: (runId: string, status: 'completed' | 'cancelled') => void;
+    /** Callback: delete a measurement point */
+    onDeletePoint?: (pointId: string) => void;
   }
 
   let {
@@ -97,6 +103,9 @@
     onStartMeasurement,
     onCancelMeasurement,
     onApplyCalibration,
+    onDeleteRun,
+    onUpdateRunStatus,
+    onDeletePoint,
   }: MeasurementWizardProps = $props();
 
   // ─── Local State ──────────────────────────────────────────────
@@ -139,6 +148,13 @@
       onStartMeasurement?.(selectedPointId);
     }
   }
+
+  function handleDeletePoint(): void {
+    if (selectedPointId && confirm(t('measurement.deletePointConfirm'))) {
+      onDeletePoint?.(selectedPointId);
+      selectedPointId = null;
+    }
+  }
 </script>
 
 <div class="measurement-wizard">
@@ -169,6 +185,8 @@
       {activeRunId}
       onSelectRun={onSelectRun}
       onCreateRun={onCreateRun}
+      onDeleteRun={onDeleteRun}
+      onUpdateRunStatus={onUpdateRunStatus}
     />
   {/if}
 
@@ -197,13 +215,25 @@
         </div>
 
         {#if selectedPointId}
-          <button
-            class="start-btn"
-            onclick={handleStartMeasurement}
-            disabled={isMeasuring}
-          >
-            {t('measurement.startMeasurement')}
-          </button>
+          <div class="point-actions">
+            <button
+              class="start-btn"
+              onclick={handleStartMeasurement}
+              disabled={isMeasuring}
+            >
+              {t('measurement.startMeasurement')}
+            </button>
+            <button
+              class="delete-point-btn"
+              onclick={handleDeletePoint}
+              title={t('measurement.deletePoint')}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+              </svg>
+              {t('measurement.deletePoint')}
+            </button>
+          </div>
         {/if}
       {/if}
     </div>
@@ -354,5 +384,40 @@
   .start-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
+  }
+
+  .point-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    align-items: stretch;
+  }
+
+  .point-actions .start-btn {
+    flex: 1;
+    margin-top: 0;
+  }
+
+  .delete-point-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 10px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    color: #f87171;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+
+  .delete-point-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
   }
 </style>

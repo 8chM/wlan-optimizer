@@ -174,7 +174,13 @@
     "noRuns": "Noch keine Messdurchlaeufe",
     "addPoint": "Klicke auf den Grundriss um einen Messpunkt hinzuzufuegen",
     "maxDeviation": "Max. Abweichung",
-    "pointsCount": "Messpunkte"
+    "pointsCount": "Messpunkte",
+    "deleteRun": "Durchlauf loeschen",
+    "deleteRunConfirm": "Moechtest du diesen Durchlauf und alle zugehoerigen Messungen wirklich loeschen?",
+    "deletePoint": "Messpunkt loeschen",
+    "deletePointConfirm": "Moechtest du diesen Messpunkt wirklich loeschen?",
+    "completeRun": "Abschliessen",
+    "cancelRun": "Abbrechen"
   },
   "shortcuts": {
     "title": "Tastenkuerzel",

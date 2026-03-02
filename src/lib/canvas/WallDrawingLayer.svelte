@@ -30,8 +30,8 @@
     materialId: string;
     /** Current mouse position (canvas coords, pixels) */
     mousePosition?: Position | null;
-    /** Callback after wall creation */
-    onWallCreated?: () => void;
+    /** Callback after wall creation (receives created wall ID, floor, material, segments for undo) */
+    onWallCreated?: (wallId: string, floorId: string, materialId: string, segments: WallSegmentInput[]) => void;
     /** Callback on cancel */
     onCancel?: () => void;
   }
@@ -153,8 +153,8 @@
     }
 
     try {
-      await createWall(floorId, materialId, segments);
-      onWallCreated?.();
+      const result = await createWall(floorId, materialId, segments);
+      onWallCreated?.(result.id, floorId, materialId, segments);
     } catch (err) {
       console.error('[WallDrawingLayer] Failed to create wall:', err);
     }

@@ -197,6 +197,23 @@ function createProjectStore() {
       };
     },
 
+    async renameProject(id: string, newName: string): Promise<boolean> {
+      error = null;
+      try {
+        const updated = await safeInvoke('update_project', {
+          params: { id, name: newName },
+        });
+        projects = projects.map((p) => (p.id === id ? updated : p));
+        if (currentProject?.id === id) {
+          currentProject = updated;
+        }
+        return true;
+      } catch (err: unknown) {
+        error = err instanceof Error ? err.message : String(err);
+        return false;
+      }
+    },
+
     reset(): void {
       currentProject = null;
       floors = [];

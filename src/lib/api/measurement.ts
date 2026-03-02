@@ -89,10 +89,28 @@ export async function cancelMeasurement(runId: string): Promise<void> {
  */
 export async function updateMeasurementRunStatus(
   runId: string,
-  status: 'pending' | 'in_progress' | 'completed' | 'failed',
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled',
 ): Promise<void> {
   await safeInvoke('update_measurement_run_status', {
     measurement_run_id: runId,
     status,
   });
+}
+
+/**
+ * Deletes a measurement run and all its associated measurements.
+ */
+export async function deleteMeasurementRun(
+  runId: string,
+): Promise<{ success: boolean }> {
+  return safeInvoke('delete_measurement_run', { run_id: runId });
+}
+
+/**
+ * Deletes a measurement point and all its associated measurements.
+ */
+export async function deleteMeasurementPoint(
+  pointId: string,
+): Promise<{ success: boolean }> {
+  return safeInvoke('delete_measurement_point', { point_id: pointId });
 }

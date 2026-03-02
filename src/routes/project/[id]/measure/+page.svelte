@@ -258,10 +258,13 @@
       >
         {#snippet background()}
           <GridOverlay
-            widthPx={(floor.width_meters ?? 10) * scalePxPerMeter}
-            heightPx={(floor.height_meters ?? 10) * scalePxPerMeter}
             gridSizeM={canvasStore.gridSize}
             {scalePxPerMeter}
+            stageScale={canvasStore.scale}
+            stageOffsetX={canvasStore.offsetX}
+            stageOffsetY={canvasStore.offsetY}
+            viewportWidth={containerWidth}
+            viewportHeight={containerHeight}
             visible={canvasStore.gridVisible}
           />
           <BackgroundImage

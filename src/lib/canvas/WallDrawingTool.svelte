@@ -25,6 +25,8 @@
     scalePxPerMeter: number;
     /** Whether endpoints can be dragged to edit wall geometry */
     editMode?: boolean;
+    /** Whether this wall is interactive (clickable/selectable) */
+    interactive?: boolean;
     /** Callback when wall is clicked/selected */
     onSelect?: (wallId: string) => void;
     /** Callback when wall should be deleted */
@@ -39,6 +41,7 @@
     selected = false,
     scalePxPerMeter = 50,
     editMode = false,
+    interactive = true,
     onSelect,
     onDelete,
     onSegmentsUpdate,
@@ -54,7 +57,18 @@
     : isWindow ? '#64B5F6'
     : getStrokeColor(materialCategory)
   );
-  let strokeWidth = $derived(selected ? 5 : isDoor || isWindow ? 4 : 3);
+  // Wall thickness in pixels based on material category (realistic rendering)
+  let wallThicknessPx = $derived(
+    isDoor ? 0.1 * scalePxPerMeter     // ~10cm
+    : isWindow ? 0.08 * scalePxPerMeter // ~8cm
+    : materialCategory === 'light' ? 0.1 * scalePxPerMeter   // ~10cm (drywall)
+    : materialCategory === 'medium' ? 0.15 * scalePxPerMeter  // ~15cm (brick)
+    : materialCategory === 'heavy' ? 0.2 * scalePxPerMeter    // ~20cm (concrete)
+    : materialCategory === 'blocking' ? 0.25 * scalePxPerMeter // ~25cm (reinforced concrete)
+    : 0.12 * scalePxPerMeter
+  );
+  // Minimum visible thickness: 3px, capped at reasonable max
+  let strokeWidth = $derived(selected ? Math.max(wallThicknessPx, 4) + 2 : Math.max(wallThicknessPx, 3));
   let strokeDash = $derived(isDoor ? [6, 4] : isWindow ? [2, 3] : []);
 
   // Convert wall segments to a flat array of points in pixels
@@ -116,6 +130,7 @@
   });
 
   function handleClick(event: KonvaMouseEvent): void {
+    if (!interactive) return;
     event.cancelBubble = true;
     onSelect?.(wall.id);
   }
@@ -160,15 +175,16 @@
 
 <Group>
   {#if deduplicatedPoints.length >= 4}
-    <!-- Wall line -->
+    <!-- Wall line (rendered with realistic thickness) -->
     <Line
       points={deduplicatedPoints}
       stroke={selected ? '#4a6cf7' : strokeColor}
       {strokeWidth}
       dash={strokeDash}
-      lineCap="round"
-      lineJoin="round"
-      hitStrokeWidth={20}
+      lineCap="butt"
+      lineJoin="miter"
+      hitStrokeWidth={interactive ? 20 : 0}
+      listening={interactive}
       onclick={handleClick}
     />
 

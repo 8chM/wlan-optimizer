@@ -24,7 +24,7 @@
     floorId: string;
     materialId: string;
     mousePosition?: Position | null;
-    onRoomCreated?: (wallIds: string[]) => void;
+    onRoomCreated?: (wallIds: string[], areaM2: number, centroid: Position) => void;
     onCancel?: () => void;
   }
 
@@ -178,12 +178,55 @@
     }
   }
 
+  /**
+   * Calculate the area of a polygon using the Shoelace formula.
+   * Returns area in square meters.
+   */
+  function calculateAreaM2(pts: Position[]): number {
+    if (pts.length < 3) return 0;
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length;
+      // Convert from canvas pixels to meters
+      const xi = pts[i]!.x / scalePxPerMeter;
+      const yi = pts[i]!.y / scalePxPerMeter;
+      const xj = pts[j]!.x / scalePxPerMeter;
+      const yj = pts[j]!.y / scalePxPerMeter;
+      area += xi * yj;
+      area -= xj * yi;
+    }
+    return Math.abs(area) / 2;
+  }
+
+  /**
+   * Calculate the centroid (center of mass) of a polygon.
+   */
+  function calculateCentroid(pts: Position[]): Position {
+    let cx = 0;
+    let cy = 0;
+    for (const p of pts) {
+      cx += p.x;
+      cy += p.y;
+    }
+    return { x: cx / pts.length, y: cy / pts.length };
+  }
+
+  // Live area preview while drawing
+  let previewAreaM2 = $derived.by((): number | null => {
+    if (!isDrawing || vertices.length < 3) return null;
+    return calculateAreaM2(vertices);
+  });
+
   async function closePolygon(): Promise<void> {
     const pts = [...vertices];
     isDrawing = false;
     vertices = [];
 
     if (pts.length < 3) return;
+
+    // Calculate area and centroid before creating walls
+    const areaM2 = calculateAreaM2(pts);
+    const centroid = calculateCentroid(pts);
 
     // Create a wall for each edge of the polygon (including closing edge)
     const wallIds: string[] = [];
@@ -207,7 +250,7 @@
     }
 
     if (wallIds.length > 0) {
-      onRoomCreated?.(wallIds);
+      onRoomCreated?.(wallIds, areaM2, centroid);
     }
   }
 </script>
@@ -306,18 +349,18 @@
       </Group>
     {/if}
 
-    <!-- Perimeter total (when 2+ edges placed) -->
+    <!-- Perimeter total and area (when 2+ edges placed) -->
     {#if vertices.length >= 2}
-      <Group x={vertices[0]!.x - 50} y={vertices[0]!.y - 28} listening={false}>
+      <Group x={vertices[0]!.x - 60} y={vertices[0]!.y - 46} listening={false}>
         <Rect
-          width={100}
-          height={18}
+          width={120}
+          height={previewAreaM2 !== null ? 36 : 18}
           fill="rgba(16, 185, 129, 0.85)"
           cornerRadius={3}
           listening={false}
         />
         <Text
-          width={100}
+          width={120}
           height={18}
           text={`\u2211 ${(perimeterM + (segmentLengthM ?? 0)).toFixed(2)} m`}
           fontSize={10}
@@ -327,6 +370,20 @@
           verticalAlign="middle"
           listening={false}
         />
+        {#if previewAreaM2 !== null}
+          <Text
+            y={18}
+            width={120}
+            height={18}
+            text={`\u25A1 ${previewAreaM2.toFixed(2)} m\u00B2`}
+            fontSize={10}
+            fontFamily="'SF Mono', 'Fira Code', monospace"
+            fill="#ffffff"
+            align="center"
+            verticalAlign="middle"
+            listening={false}
+          />
+        {/if}
       </Group>
     {/if}
   </Group>

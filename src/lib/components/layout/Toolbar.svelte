@@ -20,6 +20,7 @@ interface ToolbarProps {
   onFitToScreen?: () => void;
   onToggleGrid?: () => void;
   onToggleSnap?: () => void;
+  onToggleBackground?: () => void;
   onSetScale?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -27,6 +28,7 @@ interface ToolbarProps {
   canRedo?: boolean;
   gridVisible?: boolean;
   snapEnabled?: boolean;
+  backgroundVisible?: boolean;
   settingScale?: boolean;
   children?: Snippet;
 }
@@ -41,6 +43,7 @@ let {
   onFitToScreen,
   onToggleGrid,
   onToggleSnap,
+  onToggleBackground,
   onSetScale,
   onUndo,
   onRedo,
@@ -48,6 +51,7 @@ let {
   canRedo = false,
   gridVisible = true,
   snapEnabled = false,
+  backgroundVisible = true,
   settingScale = false,
   children,
 }: ToolbarProps = $props();
@@ -164,6 +168,14 @@ let themeLabel = $derived(
         >
           <span class="tool-icon">⊹</span>
           <span class="tool-label">{t('toolbar.snap')}</span>
+        </button>
+        <button
+          class="tool-btn"
+          class:active={backgroundVisible}
+          onclick={onToggleBackground}
+          title={t('toolbar.toggleBackground')}
+        >
+          <span class="tool-icon">🖼</span>
         </button>
         <button
           class="tool-btn"

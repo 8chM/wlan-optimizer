@@ -70,6 +70,8 @@ function handleSetScale(): void {
   onToggleGrid={handleToggleGrid}
   onToggleSnap={() => canvasStore.toggleSnapToGrid()}
   snapEnabled={canvasStore.snapToGridEnabled}
+  onToggleBackground={() => canvasStore.toggleBackground()}
+  backgroundVisible={canvasStore.backgroundVisible}
   onSetScale={handleSetScale}
 >
   {@render children()}

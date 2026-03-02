@@ -49,7 +49,8 @@
     "pan": "Pan",
     "room": "Room",
     "toggleSnap": "Toggle Snap",
-    "snap": "Snap"
+    "snap": "Snap",
+    "toggleBackground": "Toggle Background Image"
   },
   "status": {
     "saved": "Saved",

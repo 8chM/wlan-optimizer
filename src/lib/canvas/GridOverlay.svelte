@@ -1,22 +1,29 @@
 <!--
-  GridOverlay.svelte - Optional grid overlay on the canvas.
+  GridOverlay.svelte - Viewport-filling grid overlay on the canvas.
 
-  Renders an evenly-spaced grid using Konva.Line elements.
+  Renders grid lines that cover the ENTIRE visible area (not just floor bounds).
   Grid spacing is configurable (0.5m, 1m, 2m).
   Major grid lines are slightly darker every N lines.
+  Origin is always at (0,0) to align with the coordinate system.
 -->
 <script lang="ts">
   import { Line, Group } from 'svelte-konva';
 
   interface GridOverlayProps {
-    /** Total canvas width in pixels */
-    widthPx: number;
-    /** Total canvas height in pixels */
-    heightPx: number;
     /** Grid spacing in meters */
     gridSizeM: number;
     /** Scale: pixels per meter */
     scalePxPerMeter: number;
+    /** Stage zoom level */
+    stageScale: number;
+    /** Stage offset X (screen pixels) */
+    stageOffsetX: number;
+    /** Stage offset Y (screen pixels) */
+    stageOffsetY: number;
+    /** Viewport width (screen pixels) */
+    viewportWidth: number;
+    /** Viewport height (screen pixels) */
+    viewportHeight: number;
     /** Whether the grid is visible */
     visible?: boolean;
     /** Grid line color */
@@ -28,22 +35,30 @@
   }
 
   let {
-    widthPx = 500,
-    heightPx = 500,
     gridSizeM = 1,
     scalePxPerMeter = 50,
+    stageScale = 1,
+    stageOffsetX = 0,
+    stageOffsetY = 0,
+    viewportWidth = 800,
+    viewportHeight = 600,
     visible = true,
     color = '#000000',
     opacity = 0.15,
     majorInterval = 5,
   }: GridOverlayProps = $props();
 
-  // Grid spacing in pixels
+  // Grid spacing in canvas pixels
   let gridSizePx = $derived(gridSizeM * scalePxPerMeter);
 
-  // Generate grid lines (read reactive deps explicitly so Svelte tracks them)
-  let verticalLines = $derived.by(() => computeVerticalLines(visible, gridSizePx, widthPx, heightPx, majorInterval));
-  let horizontalLines = $derived.by(() => computeHorizontalLines(visible, gridSizePx, widthPx, heightPx, majorInterval));
+  // Compute visible area in canvas coordinates (inverse stage transform)
+  let viewBounds = $derived.by(() => {
+    const left = -stageOffsetX / stageScale;
+    const top = -stageOffsetY / stageScale;
+    const right = left + viewportWidth / stageScale;
+    const bottom = top + viewportHeight / stageScale;
+    return { left, top, right, bottom };
+  });
 
   interface GridLine {
     key: string;
@@ -51,39 +66,45 @@
     isMajor: boolean;
   }
 
-  function computeVerticalLines(_visible: boolean, _gridPx: number, _w: number, _h: number, _maj: number): GridLine[] {
-    if (!_visible || _gridPx < 2) return [];
+  // Generate vertical lines covering the visible area
+  let verticalLines = $derived.by((): GridLine[] => {
+    if (!visible || gridSizePx < 2) return [];
+
+    const { left, top, right, bottom } = viewBounds;
+    const startIdx = Math.floor(left / gridSizePx) - 1;
+    const endIdx = Math.ceil(right / gridSizePx) + 1;
 
     const lines: GridLine[] = [];
-    const count = Math.ceil(_w / _gridPx);
-
-    for (let i = 0; i <= count; i++) {
-      const x = i * _gridPx;
+    for (let i = startIdx; i <= endIdx; i++) {
+      const x = i * gridSizePx;
       lines.push({
         key: `v-${i}`,
-        points: [x, 0, x, _h],
-        isMajor: i % _maj === 0,
+        points: [x, top - gridSizePx, x, bottom + gridSizePx],
+        isMajor: i % majorInterval === 0,
       });
     }
     return lines;
-  }
+  });
 
-  function computeHorizontalLines(_visible: boolean, _gridPx: number, _w: number, _h: number, _maj: number): GridLine[] {
-    if (!_visible || _gridPx < 2) return [];
+  // Generate horizontal lines covering the visible area
+  let horizontalLines = $derived.by((): GridLine[] => {
+    if (!visible || gridSizePx < 2) return [];
+
+    const { left, top, right, bottom } = viewBounds;
+    const startIdx = Math.floor(top / gridSizePx) - 1;
+    const endIdx = Math.ceil(bottom / gridSizePx) + 1;
 
     const lines: GridLine[] = [];
-    const count = Math.ceil(_h / _gridPx);
-
-    for (let i = 0; i <= count; i++) {
-      const y = i * _gridPx;
+    for (let i = startIdx; i <= endIdx; i++) {
+      const y = i * gridSizePx;
       lines.push({
         key: `h-${i}`,
-        points: [0, y, _w, y],
-        isMajor: i % _maj === 0,
+        points: [left - gridSizePx, y, right + gridSizePx, y],
+        isMajor: i % majorInterval === 0,
       });
     }
     return lines;
-  }
+  });
 </script>
 
 {#if visible}

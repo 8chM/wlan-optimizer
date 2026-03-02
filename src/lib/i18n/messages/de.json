@@ -49,7 +49,8 @@
     "pan": "Verschieben",
     "room": "Raum",
     "toggleSnap": "Einrasten umschalten",
-    "snap": "Einrasten"
+    "snap": "Einrasten",
+    "toggleBackground": "Hintergrundbild ein/ausblenden"
   },
   "status": {
     "saved": "Gespeichert",

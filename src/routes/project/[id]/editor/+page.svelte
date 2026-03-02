@@ -811,6 +811,16 @@ function handleDeleteAnnotation(id: string): void {
   saveAnnotations();
 }
 
+/**
+ * Handle item selection. Only allow selection when in select mode.
+ * In drawing modes, clicking on items should not interfere with drawing.
+ */
+function handleItemSelect(id: string): void {
+  if (canvasStore.activeTool === 'select') {
+    canvasStore.selectItem(id, canvasStore.shiftHeld);
+  }
+}
+
 // Track Shift key for angle snapping
 function handleKeyDown(event: KeyboardEvent): void {
   if (event.key === 'Shift') canvasStore.setShiftHeld(true);
@@ -1075,17 +1085,29 @@ async function handleWallCreated(
 
 // ── Room creation callback (with undo support) ───────────────
 
-async function handleRoomCreated(wallIds: string[]): Promise<void> {
+async function handleRoomCreated(wallIds: string[], areaM2: number, centroid: Position): Promise<void> {
   await projectStore.refreshFloorData();
   projectStore.markDirty();
 
-  // Push undo command for all walls created by the room
+  // Auto-create text annotation with room area at centroid
+  const roomNumber = annotations.filter(a => a.text.includes('m\u00B2')).length + 1;
+  const annotationId = crypto.randomUUID();
+  const areaAnnotation: AnnotationData = {
+    id: annotationId,
+    x: centroid.x / scalePxPerMeter,
+    y: centroid.y / scalePxPerMeter,
+    text: `${areaM2.toFixed(1)} m\u00B2`,
+    fontSize: 14,
+  };
+  annotations = [...annotations, areaAnnotation];
+  saveAnnotations();
+
+  // Push undo command for all walls + annotation created by the room
   const capturedIds = [...wallIds];
+  const capturedAnnotationId = annotationId;
   undoStore.pushExecuted({
     label: `Create Room (${capturedIds.length} walls)`,
     async execute() {
-      // Can't easily redo room creation with same IDs
-      // For now, redo is not supported for rooms
       await projectStore.refreshFloorData();
     },
     async undo() {
@@ -1094,6 +1116,9 @@ async function handleRoomCreated(wallIds: string[]): Promise<void> {
           await deleteWall(id);
         } catch { /* wall may already be deleted */ }
       }
+      // Remove the area annotation too
+      annotations = annotations.filter(a => a.id !== capturedAnnotationId);
+      saveAnnotations();
       await projectStore.refreshFloorData();
       projectStore.markDirty();
     },
@@ -1210,23 +1235,28 @@ async function handleFileSelected(event: Event): Promise<void> {
       floorplanWidthM={floor.width_meters ?? 10}
       floorplanHeightM={floor.height_meters ?? 10}
       {scalePxPerMeter}
-      draggable={canvasStore.activeTool === 'select' || canvasStore.activeTool === 'pan'}
+      draggable={canvasStore.activeTool === 'pan'}
       onCanvasClick={handleCanvasClick}
       onCanvasDblClick={handleCanvasDblClick}
       onCanvasMouseMove={handleCanvasMouseMove}
     >
       {#snippet background()}
-        <BackgroundImage
-          imageData={floorImageDataUrl}
-          {scalePxPerMeter}
-          rotation={floorRotation}
-          opacity={canvasStore.gridVisible ? 0.7 : 1}
-        />
+        {#if canvasStore.backgroundVisible}
+          <BackgroundImage
+            imageData={floorImageDataUrl}
+            {scalePxPerMeter}
+            rotation={floorRotation}
+            opacity={canvasStore.gridVisible ? 0.35 : 0.7}
+          />
+        {/if}
         <GridOverlay
-          widthPx={(floor.width_meters ?? 10) * scalePxPerMeter}
-          heightPx={(floor.height_meters ?? 10) * scalePxPerMeter}
           gridSizeM={canvasStore.gridSize}
           {scalePxPerMeter}
+          stageScale={canvasStore.scale}
+          stageOffsetX={canvasStore.offsetX}
+          stageOffsetY={canvasStore.offsetY}
+          viewportWidth={containerWidth}
+          viewportHeight={containerHeight}
           visible={canvasStore.gridVisible}
         />
         <ScaleIndicator
@@ -1252,10 +1282,12 @@ async function handleFileSelected(event: Event): Promise<void> {
           {#each floor.walls as wall (wall.id)}
             <WallDrawingTool
               {wall}
+              materialCategory={wall.material?.category ?? 'medium'}
               selected={canvasStore.isSelected(wall.id)}
               {scalePxPerMeter}
               editMode={canvasStore.activeTool === 'select'}
-              onSelect={(id) => canvasStore.selectItem(id, canvasStore.shiftHeld)}
+              interactive={canvasStore.activeTool === 'select'}
+              onSelect={(id) => handleItemSelect(id)}
               onSegmentsUpdate={handleWallSegmentsUpdate}
             />
           {/each}
@@ -1267,7 +1299,8 @@ async function handleFileSelected(event: Event): Promise<void> {
               accessPoint={ap}
               selected={canvasStore.isSelected(ap.id)}
               {scalePxPerMeter}
-              onSelect={(id) => canvasStore.selectItem(id, canvasStore.shiftHeld)}
+              draggable={canvasStore.activeTool === 'select'}
+              onSelect={(id) => handleItemSelect(id)}
               onPositionChange={handleApPositionChange}
             />
           {/each}
@@ -1305,7 +1338,7 @@ async function handleFileSelected(event: Event): Promise<void> {
             {annotation}
             {scalePxPerMeter}
             selected={canvasStore.isSelected(annotation.id)}
-            onSelect={(id) => canvasStore.selectItem(id, canvasStore.shiftHeld)}
+            onSelect={(id) => handleItemSelect(id)}
             onPositionChange={handleAnnotationPositionChange}
             onEdit={handleAnnotationEdit}
           />
@@ -1526,7 +1559,7 @@ async function handleFileSelected(event: Event): Promise<void> {
     {/if}
 
     <!-- Material Picker (visible when wall/door/window tool is active) -->
-    {#if canvasStore.activeTool === 'wall' || canvasStore.activeTool === 'door' || canvasStore.activeTool === 'window'}
+    {#if canvasStore.activeTool === 'wall' || canvasStore.activeTool === 'door' || canvasStore.activeTool === 'window' || canvasStore.activeTool === 'room'}
       <div class="material-floating-panel">
         <MaterialPicker
           selectedMaterialId={canvasStore.selectedMaterialId}

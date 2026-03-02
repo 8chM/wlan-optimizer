@@ -9,6 +9,7 @@ import type {
   MeasurementRunResponse,
   MeasurementResponse,
   MeasurementPointResponse,
+  AccessPointResponse,
 } from '$lib/api/invoke';
 import {
   getMeasurementRuns,
@@ -23,6 +24,12 @@ import {
   deleteMeasurementPoint,
   updateMeasurementRunStatus,
 } from '$lib/api/measurement';
+import {
+  REFERENCE_LOSS,
+  DEFAULT_PATH_LOSS_EXPONENT,
+  DEFAULT_RECEIVER_GAIN_DBI,
+  MIN_DISTANCE,
+} from '$lib/heatmap/rf-engine';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -42,6 +49,110 @@ function extractErrorMessage(err: unknown): string {
     return String((err as Record<string, unknown>).message);
   }
   return String(err);
+}
+
+// ─── Calibration ────────────────────────────────────────────────
+
+interface CalibrationInput {
+  /** Measured RSSI in dBm */
+  rssiDbm: number;
+  /** Distance from AP to measurement point in meters */
+  distance: number;
+  /** TX power of the closest AP in dBm */
+  txPowerDbm: number;
+  /** Antenna gain of the closest AP in dBi */
+  antennaGainDbi: number;
+  /** Reference loss for the frequency band */
+  referenceLoss: number;
+}
+
+interface CalibrationOutput {
+  n: number;
+  rmse: number;
+  confidence: string;
+  originalN: number;
+  rSquared: number;
+  maxDeviation: number;
+  pointCount: number;
+}
+
+/**
+ * Computes the calibrated path loss exponent from measured RSSI data.
+ *
+ * Uses the ITU-R P.1238 model:
+ *   RSSI = TxPower + AntennaGain + ReceiverGain - PL(1m) - 10*n*log10(d)
+ *
+ * Rearranging for n per measurement:
+ *   n_i = (TxPower + AntennaGain + ReceiverGain - PL(1m) - RSSI) / (10 * log10(d))
+ *
+ * The calibrated n is the average across all measurements (least-squares fit).
+ */
+function computeCalibration(inputs: CalibrationInput[]): CalibrationOutput | null {
+  if (inputs.length < 2) return null;
+
+  const originalN = DEFAULT_PATH_LOSS_EXPONENT;
+  const receiverGain = DEFAULT_RECEIVER_GAIN_DBI;
+
+  // Compute individual n estimates
+  const nEstimates: number[] = [];
+  for (const input of inputs) {
+    const d = Math.max(MIN_DISTANCE, input.distance);
+    const logD = Math.log10(d);
+    if (logD <= 0) continue; // Skip points too close to AP
+
+    // n = (TxPower + AntennaGain + ReceiverGain - ReferenceLoss - RSSI) / (10 * log10(d))
+    const numerator = input.txPowerDbm + input.antennaGainDbi + receiverGain - input.referenceLoss - input.rssiDbm;
+    const n = numerator / (10 * logD);
+
+    // Clamp to physically reasonable range
+    if (n >= 1.5 && n <= 6.0) {
+      nEstimates.push(n);
+    }
+  }
+
+  if (nEstimates.length < 2) return null;
+
+  // Average n (least-squares estimate for single-parameter model)
+  const calibratedN = nEstimates.reduce((sum, v) => sum + v, 0) / nEstimates.length;
+
+  // Compute RMSE and R-squared
+  let sumSquaredError = 0;
+  let maxDeviation = 0;
+  let sumSquaredTotal = 0;
+  const meanRssi = inputs.reduce((sum, i) => sum + i.rssiDbm, 0) / inputs.length;
+
+  for (const input of inputs) {
+    const d = Math.max(MIN_DISTANCE, input.distance);
+    const predictedRssi = input.txPowerDbm + input.antennaGainDbi + receiverGain
+      - input.referenceLoss - 10 * calibratedN * Math.log10(d);
+    const error = input.rssiDbm - predictedRssi;
+    sumSquaredError += error * error;
+    sumSquaredTotal += (input.rssiDbm - meanRssi) ** 2;
+    maxDeviation = Math.max(maxDeviation, Math.abs(error));
+  }
+
+  const rmse = Math.sqrt(sumSquaredError / inputs.length);
+  const rSquared = sumSquaredTotal > 0 ? 1 - sumSquaredError / sumSquaredTotal : 0;
+
+  // Confidence based on RMSE and point count
+  let confidence: string;
+  if (rmse <= 3 && nEstimates.length >= 5) {
+    confidence = 'high';
+  } else if (rmse <= 5 && nEstimates.length >= 3) {
+    confidence = 'medium';
+  } else {
+    confidence = 'low';
+  }
+
+  return {
+    n: Math.round(calibratedN * 100) / 100,
+    rmse: Math.round(rmse * 100) / 100,
+    confidence,
+    originalN,
+    rSquared: Math.round(rSquared * 1000) / 1000,
+    maxDeviation: Math.round(maxDeviation * 100) / 100,
+    pointCount: nEstimates.length,
+  };
 }
 
 // ─── Store ──────────────────────────────────────────────────────
@@ -318,6 +429,72 @@ function createMeasurementStore() {
         total,
         currentStep: step,
       };
+    },
+
+    /**
+     * Computes calibration from baseline measurements and AP positions.
+     * Automatically called after a baseline run completes.
+     */
+    runCalibration(
+      accessPointsList: AccessPointResponse[],
+    ): void {
+      if (measurements.length === 0 || points.length === 0 || accessPointsList.length === 0) return;
+
+      // Build calibration inputs from measurements + points + nearest AP
+      const inputs: CalibrationInput[] = [];
+      for (const measurement of measurements) {
+        if (measurement.rssi_dbm === null) continue;
+
+        // Find the measurement point
+        const point = points.find((p) => p.id === measurement.measurement_point_id);
+        if (!point) continue;
+
+        // Find the closest AP
+        let closestAp: AccessPointResponse | null = null;
+        let minDist = Infinity;
+        for (const ap of accessPointsList) {
+          if (!ap.enabled) continue;
+          const dx = point.x - ap.x;
+          const dy = point.y - ap.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < minDist) {
+            minDist = dist;
+            closestAp = ap;
+          }
+        }
+
+        if (!closestAp || minDist < MIN_DISTANCE) continue;
+
+        // Determine frequency band and reference loss
+        const freqMhz = measurement.frequency_mhz ?? 5000;
+        const band: '2.4ghz' | '5ghz' | '6ghz' = freqMhz < 3000 ? '2.4ghz' : freqMhz < 5900 ? '5ghz' : '6ghz';
+        const txPower = band === '2.4ghz'
+          ? (closestAp.tx_power_24ghz_dbm ?? 20)
+          : (closestAp.tx_power_5ghz_dbm ?? 23);
+
+        const antennaGain = band === '2.4ghz'
+          ? (closestAp.ap_model?.antenna_gain_24ghz_dbi ?? 3)
+          : (closestAp.ap_model?.antenna_gain_5ghz_dbi ?? 3);
+
+        inputs.push({
+          rssiDbm: measurement.rssi_dbm,
+          distance: minDist,
+          txPowerDbm: txPower,
+          antennaGainDbi: antennaGain,
+          referenceLoss: REFERENCE_LOSS[band],
+        });
+      }
+
+      const result = computeCalibration(inputs);
+      if (result) {
+        calibratedN = result.n;
+        calibrationRMSE = result.rmse;
+        calibrationConfidence = result.confidence;
+        calibrationOriginalN = result.originalN;
+        calibrationRSquared = result.rSquared;
+        calibrationMaxDeviation = result.maxDeviation;
+        calibrationPointCount = result.pointCount;
+      }
     },
 
     setCalibration(

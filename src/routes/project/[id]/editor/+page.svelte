@@ -52,6 +52,7 @@ let mousePosition = $state<Position | null>(null);
 let floorImageDataUrl = $state<string | null>(null);
 let fileInput: HTMLInputElement | undefined = $state();
 let materials = $state<MaterialResponse[]>([]);
+let uploadError = $state<string | null>(null);
 let scalePoints = $state<Array<{ x: number; y: number }>>([]);
 let scaleDialogOpen = $state(false);
 let scaleDistanceInput = $state('');
@@ -319,20 +320,63 @@ async function handleApUpdate(
     channel_width?: string;
   },
 ): Promise<void> {
+  // Capture old AP properties for undo
+  const ap = floor?.access_points?.find((a) => a.id === apId);
+  const oldValues: Record<string, unknown> = {};
+  const newValues: Record<string, unknown> = {};
+  if (updates.label !== undefined) {
+    oldValues.label = ap?.label;
+    newValues.label = updates.label;
+  }
+  if (updates.txPower24ghzDbm !== undefined) {
+    oldValues.tx_power_24ghz_dbm = ap?.tx_power_24ghz_dbm;
+    newValues.tx_power_24ghz_dbm = updates.txPower24ghzDbm;
+  }
+  if (updates.txPower5ghzDbm !== undefined) {
+    oldValues.tx_power_5ghz_dbm = ap?.tx_power_5ghz_dbm;
+    newValues.tx_power_5ghz_dbm = updates.txPower5ghzDbm;
+  }
+  if (updates.enabled !== undefined) {
+    oldValues.enabled = ap?.enabled;
+    newValues.enabled = updates.enabled;
+  }
+  if (updates.height_m !== undefined) {
+    oldValues.height_m = ap?.height_m;
+    newValues.height_m = updates.height_m;
+  }
+  if (updates.mounting !== undefined) {
+    oldValues.mounting = ap?.mounting;
+    newValues.mounting = updates.mounting;
+  }
+  if (updates.channel_24ghz !== undefined) {
+    oldValues.channel_24ghz = ap?.channel_24ghz;
+    newValues.channel_24ghz = updates.channel_24ghz;
+  }
+  if (updates.channel_5ghz !== undefined) {
+    oldValues.channel_5ghz = ap?.channel_5ghz;
+    newValues.channel_5ghz = updates.channel_5ghz;
+  }
+  if (updates.channel_width !== undefined) {
+    oldValues.channel_width = ap?.channel_width;
+    newValues.channel_width = updates.channel_width;
+  }
+
+  const command: EditorCommand = {
+    label: 'Update AP',
+    async execute() {
+      await updateAccessPoint(apId, newValues);
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+    async undo() {
+      await updateAccessPoint(apId, oldValues);
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  };
+
   try {
-    await updateAccessPoint(apId, {
-      label: updates.label,
-      tx_power_24ghz_dbm: updates.txPower24ghzDbm,
-      tx_power_5ghz_dbm: updates.txPower5ghzDbm,
-      enabled: updates.enabled,
-      height_m: updates.height_m,
-      mounting: updates.mounting,
-      channel_24ghz: updates.channel_24ghz,
-      channel_5ghz: updates.channel_5ghz,
-      channel_width: updates.channel_width,
-    });
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
+    await undoStore.execute(command);
   } catch (err) {
     console.error('[Editor] Failed to update AP:', err);
   }
@@ -852,6 +896,7 @@ async function handleFileSelected(event: Event): Promise<void> {
   if (!file || !floor) return;
 
   const format = file.type.replace('image/', '');
+  uploadError = null;
 
   try {
     // Read file as ArrayBuffer
@@ -880,6 +925,9 @@ async function handleFileSelected(event: Event): Promise<void> {
     projectStore.markDirty();
   } catch (err) {
     console.error('[Editor] Failed to import floor image:', err);
+    uploadError = err instanceof Error ? err.message : t('editor.uploadFailed');
+    // Auto-clear error after 5 seconds
+    setTimeout(() => { uploadError = null; }, 5000);
   }
 
   // Reset input so same file can be re-selected
@@ -1051,6 +1099,14 @@ async function handleFileSelected(event: Event): Promise<void> {
           </svg>
           {t('editor.rotateFloorplan')}
         </button>
+      </div>
+    {/if}
+
+    <!-- Upload error toast -->
+    {#if uploadError}
+      <div class="upload-error-toast" role="alert">
+        <span>{uploadError}</span>
+        <button class="toast-close" onclick={() => { uploadError = null; }}>&times;</button>
       </div>
     {/if}
 
@@ -1440,5 +1496,38 @@ async function handleFileSelected(event: Event): Promise<void> {
   .btn-cancel-small:hover {
     background: rgba(255, 255, 255, 0.15);
     color: #e0e0f0;
+  }
+
+  .upload-error-toast {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: rgba(220, 38, 38, 0.9);
+    border: 1px solid rgba(220, 38, 38, 0.6);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.8rem;
+    backdrop-filter: blur(8px);
+    z-index: 30;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .toast-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+  }
+
+  .toast-close:hover {
+    color: #fff;
   }
 </style>

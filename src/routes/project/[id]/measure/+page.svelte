@@ -90,6 +90,15 @@
     }
   });
 
+  // Auto-compute calibration when measurements change
+  $effect(() => {
+    const mCount = measurementStore.measurements.length;
+    const aps = floor?.access_points ?? [];
+    if (mCount >= 2 && aps.length > 0) {
+      measurementStore.runCalibration(aps);
+    }
+  });
+
   // ─── Handlers ─────────────────────────────────────────────────
 
   function handleServerIpChange(ip: string): void {

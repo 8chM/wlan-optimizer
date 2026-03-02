@@ -106,7 +106,8 @@
     "replaceFloorplan": "Replace Floor Plan",
     "setScaleFirst": "Please set the scale first.",
     "measureDistance": "Distance",
-    "rotateFloorplan": "Rotate 90°"
+    "rotateFloorplan": "Rotate 90°",
+    "uploadFailed": "Failed to upload floor plan. Please try again."
   },
   "material": {
     "light": "Light",

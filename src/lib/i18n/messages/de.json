@@ -106,7 +106,8 @@
     "replaceFloorplan": "Grundriss austauschen",
     "setScaleFirst": "Bitte zuerst den Massstab setzen.",
     "measureDistance": "Distanz",
-    "rotateFloorplan": "90° drehen"
+    "rotateFloorplan": "90° drehen",
+    "uploadFailed": "Grundriss-Upload fehlgeschlagen. Bitte erneut versuchen."
   },
   "material": {
     "light": "Leicht",

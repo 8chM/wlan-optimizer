@@ -241,6 +241,31 @@ function dispatch(command: string, p: AnyParams): unknown {
       let aps = load<AccessPointResponse[]>(KEYS.aps, []);
       aps = aps.filter((a) => !floorIds.includes(a.floor_id));
       save(KEYS.aps, aps);
+      // Cascade: delete measurement runs, points, measurements
+      const runs = load<MeasurementRunResponse[]>(KEYS.measurementRuns, []);
+      const runIds = runs.filter((r) => floorIds.includes(r.floor_id)).map((r) => r.id);
+      save(KEYS.measurementRuns, runs.filter((r) => !floorIds.includes(r.floor_id)));
+      save(KEYS.measurementPoints, load<MeasurementPointResponse[]>(KEYS.measurementPoints, []).filter(
+        (mp) => !floorIds.includes(mp.floor_id),
+      ));
+      save(KEYS.measurements, load<MeasurementResponse[]>(KEYS.measurements, []).filter(
+        (m) => !runIds.includes(m.measurement_run_id),
+      ));
+      // Cascade: delete optimization plans and steps
+      const plans = load<OptimizationPlanResponse[]>(KEYS.optimizationPlans, []);
+      const planIds = plans.filter((pl) => pl.project_id === projectId).map((pl) => pl.id);
+      save(KEYS.optimizationPlans, plans.filter((pl) => pl.project_id !== projectId));
+      save(KEYS.optimizationSteps, load<OptimizationStepResponse[]>(KEYS.optimizationSteps, []).filter(
+        (s) => !planIds.includes(s.plan_id),
+      ));
+      // Cascade: delete heatmap settings
+      save(KEYS.heatmapSettings, load<HeatmapSettingsResponse[]>(KEYS.heatmapSettings, []).filter(
+        (hs) => hs.project_id !== projectId,
+      ));
+      // Clean up floor images from localStorage
+      for (const fid of floorIds) {
+        try { localStorage.removeItem(`wlan-opt:floor-image:${fid}`); } catch { /* ignore */ }
+      }
       return null;
     }
 

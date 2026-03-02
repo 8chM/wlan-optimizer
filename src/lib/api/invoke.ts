@@ -545,6 +545,7 @@ export interface AccessPointResponse {
   ip_address: string | null;
   ssid: string | null;
   enabled: boolean;
+  orientation_deg: number;
   created_at: string;
   updated_at: string;
   ap_model: ApModelResponse | null;

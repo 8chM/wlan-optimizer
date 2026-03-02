@@ -22,6 +22,7 @@
       channel_24ghz?: number;
       channel_5ghz?: number;
       channel_width?: string;
+      orientation_deg?: number;
     }) => void;
     /** Callback when AP is deleted */
     onDelete?: (apId: string) => void;
@@ -43,13 +44,14 @@
   let channel24 = $state(0);
   let channel5 = $state(0);
   let channelWidth = $state('20');
+  let orientationDeg = $state(0);
 
   // Sync state from props when a different AP is selected or when the AP object reference
   // changes with the same ID (e.g. after undo). We track a serialized version to detect changes.
   let lastSyncedApId = $state('');
   let lastSyncedVersion = $state('');
   $effect(() => {
-    const version = `${accessPoint.id}-${accessPoint.label}-${accessPoint.tx_power_24ghz_dbm}-${accessPoint.tx_power_5ghz_dbm}-${accessPoint.enabled}-${accessPoint.mounting}-${accessPoint.height_m}-${accessPoint.channel_24ghz}-${accessPoint.channel_5ghz}-${accessPoint.channel_width}`;
+    const version = `${accessPoint.id}-${accessPoint.label}-${accessPoint.tx_power_24ghz_dbm}-${accessPoint.tx_power_5ghz_dbm}-${accessPoint.enabled}-${accessPoint.mounting}-${accessPoint.height_m}-${accessPoint.channel_24ghz}-${accessPoint.channel_5ghz}-${accessPoint.channel_width}-${accessPoint.orientation_deg}`;
     if (accessPoint.id !== lastSyncedApId || version !== lastSyncedVersion) {
       lastSyncedApId = accessPoint.id;
       lastSyncedVersion = version;
@@ -62,6 +64,7 @@
       channel24 = accessPoint.channel_24ghz ?? 0;
       channel5 = accessPoint.channel_5ghz ?? 0;
       channelWidth = accessPoint.channel_width ?? '20';
+      orientationDeg = accessPoint.orientation_deg ?? 0;
     }
   });
 
@@ -106,6 +109,12 @@
   function handleChannelWidthChange(event: Event): void {
     channelWidth = (event.target as HTMLSelectElement).value;
     onUpdate?.(accessPoint.id, { channel_width: channelWidth });
+  }
+
+  function handleOrientationChange(): void {
+    const clamped = ((orientationDeg % 360) + 360) % 360;
+    orientationDeg = clamped;
+    onUpdate?.(accessPoint.id, { orientation_deg: clamped });
   }
 
   const channels24 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -211,6 +220,29 @@
           step="0.1"
         />
         <span class="input-suffix">m</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orientation -->
+  <div class="prop-section">
+    <div class="slider-row">
+      <label for="ap-orientation" class="prop-label">{t('properties.orientation')}</label>
+      <div class="slider-group">
+        <input
+          id="ap-orientation"
+          type="range"
+          class="slider"
+          min="0"
+          max="359"
+          step="1"
+          bind:value={orientationDeg}
+          onchange={handleOrientationChange}
+          aria-valuemin={0}
+          aria-valuemax={359}
+          aria-valuenow={orientationDeg}
+        />
+        <span class="slider-value">{orientationDeg}°</span>
       </div>
     </div>
   </div>

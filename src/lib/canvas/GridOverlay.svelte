@@ -48,8 +48,21 @@
     majorInterval = 5,
   }: GridOverlayProps = $props();
 
-  // Grid spacing in canvas pixels
-  let gridSizePx = $derived(gridSizeM * scalePxPerMeter);
+  // Adaptive grid: choose a "nice" spacing so lines are ~60-100px apart on screen
+  let adaptiveConfig = $derived.by(() => {
+    const effectiveScale = scalePxPerMeter * stageScale;
+    const targetScreenPx = 80;
+    const metersPerLine = targetScreenPx / effectiveScale;
+    const niceValues = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
+    let spacingM = niceValues[0]!;
+    for (const v of niceValues) {
+      if (v >= metersPerLine) { spacingM = v; break; }
+    }
+    return { spacingM, spacingPx: spacingM * scalePxPerMeter, majorEvery: 5 };
+  });
+
+  // Grid spacing in canvas pixels (now adaptive)
+  let gridSizePx = $derived(adaptiveConfig.spacingPx);
 
   // Compute visible area in canvas coordinates (inverse stage transform)
   let viewBounds = $derived.by(() => {
@@ -80,7 +93,7 @@
       lines.push({
         key: `v-${i}`,
         points: [x, top - gridSizePx, x, bottom + gridSizePx],
-        isMajor: i % majorInterval === 0,
+        isMajor: i % adaptiveConfig.majorEvery === 0,
       });
     }
     return lines;
@@ -100,7 +113,7 @@
       lines.push({
         key: `h-${i}`,
         points: [left - gridSizePx, y, right + gridSizePx, y],
-        isMajor: i % majorInterval === 0,
+        isMajor: i % adaptiveConfig.majorEvery === 0,
       });
     }
     return lines;

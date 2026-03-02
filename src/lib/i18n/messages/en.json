@@ -50,7 +50,8 @@
     "room": "Room",
     "toggleSnap": "Toggle Snap",
     "snap": "Snap",
-    "toggleBackground": "Toggle Background Image"
+    "toggleBackground": "Toggle Background Image",
+    "backgroundOpacity": "Background Opacity"
   },
   "status": {
     "saved": "Saved",
@@ -280,7 +281,11 @@
     "height": "Height",
     "channel24": "Channel 2.4 GHz",
     "channel5": "Channel 5 GHz",
-    "channelWidth": "Channel Width"
+    "channelWidth": "Channel Width",
+    "wallsSelected": "walls selected",
+    "mixed": "Mixed",
+    "applyToAll": "Apply to All",
+    "orientation": "Orientation"
   },
   "toast": {
     "close": "Close"

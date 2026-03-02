@@ -97,6 +97,7 @@
 <Group
   x={posX}
   y={posY}
+  rotation={accessPoint.orientation_deg ?? 0}
   draggable={draggable && enabled}
   dragDistance={3}
   opacity={enabled ? 1 : 0.4}

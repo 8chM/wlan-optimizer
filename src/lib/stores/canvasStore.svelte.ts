@@ -41,6 +41,9 @@ function createCanvasStore() {
   let shiftHeld = $state(false);
   let spaceHeld = $state(false);
   let backgroundVisible = $state(true);
+  let backgroundOpacity = $state(0.5);
+  let backgroundOffsetX = $state(0);
+  let backgroundOffsetY = $state(0);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -61,6 +64,9 @@ function createCanvasStore() {
     get shiftHeld() { return shiftHeld; },
     get spaceHeld() { return spaceHeld; },
     get backgroundVisible() { return backgroundVisible; },
+    get backgroundOpacity() { return backgroundOpacity; },
+    get backgroundOffsetX() { return backgroundOffsetX; },
+    get backgroundOffsetY() { return backgroundOffsetY; },
 
     get zoomPercent(): number {
       return scale * 100;
@@ -148,6 +154,15 @@ function createCanvasStore() {
       backgroundVisible = !backgroundVisible;
     },
 
+    setBackgroundOpacity(v: number): void {
+      backgroundOpacity = Math.min(1, Math.max(0, v));
+    },
+
+    setBackgroundOffset(x: number, y: number): void {
+      backgroundOffsetX = x;
+      backgroundOffsetY = y;
+    },
+
     toggleSidebar(): void {
       sidebarCollapsed = !sidebarCollapsed;
     },
@@ -189,6 +204,9 @@ function createCanvasStore() {
       shiftHeld = false;
       spaceHeld = false;
       backgroundVisible = true;
+      backgroundOpacity = 0.5;
+      backgroundOffsetX = 0;
+      backgroundOffsetY = 0;
     },
   };
 }

@@ -11,12 +11,15 @@
   import type { WallResponse, AccessPointResponse, MaterialResponse } from '$lib/api/invoke';
   import WallProperties from './WallProperties.svelte';
   import APProperties from './APProperties.svelte';
+  import MultiWallProperties from './MultiWallProperties.svelte';
 
   interface PropertiesPanelProps {
     /** Currently selected wall (if any) */
     selectedWall?: WallResponse | null;
     /** Currently selected access point (if any) */
     selectedAp?: AccessPointResponse | null;
+    /** Multiple selected walls for bulk editing */
+    selectedWalls?: WallResponse[];
     /** Available materials for wall material selection */
     materials?: MaterialResponse[];
     /** Callback when a wall is updated */
@@ -36,7 +39,10 @@
       channel_24ghz?: number;
       channel_5ghz?: number;
       channel_width?: string;
+      orientation_deg?: number;
     }) => void;
+    /** Callback to bulk-update walls */
+    onBulkWallUpdate?: (wallIds: string[], updates: { materialId?: string }) => void;
     /** Callback when a wall is deleted */
     onDeleteWall?: (wallId: string) => void;
     /** Callback when an AP is deleted */
@@ -46,18 +52,27 @@
   let {
     selectedWall = null,
     selectedAp = null,
+    selectedWalls = [],
     materials = [],
     onWallUpdate,
     onApUpdate,
+    onBulkWallUpdate,
     onDeleteWall,
     onDeleteAp,
   }: PropertiesPanelProps = $props();
 
-  let hasSelection = $derived(selectedWall !== null || selectedAp !== null);
+  let hasSelection = $derived(selectedWall !== null || selectedAp !== null || selectedWalls.length > 1);
 </script>
 
 <div class="properties-panel">
-  {#if selectedWall}
+  {#if selectedWalls.length > 1}
+    <MultiWallProperties
+      walls={selectedWalls}
+      {materials}
+      onBulkUpdate={onBulkWallUpdate}
+      onBulkDelete={onDeleteWall}
+    />
+  {:else if selectedWall}
     <WallProperties
       wall={selectedWall}
       {materials}

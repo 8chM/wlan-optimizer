@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import { Image as KonvaImage } from 'svelte-konva';
+  import type { KonvaDragTransformEvent } from 'svelte-konva';
 
   interface BackgroundImageProps {
     /** Image data as Base64 string or Blob URL. Null = no image. */
@@ -17,6 +18,14 @@
     opacity?: number;
     /** Rotation in degrees (0-359). Default: 0 */
     rotation?: number;
+    /** User-defined X offset in canvas pixels */
+    userOffsetX?: number;
+    /** User-defined Y offset in canvas pixels */
+    userOffsetY?: number;
+    /** Whether the image is draggable */
+    draggable?: boolean;
+    /** Callback when drag ends, with new user offset */
+    onDragEnd?: (x: number, y: number) => void;
   }
 
   let {
@@ -24,7 +33,23 @@
     scalePxPerMeter = 50,
     opacity = 1,
     rotation = 0,
+    userOffsetX = 0,
+    userOffsetY = 0,
+    draggable = false,
+    onDragEnd,
   }: BackgroundImageProps = $props();
+
+  function handleDragEnd(event: KonvaDragTransformEvent): void {
+    const node = event.target;
+    // The node position after drag is the absolute position.
+    // We need to extract the user offset from it.
+    const newUserOffsetX = node.x() - offsetConfig.x;
+    const newUserOffsetY = node.y() - offsetConfig.y;
+    // Reset node position to the computed position (will be re-set by props)
+    node.x(offsetConfig.x + newUserOffsetX);
+    node.y(offsetConfig.y + newUserOffsetY);
+    onDragEnd?.(newUserOffsetX, newUserOffsetY);
+  }
 
   let imageElement = $state<HTMLImageElement | null>(null);
 
@@ -97,12 +122,14 @@
 {#if imageElement}
   <KonvaImage
     image={imageElement}
-    x={offsetConfig.x}
-    y={offsetConfig.y}
+    x={offsetConfig.x + (userOffsetX ?? 0)}
+    y={offsetConfig.y + (userOffsetY ?? 0)}
     offsetX={offsetConfig.offsetX}
     offsetY={offsetConfig.offsetY}
     rotation={rotation}
     {opacity}
-    listening={false}
+    listening={draggable}
+    draggable={draggable}
+    ondragend={handleDragEnd}
   />
 {/if}

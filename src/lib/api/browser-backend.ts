@@ -541,6 +541,7 @@ function dispatch(command: string, p: AnyParams): unknown {
         ip_address: null,
         ssid: null,
         enabled: true,
+        orientation_deg: 0,
         created_at: now(),
         updated_at: now(),
         ap_model: apModel,
@@ -567,6 +568,7 @@ function dispatch(command: string, p: AnyParams): unknown {
       if (updates.channel_5ghz !== undefined) ap.channel_5ghz = updates.channel_5ghz;
       if (updates.channel_width !== undefined) ap.channel_width = updates.channel_width;
       if (updates.enabled !== undefined) ap.enabled = updates.enabled;
+      if (updates.orientation_deg !== undefined) ap.orientation_deg = updates.orientation_deg;
       ap.updated_at = now();
       aps[ai] = ap;
       save(KEYS.aps, aps);

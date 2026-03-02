@@ -21,6 +21,8 @@ interface ToolbarProps {
   onToggleGrid?: () => void;
   onToggleSnap?: () => void;
   onToggleBackground?: () => void;
+  backgroundOpacity?: number;
+  onBackgroundOpacityChange?: (v: number) => void;
   onSetScale?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -52,6 +54,8 @@ let {
   gridVisible = true,
   snapEnabled = false,
   backgroundVisible = true,
+  backgroundOpacity = 0.5,
+  onBackgroundOpacityChange,
   settingScale = false,
   children,
 }: ToolbarProps = $props();
@@ -177,6 +181,17 @@ let themeLabel = $derived(
         >
           <span class="tool-icon">🖼</span>
         </button>
+        {#if backgroundVisible}
+          <input
+            type="range"
+            class="opacity-slider"
+            min="0"
+            max="100"
+            value={Math.round(backgroundOpacity * 100)}
+            oninput={(e) => onBackgroundOpacityChange?.(Number((e.target as HTMLInputElement).value) / 100)}
+            title={t('toolbar.backgroundOpacity')}
+          />
+        {/if}
         <button
           class="tool-btn"
           class:active={settingScale}
@@ -312,6 +327,37 @@ let themeLabel = $derived(
 
   .tool-label {
     font-size: 0.75rem;
+  }
+
+  .opacity-slider {
+    width: 60px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border, #d0d0e0);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin: 0 4px;
+  }
+
+  .opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent, #4a6cf7);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .opacity-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent, #4a6cf7);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
   }
 
   .zoom-display {

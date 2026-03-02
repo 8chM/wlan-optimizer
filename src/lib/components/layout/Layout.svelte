@@ -45,6 +45,8 @@ interface LayoutProps {
   onToggleGrid?: () => void;
   onToggleSnap?: () => void;
   onToggleBackground?: () => void;
+  backgroundOpacity?: number;
+  onBackgroundOpacityChange?: (v: number) => void;
   onSetScale?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -83,6 +85,8 @@ let {
   canRedo = false,
   snapEnabled = false,
   backgroundVisible = true,
+  backgroundOpacity = 0.5,
+  onBackgroundOpacityChange,
   settingScale = false,
 }: LayoutProps = $props();
 
@@ -104,6 +108,8 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
       {onToggleGrid}
       {onToggleSnap}
       {onToggleBackground}
+      {backgroundOpacity}
+      {onBackgroundOpacityChange}
       {snapEnabled}
       {backgroundVisible}
       {onSetScale}

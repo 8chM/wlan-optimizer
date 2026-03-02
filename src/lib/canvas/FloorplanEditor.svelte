@@ -34,6 +34,8 @@ interface FloorplanEditorProps {
   scalePxPerMeter?: number;
   /** Whether panning via drag is enabled */
   draggable?: boolean;
+  /** Whether the background layer should be interactive (for background image dragging) */
+  backgroundInteractive?: boolean;
   /** Snippet for background layer content */
   background?: Snippet;
   /** Snippet for heatmap layer content */
@@ -55,6 +57,7 @@ let {
   floorplanHeightM = 10,
   scalePxPerMeter = 50,
   draggable = true,
+  backgroundInteractive = false,
   background,
   heatmap,
   ui,
@@ -262,8 +265,8 @@ function handleStageMouseMove(event: KonvaMouseEvent): void {
   ondblclick={handleStageDblClick}
   onmousemove={handleStageMouseMove}
 >
-  <!-- Background layer: floorplan image + grid (non-interactive) -->
-  <Layer listening={false}>
+  <!-- Background layer: floorplan image + grid (interactive only when background dragging) -->
+  <Layer listening={backgroundInteractive}>
     {#if background}
       {@render background()}
     {/if}

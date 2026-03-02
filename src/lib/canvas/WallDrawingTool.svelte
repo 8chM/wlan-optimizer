@@ -8,7 +8,7 @@
   - Selection highlight on click
 -->
 <script lang="ts">
-  import { Line, Circle, Group } from 'svelte-konva';
+  import { Line, Circle, Group, Text, Rect } from 'svelte-konva';
   import type { WallResponse, SegmentInput } from '$lib/api/invoke';
   import type { KonvaMouseEvent, KonvaDragTransformEvent } from 'svelte-konva';
 
@@ -27,6 +27,8 @@
     editMode?: boolean;
     /** Whether this wall is interactive (clickable/selectable) */
     interactive?: boolean;
+    /** Stage zoom scale (for constant-size labels) */
+    stageScale?: number;
     /** Callback when wall is clicked/selected */
     onSelect?: (wallId: string) => void;
     /** Callback when wall should be deleted */
@@ -42,6 +44,7 @@
     scalePxPerMeter = 50,
     editMode = false,
     interactive = true,
+    stageScale = 1,
     onSelect,
     onDelete,
     onSegmentsUpdate,
@@ -129,6 +132,60 @@
     return result;
   });
 
+  // Compute length labels for each segment
+  interface LengthLabel {
+    x: number;
+    y: number;
+    text: string;
+    rotation: number;
+  }
+
+  let lengthLabels = $derived.by((): LengthLabel[] => {
+    const labels: LengthLabel[] = [];
+    const pts = deduplicatedPoints;
+    if (pts.length < 4) return labels;
+
+    for (let i = 0; i < pts.length - 2; i += 2) {
+      const x1 = pts[i]!;
+      const y1 = pts[i + 1]!;
+      const x2 = pts[i + 2]!;
+      const y2 = pts[i + 3]!;
+
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const lenPx = Math.sqrt(dx * dx + dy * dy);
+      const screenLen = lenPx * stageScale;
+
+      // Only show label if segment is long enough on screen
+      if (screenLen < 40) continue;
+
+      const lenM = lenPx / scalePxPerMeter;
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+
+      // Angle of the segment
+      let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      // Keep text readable (not upside down)
+      if (angle > 90) angle -= 180;
+      if (angle < -90) angle += 180;
+
+      // Perpendicular offset so label doesn't overlap the wall
+      const perpX = -dy / lenPx;
+      const perpY = dx / lenPx;
+      const offsetDist = 12 / stageScale;
+
+      labels.push({
+        x: midX + perpX * offsetDist,
+        y: midY + perpY * offsetDist,
+        text: `${lenM.toFixed(2)} m`,
+        rotation: angle,
+      });
+    }
+    return labels;
+  });
+
+  let labelFontSize = $derived(11 / stageScale);
+
   function handleClick(event: KonvaMouseEvent): void {
     if (!interactive) return;
     event.cancelBubble = true;
@@ -187,6 +244,36 @@
       listening={interactive}
       onclick={handleClick}
     />
+
+    <!-- Length labels -->
+    {#each lengthLabels as label, i (i)}
+      <Rect
+        x={label.x}
+        y={label.y}
+        offsetX={30 / stageScale}
+        offsetY={7 / stageScale}
+        width={60 / stageScale}
+        height={14 / stageScale}
+        fill="rgba(26, 26, 46, 0.85)"
+        cornerRadius={3 / stageScale}
+        rotation={label.rotation}
+        listening={false}
+      />
+      <Text
+        x={label.x}
+        y={label.y}
+        offsetX={30 / stageScale}
+        offsetY={6 / stageScale}
+        width={60 / stageScale}
+        text={label.text}
+        fontSize={labelFontSize}
+        fontFamily="-apple-system, sans-serif"
+        fill="#e0e0f0"
+        align="center"
+        rotation={label.rotation}
+        listening={false}
+      />
+    {/each}
 
     <!-- Endpoint circles (draggable when in edit mode) -->
     {#if selected}

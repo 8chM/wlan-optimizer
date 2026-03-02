@@ -72,6 +72,8 @@ function handleSetScale(): void {
   snapEnabled={canvasStore.snapToGridEnabled}
   onToggleBackground={() => canvasStore.toggleBackground()}
   backgroundVisible={canvasStore.backgroundVisible}
+  backgroundOpacity={canvasStore.backgroundOpacity}
+  onBackgroundOpacityChange={(v) => canvasStore.setBackgroundOpacity(v)}
   onSetScale={handleSetScale}
 >
   {@render children()}

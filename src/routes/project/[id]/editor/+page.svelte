@@ -36,6 +36,7 @@ import EditorHeatmap from '$lib/components/editor/EditorHeatmap.svelte';
 import EditorHeatmapPanel from '$lib/components/editor/EditorHeatmapPanel.svelte';
 import MaterialPicker from '$lib/components/editor/MaterialPicker.svelte';
 import PlacementHintMarker from '$lib/components/editor/PlacementHintMarker.svelte';
+import ContextMenu from '$lib/components/editor/ContextMenu.svelte';
 import PropertiesPanel from '$lib/components/editor/PropertiesPanel.svelte';
 import {
   type CoverageStats,
@@ -76,6 +77,9 @@ let textInputValue = $state('');
 let confirmedScalePoints = $state<Array<{ x: number; y: number }>>([]);
 let confirmedScaleDistanceM = $state<number | null>(null);
 let roomDrawingLayer: RoomDrawingLayer | undefined = $state();
+let contextMenuVisible = $state(false);
+let contextMenuX = $state(0);
+let contextMenuY = $state(0);
 
 let settingScale = $derived(canvasStore.settingScale);
 
@@ -126,6 +130,12 @@ let wallSnapTargets = $derived.by((): Position[] => {
 });
 
 // ── Selection-based properties panel ──────────────────────────
+let selectedWalls = $derived.by(() => {
+  const ids = canvasStore.selectedIds;
+  if (ids.length === 0) return [];
+  return (floor?.walls ?? []).filter(w => ids.includes(w.id));
+});
+
 let selectedWall = $derived.by(() => {
   const ids = canvasStore.selectedIds;
   if (ids.length !== 1) return null;
@@ -138,7 +148,7 @@ let selectedAp = $derived.by(() => {
   return floor?.access_points?.find((ap) => ap.id === ids[0]) ?? null;
 });
 
-let showPropertiesPanel = $derived(selectedWall !== null || selectedAp !== null);
+let showPropertiesPanel = $derived(selectedWalls.length > 0 || selectedWall !== null || selectedAp !== null);
 
 // ── Coverage stats from heatmap ───────────────────────────────
 let coverageStats = $derived.by((): CoverageStats | null => {
@@ -203,6 +213,31 @@ $effect(() => {
   }
 });
 
+// ── Background image offset persistence ──────────────────────
+$effect(() => {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  const stored = localStorage.getItem(`wlan-opt:bg-offset:${floorId}`);
+  if (stored) {
+    try {
+      const data = JSON.parse(stored);
+      if (typeof data.x === 'number' && typeof data.y === 'number') {
+        canvasStore.setBackgroundOffset(data.x, data.y);
+      }
+    } catch { /* ignore */ }
+  } else {
+    canvasStore.setBackgroundOffset(0, 0);
+  }
+});
+
+function handleBackgroundDragEnd(x: number, y: number): void {
+  canvasStore.setBackgroundOffset(x, y);
+  const floorId = floor?.id;
+  if (floorId) {
+    localStorage.setItem(`wlan-opt:bg-offset:${floorId}`, JSON.stringify({ x, y }));
+  }
+}
+
 // ── Load floor image on mount ─────────────────────────────────
 $effect(() => {
   const floorId = floor?.id;
@@ -259,6 +294,13 @@ async function loadMaterials(): Promise<void> {
     materials = await safeInvoke('list_materials', {});
   } catch {
     // Materials will remain empty
+  }
+}
+
+// ── Bulk wall update ─────────────────────────────────────────
+async function handleBulkWallUpdate(wallIds: string[], updates: { materialId?: string }): Promise<void> {
+  for (const id of wallIds) {
+    await handleWallUpdate(id, updates);
   }
 }
 
@@ -400,6 +442,7 @@ async function handleApUpdate(
     channel_24ghz?: number;
     channel_5ghz?: number;
     channel_width?: string;
+    orientation_deg?: number;
   },
 ): Promise<void> {
   // Capture old AP properties for undo
@@ -441,6 +484,10 @@ async function handleApUpdate(
   if (updates.channel_width !== undefined) {
     oldValues.channel_width = ap?.channel_width;
     newValues.channel_width = updates.channel_width;
+  }
+  if (updates.orientation_deg !== undefined) {
+    oldValues.orientation_deg = ap?.orientation_deg;
+    newValues.orientation_deg = updates.orientation_deg;
   }
 
   const command: EditorCommand = {
@@ -670,6 +717,147 @@ $effect(() => {
   };
 });
 
+// ── Door/Window insertion on existing walls ───────────────────
+
+function projectPointOnSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): { t: number; dist: number; projX: number; projY: number } {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return { t: 0, dist: Math.sqrt((px - x1) ** 2 + (py - y1) ** 2), projX: x1, projY: y1 };
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  const dist = Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+  return { t, dist, projX, projY };
+}
+
+function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'window'): boolean {
+  const walls = floor?.walls ?? [];
+  const clickXM = canvasX / scalePxPerMeter;
+  const clickYM = canvasY / scalePxPerMeter;
+  const maxDistM = 0.5; // Max click distance from wall in meters
+  const openingWidthM = tool === 'door' ? 0.9 : 1.2;
+  const materialId = tool === 'door' ? 'mat-wood-door' : 'mat-window';
+
+  // Skip walls that are already doors/windows
+  const doorWindowMats = ['mat-wood-door', 'mat-metal-door', 'mat-glass-door', 'mat-window'];
+
+  let bestWall: (typeof walls)[number] | null = null;
+  let bestSegIdx = -1;
+  let bestT = 0;
+  let bestDist = Infinity;
+
+  for (const wall of walls) {
+    if (doorWindowMats.includes(wall.material_id)) continue;
+    const sorted = wall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
+    for (let i = 0; i < sorted.length; i++) {
+      const seg = sorted[i]!;
+      const proj = projectPointOnSegment(clickXM, clickYM, seg.x1, seg.y1, seg.x2, seg.y2);
+      if (proj.dist < bestDist && proj.dist < maxDistM) {
+        bestDist = proj.dist;
+        bestWall = wall;
+        bestSegIdx = i;
+        bestT = proj.t;
+      }
+    }
+  }
+
+  if (!bestWall) return false;
+
+  const sorted = bestWall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
+  const seg = sorted[bestSegIdx]!;
+  const dx = seg.x2 - seg.x1;
+  const dy = seg.y2 - seg.y1;
+  const segLen = Math.sqrt(dx * dx + dy * dy);
+
+  if (segLen < openingWidthM * 0.5) return false;
+
+  // Calculate split points
+  const halfWidth = openingWidthM / 2;
+  const tHalf = halfWidth / segLen;
+  let tStart = bestT - tHalf;
+  let tEnd = bestT + tHalf;
+
+  // Clamp to segment bounds
+  if (tStart < 0) { tEnd -= tStart; tStart = 0; }
+  if (tEnd > 1) { tStart -= (tEnd - 1); tEnd = 1; }
+  tStart = Math.max(0, tStart);
+  tEnd = Math.min(1, tEnd);
+
+  const splitStartX = seg.x1 + dx * tStart;
+  const splitStartY = seg.y1 + dy * tStart;
+  const splitEndX = seg.x1 + dx * tEnd;
+  const splitEndY = seg.y1 + dy * tEnd;
+
+  // Create up to 3 new wall segments:
+  // 1. original_start → split_start (keep original material)
+  // 2. split_start → split_end (door/window material) - new wall
+  // 3. split_end → original_end (keep original material)
+
+  const floorId = bestWall.floor_id;
+  const origMaterial = bestWall.material_id;
+  const wallId = bestWall.id;
+
+  (async () => {
+    try {
+      // Delete original wall
+      await deleteWall(wallId);
+
+      const newWallIds: string[] = [];
+
+      // Segment 1: before the opening (if long enough)
+      if (tStart > 0.01) {
+        const result = await createWall(floorId, origMaterial, [
+          { segment_order: 0, x1: seg.x1, y1: seg.y1, x2: splitStartX, y2: splitStartY },
+        ]);
+        newWallIds.push(result.id);
+      }
+
+      // Segment 2: the door/window opening
+      const doorResult = await createWall(floorId, materialId, [
+        { segment_order: 0, x1: splitStartX, y1: splitStartY, x2: splitEndX, y2: splitEndY },
+      ]);
+      newWallIds.push(doorResult.id);
+
+      // Segment 3: after the opening (if long enough)
+      if (tEnd < 0.99) {
+        const result = await createWall(floorId, origMaterial, [
+          { segment_order: 0, x1: splitEndX, y1: splitEndY, x2: seg.x2, y2: seg.y2 },
+        ]);
+        newWallIds.push(result.id);
+      }
+
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+
+      // Push undo command
+      const capturedNewIds = [...newWallIds];
+      undoStore.pushExecuted({
+        label: `Insert ${tool === 'door' ? 'Door' : 'Window'}`,
+        async execute() {
+          await projectStore.refreshFloorData();
+        },
+        async undo() {
+          // Delete all new walls and recreate the original
+          for (const id of capturedNewIds) {
+            try { await deleteWall(id); } catch { /* may already be deleted */ }
+          }
+          await createWall(floorId, origMaterial, sorted.map(s => ({
+            segment_order: s.segment_order, x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2,
+          })));
+          await projectStore.refreshFloorData();
+          projectStore.markDirty();
+        },
+      });
+    } catch (err) {
+      console.error(`[Editor] Failed to insert ${tool}:`, err);
+    }
+  })();
+
+  return true;
+}
+
 // ── Canvas interaction handlers ───────────────────────────────
 
 let wallDrawingLayer: WallDrawingLayer | undefined = $state();
@@ -689,6 +877,12 @@ function handleCanvasClick(canvasX: number, canvasY: number): void {
       }
     }
     return;
+  }
+
+  // Door/Window tool: try to insert on an existing wall first
+  if ((tool === 'door' || tool === 'window') && floor?.walls) {
+    const inserted = tryInsertDoorWindow(canvasX, canvasY, tool);
+    if (inserted) return;
   }
 
   if ((tool === 'wall' || tool === 'door' || tool === 'window') && wallDrawingLayer) {
@@ -823,12 +1017,52 @@ function handleItemSelect(id: string): void {
   }
 }
 
-// Track modifier keys for snapping and panning
+// Track modifier keys for snapping and panning + arrow key movement + Ctrl+A
 function handleKeyDown(event: KeyboardEvent): void {
   if (event.key === 'Shift') canvasStore.setShiftHeld(true);
   if (event.key === ' ' || event.code === 'Space') {
     event.preventDefault();
     canvasStore.setSpaceHeld(true);
+  }
+
+  // Ctrl+A / Cmd+A: select all elements
+  if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+    event.preventDefault();
+    const allIds: string[] = [];
+    for (const w of floor?.walls ?? []) allIds.push(w.id);
+    for (const ap of floor?.access_points ?? []) allIds.push(ap.id);
+    for (const ann of annotations) allIds.push(ann.id);
+    for (const id of allIds) {
+      canvasStore.selectItem(id, true);
+    }
+    return;
+  }
+
+  // Arrow keys: move selected APs and annotations
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    const ids = canvasStore.selectedIds;
+    if (ids.length === 0) return;
+
+    event.preventDefault();
+    const step = event.shiftKey ? 0.1 : 0.01; // meters
+    let dx = 0;
+    let dy = 0;
+    if (event.key === 'ArrowUp') dy = -step;
+    if (event.key === 'ArrowDown') dy = step;
+    if (event.key === 'ArrowLeft') dx = -step;
+    if (event.key === 'ArrowRight') dx = step;
+
+    for (const id of ids) {
+      const ap = floor?.access_points?.find(a => a.id === id);
+      if (ap) {
+        handleApPositionChange(id, ap.x + dx, ap.y + dy);
+        continue;
+      }
+      const ann = annotations.find(a => a.id === id);
+      if (ann) {
+        handleAnnotationPositionChange(id, ann.x + dx, ann.y + dy);
+      }
+    }
   }
 }
 
@@ -1236,7 +1470,18 @@ async function handleFileSelected(event: Event): Promise<void> {
   />
 {/if}
 
-<div class="editor-container" bind:clientWidth={containerWidth} bind:clientHeight={containerHeight} style:cursor={canvasCursor}>
+<div
+  class="editor-container"
+  bind:clientWidth={containerWidth}
+  bind:clientHeight={containerHeight}
+  style:cursor={canvasCursor}
+  oncontextmenu={(e) => {
+    e.preventDefault();
+    contextMenuX = e.clientX;
+    contextMenuY = e.clientY;
+    contextMenuVisible = true;
+  }}
+>
   {#if floor}
     <FloorplanEditor
       width={containerWidth}
@@ -1245,6 +1490,7 @@ async function handleFileSelected(event: Event): Promise<void> {
       floorplanHeightM={floor.height_meters ?? 10}
       {scalePxPerMeter}
       draggable={canvasStore.activeTool === 'pan'}
+      backgroundInteractive={canvasStore.activeTool === 'select' && canvasStore.backgroundVisible}
       onCanvasClick={handleCanvasClick}
       onCanvasDblClick={handleCanvasDblClick}
       onCanvasMouseMove={handleCanvasMouseMove}
@@ -1255,7 +1501,11 @@ async function handleFileSelected(event: Event): Promise<void> {
             imageData={floorImageDataUrl}
             {scalePxPerMeter}
             rotation={floorRotation}
-            opacity={canvasStore.gridVisible ? 0.35 : 0.7}
+            opacity={canvasStore.backgroundOpacity}
+            userOffsetX={canvasStore.backgroundOffsetX}
+            userOffsetY={canvasStore.backgroundOffsetY}
+            draggable={canvasStore.activeTool === 'select'}
+            onDragEnd={handleBackgroundDragEnd}
           />
         {/if}
         <GridOverlay
@@ -1294,6 +1544,7 @@ async function handleFileSelected(event: Event): Promise<void> {
               materialCategory={wall.material?.category ?? 'medium'}
               selected={canvasStore.isSelected(wall.id)}
               {scalePxPerMeter}
+              stageScale={canvasStore.scale}
               editMode={canvasStore.activeTool === 'select'}
               interactive={canvasStore.activeTool === 'select'}
               onSelect={(id) => handleItemSelect(id)}
@@ -1570,8 +1821,10 @@ async function handleFileSelected(event: Event): Promise<void> {
         <PropertiesPanel
           {selectedWall}
           {selectedAp}
+          {selectedWalls}
           {materials}
           onWallUpdate={handleWallUpdate}
+          onBulkWallUpdate={handleBulkWallUpdate}
           onDeleteWall={handleDeleteWall}
           onApUpdate={handleApUpdate}
           onDeleteAp={handleDeleteAp}
@@ -1598,6 +1851,17 @@ async function handleFileSelected(event: Event): Promise<void> {
         />
       </div>
     {/if}
+    <!-- Context Menu -->
+    <ContextMenu
+      visible={contextMenuVisible}
+      x={contextMenuX}
+      y={contextMenuY}
+      hasWall={selectedWall !== null || selectedWalls.length > 0}
+      hasAp={selectedAp !== null}
+      hasSelection={canvasStore.selectedIds.length > 0}
+      onDelete={handleDeleteSelected}
+      onClose={() => { contextMenuVisible = false; }}
+    />
   {:else}
     <div class="empty-canvas">
       <p>{t('editor.noFloorplan')}</p>

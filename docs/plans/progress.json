@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-02",
-  "currentPhase": "editor-overhaul-complete",
+  "currentPhase": "editor-improvements-ii-complete",
   "phases": {
     "0": { "name": "Autonomie-Recherche", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
     "1": { "name": "Projektsetup", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
@@ -92,6 +92,25 @@
         "16-10": { "name": "Erweiterte Messwerkzeuge", "status": "completed", "auditResult": "PASSED - Live-Preview, Tick-Marks, Winkelanzeige" },
         "16-11": { "name": "Undo/Redo-Buttons", "status": "completed", "auditResult": "PASSED - Toolbar-Buttons mit canUndo/canRedo" },
         "16-12": { "name": "Konstruktionslinien", "status": "deferred", "auditResult": "DEFERRED - Niedrige Prioritaet, Grid-Snapping reicht fuer MVP" }
+      }
+    },
+    "17": {
+      "name": "Editor-Verbesserungen II",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-02",
+      "auditResult": "PASSED - 10 von 10 Bloecken implementiert, Build 0 Errors, svelte-check 0 Errors",
+      "subtasks": {
+        "17-A": { "name": "Hintergrundbild Opacity-Slider", "status": "completed", "auditResult": "PASSED - Stufenloser Slider in Toolbar neben Toggle" },
+        "17-B": { "name": "Hintergrundbild verschiebbar", "status": "completed", "auditResult": "PASSED - Draggable im Select-Modus, localStorage-Persistenz" },
+        "17-C": { "name": "Adaptives Raster", "status": "completed", "auditResult": "PASSED - Nice-Values 0.1-50m, ~80px Zielabstand" },
+        "17-D": { "name": "Wandmasse auf Canvas", "status": "completed", "auditResult": "PASSED - Laengenlabels mit 1/stageScale, min 40px" },
+        "17-E": { "name": "Mehrfachauswahl + Bulk-Material", "status": "completed", "auditResult": "PASSED - MultiWallProperties, Bulk-Update/Delete" },
+        "17-F": { "name": "Tueren/Fenster auf Waende", "status": "completed", "auditResult": "PASSED - Segment-Split mit projectPointOnSegment" },
+        "17-G": { "name": "AP-Rotation", "status": "completed", "auditResult": "PASSED - orientation_deg + Slider 0-359" },
+        "17-H1": { "name": "Pfeiltasten", "status": "completed", "auditResult": "PASSED - 0.01m/0.1m Step fuer APs + Annotationen" },
+        "17-H2": { "name": "Ctrl+A Alles auswaehlen", "status": "completed", "auditResult": "PASSED - Walls + APs + Annotationen" },
+        "17-H3": { "name": "Rechtsklick-Kontextmenue", "status": "completed", "auditResult": "PASSED - ContextMenu.svelte mit Delete-Aktion" }
       }
     }
   },

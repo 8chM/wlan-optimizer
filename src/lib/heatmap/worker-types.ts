@@ -18,10 +18,14 @@ export interface LineSegment {
   y2: number;
 }
 
-/** Bounding rectangle (meters) */
+/** Bounding rectangle (meters) with optional origin offset */
 export interface FloorBounds {
   width: number;
   height: number;
+  /** X-offset of the grid origin in meters (default: 0) */
+  originX?: number;
+  /** Y-offset of the grid origin in meters (default: 0) */
+  originY?: number;
 }
 
 // ─── Worker Input Types ────────────────────────────────────────────
@@ -33,6 +37,8 @@ export interface APConfig {
   x: number;
   /** Y position in meters */
   y: number;
+  /** Height above floor in meters (default: 0 = same height as receiver) */
+  heightM?: number;
   /** Transmit power in dBm */
   txPowerDbm: number;
   /** Antenna gain in dBi */

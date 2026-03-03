@@ -16,6 +16,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createRFConfig,
   computeRSSI,
+  DEFAULT_RECEIVER_HEIGHT_M,
   type RFConfig,
 } from '$lib/heatmap/rf-engine';
 
@@ -43,7 +44,7 @@ function makeAP(
   txPowerDbm = 23,
   antennaGainDbi = 3.2,
 ): APConfig {
-  return { id: 'perf-ap', x, y, txPowerDbm, antennaGainDbi, enabled: true };
+  return { id: 'perf-ap', x, y, heightM: DEFAULT_RECEIVER_HEIGHT_M, txPowerDbm, antennaGainDbi, enabled: true };
 }
 
 function makeWall(

@@ -26,6 +26,7 @@ import {
   REFERENCE_LOSS,
   DEFAULT_PATH_LOSS_EXPONENT,
   DEFAULT_RECEIVER_GAIN_DBI,
+  DEFAULT_RECEIVER_HEIGHT_M,
   MIN_DISTANCE,
 } from '$lib/heatmap/rf-engine';
 
@@ -69,7 +70,8 @@ function makeAP(
   antennaGainDbi = 3.2,
   id = 'ap-1',
 ): APConfig {
-  return { id, x, y, txPowerDbm, antennaGainDbi, enabled: true };
+  // Set heightM to receiver height so 3D distance == 2D distance in tests
+  return { id, x, y, heightM: DEFAULT_RECEIVER_HEIGHT_M, txPowerDbm, antennaGainDbi, enabled: true };
 }
 
 function makeWall(
@@ -801,9 +803,9 @@ describe('Keyboard Shortcut Matching', () => {
       expect(result?.action).toBe('gridToggle');
     });
 
-    it('pressing "h" without modifiers matches the heatmapToggle action', () => {
+    it('pressing "h" without modifiers matches the panTool action', () => {
       const result = matchShortcut(mockKeyEvent('h'));
-      expect(result?.action).toBe('heatmapToggle');
+      expect(result?.action).toBe('panTool');
     });
 
     it('pressing "Escape" without modifiers matches the deselect action', () => {

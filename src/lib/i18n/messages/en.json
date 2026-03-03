@@ -120,7 +120,9 @@
     "annotationPlaceholder": "Room name...",
     "uploadFailed": "Failed to upload floor plan. Please try again.",
     "doorWindowHint1": "Click on a wall to set the start point. ESC to cancel.",
-    "doorWindowHint2": "Click on the wall to set the end point. ESC to cancel."
+    "doorWindowHint2": "Click on the wall to set the end point. ESC to cancel.",
+    "exportPng": "Export PNG",
+    "saveMeasurement": "Pin measurement"
   },
   "material": {
     "light": "Light",
@@ -137,7 +139,9 @@
     "glassDoor": "Glass Door",
     "window": "Window",
     "elevator": "Elevator Shaft",
-    "attenuation": "Attenuation"
+    "attenuation": "Attenuation",
+    "fixedDoor": "Fixed: Wood Door",
+    "fixedWindow": "Fixed: Window"
   },
   "ap": {
     "library": "AP Library",
@@ -218,7 +222,19 @@
     "roomTool": "Room tool",
     "gridToggle": "Toggle grid",
     "heatmapToggle": "Toggle heatmap",
-    "showHelp": "Show shortcuts"
+    "showHelp": "Show shortcuts",
+    "copy": "Copy selection",
+    "cut": "Cut selection",
+    "paste": "Paste",
+    "duplicate": "Duplicate selection",
+    "selectAll": "Select All"
+  },
+  "context": {
+    "copy": "Copy",
+    "cut": "Cut",
+    "paste": "Paste",
+    "duplicate": "Duplicate",
+    "selectAll": "Select All"
   },
   "mixing": {
     "title": "Mixing Console",

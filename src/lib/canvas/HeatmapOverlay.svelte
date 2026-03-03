@@ -13,8 +13,8 @@
   interface HeatmapOverlayProps {
     /** The rendered heatmap image (offscreen canvas from HeatmapManager) */
     heatmapCanvas: HTMLCanvasElement | null;
-    /** Floor dimensions in meters */
-    bounds: { width: number; height: number };
+    /** Floor dimensions in meters (with optional origin offset) */
+    bounds: { width: number; height: number; originX?: number; originY?: number };
     /** Heatmap opacity (0-1), default 0.65 */
     opacity?: number;
     /** Whether the heatmap overlay is visible */
@@ -33,6 +33,12 @@
 
   // ─── Derived ──────────────────────────────────────────────────
 
+  /** X position in canvas pixels (origin offset * px/m) */
+  let displayX = $derived((bounds.originX ?? 0) * scalePxPerMeter);
+
+  /** Y position in canvas pixels (origin offset * px/m) */
+  let displayY = $derived((bounds.originY ?? 0) * scalePxPerMeter);
+
   /** Width in canvas pixels (meters * px/m) */
   let displayWidth = $derived(bounds.width * scalePxPerMeter);
 
@@ -43,8 +49,8 @@
 {#if visible && heatmapCanvas}
   <KonvaImage
     image={heatmapCanvas}
-    x={0}
-    y={0}
+    x={displayX}
+    y={displayY}
     width={displayWidth}
     height={displayHeight}
     {opacity}

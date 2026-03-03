@@ -75,6 +75,7 @@ describe('convertApsToConfig', () => {
       id: 'ap-1',
       x: 5.0,
       y: 3.0,
+      heightM: 2.5,
       txPowerDbm: 20,
       antennaGainDbi: 4.5,
       enabled: true,

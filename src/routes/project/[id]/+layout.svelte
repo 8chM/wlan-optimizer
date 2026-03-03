@@ -34,6 +34,10 @@ function handleZoomOut(): void {
   canvasStore.zoomOut();
 }
 
+function handleZoomTo(percent: number): void {
+  canvasStore.setScale(percent / 100);
+}
+
 function handleFitToScreen(): void {
   canvasStore.resetView();
 }
@@ -66,6 +70,7 @@ function handleSetScale(): void {
   onToolChange={handleToolChange}
   onZoomIn={handleZoomIn}
   onZoomOut={handleZoomOut}
+  onZoomTo={handleZoomTo}
   onFitToScreen={handleFitToScreen}
   onToggleGrid={handleToggleGrid}
   onToggleSnap={() => canvasStore.toggleSnapToGrid()}

@@ -40,6 +40,7 @@ import { computeWallLoss } from '../spatial-grid';
 
 import type { APConfig } from '../worker-types';
 import type { SpatialGrid, SpatialGridEntry } from '../spatial-grid';
+import { DEFAULT_RECEIVER_HEIGHT_M } from '../rf-engine';
 
 // Minimal stubs — contents irrelevant because computeWallLoss is mocked
 const EMPTY_GRID: SpatialGrid = {
@@ -47,6 +48,8 @@ const EMPTY_GRID: SpatialGrid = {
   gridCols: 1,
   gridRows: 1,
   cellSize: 1,
+  originX: 0,
+  originY: 0,
 };
 const EMPTY_SEGMENTS: SpatialGridEntry[] = [];
 
@@ -59,7 +62,8 @@ function makeAP(
   antennaGainDbi = 3.2,
   enabled = true,
 ): APConfig {
-  return { id: 'test-ap', x, y, txPowerDbm, antennaGainDbi, enabled };
+  // Set heightM to receiver height so 3D distance == 2D distance in tests
+  return { id: 'test-ap', x, y, heightM: DEFAULT_RECEIVER_HEIGHT_M, txPowerDbm, antennaGainDbi, enabled };
 }
 
 /** Wraps computeRSSI with the empty grid stubs (wall loss is mocked). */

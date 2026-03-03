@@ -18,12 +18,25 @@
     selectedMaterialId?: string | null;
     /** Callback when material is selected */
     onSelect?: (materialId: string) => void;
+    /** Active tool type - disables picker for door/window tools */
+    activeTool?: string;
   }
 
   let {
     selectedMaterialId = null,
     onSelect,
+    activeTool = 'wall',
   }: MaterialPickerProps = $props();
+
+  /** Whether the picker is locked because the tool has a fixed material */
+  let isFixedMaterial = $derived(activeTool === 'door' || activeTool === 'window');
+
+  /** Display text for fixed material tools */
+  let fixedMaterialLabel = $derived(
+    activeTool === 'door' ? t('material.fixedDoor')
+    : activeTool === 'window' ? t('material.fixedWindow')
+    : ''
+  );
 
   let expandedCategory = $state<string | null>(null);
   let materials = $state<MaterialResponse[]>([]);
@@ -87,7 +100,13 @@
 <div class="material-picker">
   <h3 class="panel-title">{t('label.material')}</h3>
 
-  {#if loadingError}
+  {#if isFixedMaterial}
+    <!-- Fixed material info for door/window tools -->
+    <div class="fixed-material-info">
+      <span class="fixed-dot" style="background: {activeTool === 'door' ? '#8B6914' : '#64B5F6'}"></span>
+      <span class="fixed-label">{fixedMaterialLabel}</span>
+    </div>
+  {:else if loadingError}
     <p class="error-text">{loadingError}</p>
   {:else if materials.length === 0}
     <p class="loading-text">{t('label.loading') ?? 'Loading...'}</p>
@@ -271,6 +290,30 @@
   }
 
   .legend-label {
+    font-weight: 500;
+  }
+
+  .fixed-material-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: #c0c0d0;
+    font-size: 0.8rem;
+  }
+
+  .fixed-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .fixed-label {
     font-weight: 500;
   }
 </style>

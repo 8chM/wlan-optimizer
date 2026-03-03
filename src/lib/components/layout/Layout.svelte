@@ -44,6 +44,7 @@ interface LayoutProps {
   onToolChange?: (tool: EditorTool) => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  onZoomTo?: (percent: number) => void;
   onFitToScreen?: () => void;
   onToggleGrid?: () => void;
   onToggleSnap?: () => void;
@@ -78,6 +79,7 @@ let {
   onToolChange,
   onZoomIn,
   onZoomOut,
+  onZoomTo,
   onFitToScreen,
   onToggleGrid,
   onToggleSnap,
@@ -109,6 +111,7 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
       {onToolChange}
       {onZoomIn}
       {onZoomOut}
+      {onZoomTo}
       {onFitToScreen}
       {onToggleGrid}
       {onToggleSnap}

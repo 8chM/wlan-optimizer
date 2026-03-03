@@ -120,7 +120,9 @@
     "annotationPlaceholder": "Raumname...",
     "uploadFailed": "Grundriss-Upload fehlgeschlagen. Bitte erneut versuchen.",
     "doorWindowHint1": "Klicke auf eine Wand um den Startpunkt zu setzen. ESC zum Abbrechen.",
-    "doorWindowHint2": "Klicke auf die Wand um den Endpunkt zu setzen. ESC zum Abbrechen."
+    "doorWindowHint2": "Klicke auf die Wand um den Endpunkt zu setzen. ESC zum Abbrechen.",
+    "exportPng": "PNG exportieren",
+    "saveMeasurement": "Messung anheften"
   },
   "material": {
     "light": "Leicht",
@@ -137,7 +139,9 @@
     "glassDoor": "Glastuer",
     "window": "Fenster",
     "elevator": "Aufzugsschacht",
-    "attenuation": "Daempfung"
+    "attenuation": "Daempfung",
+    "fixedDoor": "Fest: Holztuer",
+    "fixedWindow": "Fest: Fenster"
   },
   "ap": {
     "library": "AP-Bibliothek",
@@ -218,7 +222,19 @@
     "roomTool": "Raum-Werkzeug",
     "gridToggle": "Raster umschalten",
     "heatmapToggle": "Heatmap umschalten",
-    "showHelp": "Tastenkuerzel anzeigen"
+    "showHelp": "Tastenkuerzel anzeigen",
+    "copy": "Auswahl kopieren",
+    "cut": "Auswahl ausschneiden",
+    "paste": "Einfuegen",
+    "duplicate": "Auswahl duplizieren",
+    "selectAll": "Alles auswaehlen"
+  },
+  "context": {
+    "copy": "Kopieren",
+    "cut": "Ausschneiden",
+    "paste": "Einfuegen",
+    "duplicate": "Duplizieren",
+    "selectAll": "Alles auswaehlen"
   },
   "mixing": {
     "title": "Mixing Console",

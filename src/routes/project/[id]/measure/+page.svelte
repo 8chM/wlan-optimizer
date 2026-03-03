@@ -20,6 +20,8 @@
   import CanvasScrollbars from '$lib/canvas/CanvasScrollbars.svelte';
   import CrosshairCursor from '$lib/canvas/CrosshairCursor.svelte';
   import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
+  import SavedMeasurements from '$lib/canvas/SavedMeasurements.svelte';
+  import type { SavedMeasurement } from '$lib/canvas/SavedMeasurements.svelte';
   import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
   import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
   import MeasurementWizard from '$lib/components/measurement/MeasurementWizard.svelte';
@@ -48,6 +50,7 @@
   let measureStart = $state<{ x: number; y: number } | null>(null);
   let measureEnd = $state<{ x: number; y: number } | null>(null);
   let annotations = $state<AnnotationData[]>([]);
+  let savedMeasurements = $state<SavedMeasurement[]>([]);
 
   // Cursor per tool
   let canvasCursor = $derived.by(() => {
@@ -65,10 +68,33 @@
   let floorId = $derived(floor?.id ?? '');
   let floorRotation = $derived(floor?.background_image_rotation ?? 0);
 
-  // Floor bounds for heatmap
-  let floorBounds = $derived({
-    width: floor?.width_meters ?? 10,
-    height: floor?.height_meters ?? 10,
+  // Floor bounds for heatmap (dynamic from wall/AP bounding box)
+  let floorBounds = $derived.by(() => {
+    const walls = floor?.walls ?? [];
+    const aps = floor?.access_points ?? [];
+    if (walls.length === 0 && aps.length === 0) {
+      return { width: floor?.width_meters ?? 10, height: floor?.height_meters ?? 10, originX: 0, originY: 0 };
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const w of walls) {
+      for (const seg of w.segments) {
+        minX = Math.min(minX, seg.x1, seg.x2);
+        minY = Math.min(minY, seg.y1, seg.y2);
+        maxX = Math.max(maxX, seg.x1, seg.x2);
+        maxY = Math.max(maxY, seg.y1, seg.y2);
+      }
+    }
+    for (const ap of aps) {
+      minX = Math.min(minX, ap.x); minY = Math.min(minY, ap.y);
+      maxX = Math.max(maxX, ap.x); maxY = Math.max(maxY, ap.y);
+    }
+    const pad = 2;
+    return {
+      originX: Math.floor(minX) - pad,
+      originY: Math.floor(minY) - pad,
+      width: Math.ceil(maxX - Math.floor(minX)) + 2 * pad,
+      height: Math.ceil(maxY - Math.floor(minY)) + 2 * pad,
+    };
   });
 
   // Determine active run number for shape rendering
@@ -101,6 +127,18 @@
       try { annotations = JSON.parse(stored); } catch { /* ignore */ }
     } else {
       annotations = [];
+    }
+  });
+
+  // ─── Load saved measurements from localStorage (read-only) ──
+  $effect(() => {
+    const id = floor?.id;
+    if (!id) return;
+    const stored = localStorage.getItem(`wlan-opt:measurements:${id}`);
+    if (stored) {
+      try { savedMeasurements = JSON.parse(stored); } catch { /* ignore */ }
+    } else {
+      savedMeasurements = [];
     }
   });
 
@@ -515,6 +553,14 @@
               endPoint={measureEnd}
               {scalePxPerMeter}
               mousePosition={mousePosition}
+            />
+          {/if}
+
+          <!-- Saved/pinned measurements (read-only) -->
+          {#if savedMeasurements.length > 0}
+            <SavedMeasurements
+              measurements={savedMeasurements}
+              {scalePxPerMeter}
             />
           {/if}
 

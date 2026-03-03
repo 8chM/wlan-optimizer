@@ -19,6 +19,7 @@ interface ToolbarProps {
   onToolChange?: (tool: EditorTool) => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  onZoomTo?: (percent: number) => void;
   onFitToScreen?: () => void;
   onToggleGrid?: () => void;
   onToggleSnap?: () => void;
@@ -45,6 +46,7 @@ let {
   onToolChange,
   onZoomIn,
   onZoomOut,
+  onZoomTo,
   onFitToScreen,
   onToggleGrid,
   onToggleSnap,
@@ -100,6 +102,31 @@ const themeIcons: Record<string, string> = {
   system: '\uD83D\uDCBB',
 };
 
+let isEditingZoom = $state(false);
+let zoomEditValue = $state('');
+
+function handleZoomSlider(e: Event): void {
+  const val = Number((e.target as HTMLInputElement).value);
+  onZoomTo?.(val);
+}
+
+function startZoomEdit(): void {
+  isEditingZoom = true;
+  zoomEditValue = String(Math.round(zoomLevel));
+}
+
+function commitZoomEdit(): void {
+  const parsed = parseInt(zoomEditValue, 10);
+  if (!isNaN(parsed) && parsed >= 10 && parsed <= 500) {
+    onZoomTo?.(parsed);
+  }
+  isEditingZoom = false;
+}
+
+function cancelZoomEdit(): void {
+  isEditingZoom = false;
+}
+
 let themeIcon = $derived(themeIcons[themeStore.theme] ?? '\u2600');
 let themeLabel = $derived(
   themeStore.theme === 'light'
@@ -138,11 +165,37 @@ let themeLabel = $derived(
         <div class="separator"></div>
       {/if}
 
-      <div class="tool-group">
+      <div class="tool-group zoom-group">
         <button class="tool-btn" onclick={onZoomOut} title={t('toolbar.zoomOut')}>
           <span class="tool-icon">−</span>
         </button>
-        <span class="zoom-display">{Math.round(zoomLevel)}%</span>
+        <input
+          type="range"
+          class="zoom-slider"
+          min="10"
+          max="500"
+          step="5"
+          value={Math.round(zoomLevel)}
+          oninput={handleZoomSlider}
+          title={t('toolbar.zoomIn')}
+        />
+        {#if isEditingZoom}
+          <input
+            type="text"
+            class="zoom-input"
+            bind:value={zoomEditValue}
+            onblur={commitZoomEdit}
+            onkeydown={(e) => { if (e.key === 'Enter') commitZoomEdit(); if (e.key === 'Escape') cancelZoomEdit(); }}
+            onfocus={(e) => (e.target as HTMLInputElement).select()}
+            autofocus
+          />
+        {:else}
+          <button
+            class="zoom-display-btn"
+            onclick={startZoomEdit}
+            title={t('toolbar.zoomIn')}
+          >{Math.round(zoomLevel)}%</button>
+        {/if}
         <button class="tool-btn" onclick={onZoomIn} title={t('toolbar.zoomIn')}>
           <span class="tool-icon">+</span>
         </button>
@@ -386,12 +439,71 @@ let themeLabel = $derived(
     border: none;
   }
 
-  .zoom-display {
+  .zoom-group {
+    gap: 4px;
+  }
+
+  .zoom-slider {
+    width: 80px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border, #d0d0e0);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin: 0 2px;
+  }
+
+  .zoom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent, #4a6cf7);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .zoom-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent, #4a6cf7);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+
+  .zoom-display-btn {
     min-width: 48px;
     text-align: center;
     font-size: 0.8rem;
     font-variant-numeric: tabular-nums;
     color: var(--text-secondary, #4a4a6a);
-    user-select: none;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-family: inherit;
+  }
+
+  .zoom-display-btn:hover {
+    background: var(--bg-tertiary, #f0f0f5);
+    border-color: var(--border, #d0d0e0);
+  }
+
+  .zoom-input {
+    width: 48px;
+    text-align: center;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary, #1a1a2e);
+    background: var(--bg-secondary, #fafafe);
+    border: 1px solid var(--accent, #4a6cf7);
+    border-radius: 4px;
+    padding: 2px 4px;
+    outline: none;
+    font-family: inherit;
   }
 </style>

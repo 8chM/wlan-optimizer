@@ -118,7 +118,16 @@ seedIfNeeded();
 
 function findMaterial(id: string): MaterialResponse {
   const materials = load<MaterialResponse[]>(KEYS.materials, []);
-  return materials.find((m) => m.id === id) ?? MOCK_MATERIALS[0]!;
+  const found = materials.find((m) => m.id === id);
+  if (found) return found;
+  // Fallback: check MOCK_MATERIALS for newly added materials not yet in localStorage
+  const mock = MOCK_MATERIALS.find((m) => m.id === id);
+  if (mock) {
+    materials.push(mock);
+    save(KEYS.materials, materials);
+    return mock;
+  }
+  return MOCK_MATERIALS[0]!;
 }
 
 function findApModel(id: string | null): ApModelResponse | null {
@@ -894,6 +903,51 @@ function dispatch(command: string, p: AnyParams): unknown {
         KEYS.optimizationSteps,
         [],
       ).filter((s) => planIds.includes(s.plan_id));
+
+      // CSV export: flat table with one row per measurement
+      if (p.format === 'csv') {
+        const csvEscape = (v: string | null | undefined): string => {
+          if (v == null) return '';
+          const s = String(v);
+          if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+            return `"${s.replace(/"/g, '""')}"`;
+          }
+          return s;
+        };
+        const optNum = (v: number | null | undefined): string => (v != null ? String(v) : '');
+
+        const header = [
+          'project_name', 'floor_name', 'floor_number', 'point_label', 'point_x', 'point_y',
+          'run_number', 'run_type', 'run_status', 'measurement_id', 'timestamp', 'frequency_band',
+          'rssi_dbm', 'noise_dbm', 'snr_db', 'connected_bssid', 'connected_ssid', 'frequency_mhz',
+          'tx_rate_mbps', 'tcp_upload_bps', 'tcp_download_bps', 'tcp_retransmits',
+          'udp_throughput_bps', 'udp_jitter_ms', 'udp_lost_packets', 'udp_total_packets',
+          'udp_lost_percent', 'quality',
+        ].join(',');
+
+        const rows: string[] = [header];
+
+        for (const m of measurements) {
+          const run = measurementRuns.find((r) => r.id === m.measurement_run_id);
+          const point = measurementPoints.find((mp) => mp.id === m.measurement_point_id);
+          const fl = run ? floors.find((f) => f.id === run.floor_id) : undefined;
+          rows.push([
+            csvEscape(project?.name), csvEscape(fl?.name), String(fl?.floor_number ?? 0),
+            csvEscape(point?.label), optNum(point?.x), optNum(point?.y),
+            String(run?.run_number ?? 0), csvEscape(run?.run_type), csvEscape(run?.status),
+            csvEscape(m.id), csvEscape(m.timestamp), csvEscape(m.frequency_band),
+            optNum(m.rssi_dbm), optNum(m.noise_dbm), optNum(m.snr_db),
+            csvEscape(m.connected_bssid), csvEscape(m.connected_ssid), optNum(m.frequency_mhz),
+            optNum(m.tx_rate_mbps), optNum(m.iperf_tcp_upload_bps), optNum(m.iperf_tcp_download_bps),
+            optNum(m.iperf_tcp_retransmits), optNum(m.iperf_udp_throughput_bps),
+            optNum(m.iperf_udp_jitter_ms), optNum(m.iperf_udp_lost_packets),
+            optNum(m.iperf_udp_total_packets), optNum(m.iperf_udp_lost_percent),
+            csvEscape(m.quality),
+          ].join(','));
+        }
+
+        return rows.join('\n');
+      }
 
       return JSON.stringify(
         {

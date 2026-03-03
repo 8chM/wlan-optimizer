@@ -39,6 +39,9 @@ export const DEFAULT_RECEIVER_GAIN_DBI = -3;
 /** Minimum distance in meters to avoid log(0) singularity */
 export const MIN_DISTANCE = 0.1;
 
+/** Default receiver height in meters (smartphone held at chest height) */
+export const DEFAULT_RECEIVER_HEIGHT_M = 1.2;
+
 // ─── Types ─────────────────────────────────────────────────────────
 
 /** Configuration for RF path loss calculation */
@@ -116,7 +119,8 @@ export function computeRSSI(
 ): number {
   const dx = pointX - ap.x;
   const dy = pointY - ap.y;
-  const distance = Math.max(MIN_DISTANCE, Math.sqrt(dx * dx + dy * dy));
+  const dz = (ap.heightM ?? 0) - DEFAULT_RECEIVER_HEIGHT_M;
+  const distance = Math.max(MIN_DISTANCE, Math.sqrt(dx * dx + dy * dy + dz * dz));
 
   // Path loss: PL(d) = PL(1m) + 10 * n * log10(d) + wall_losses
   const distanceLoss = 10 * config.pathLossExponent * Math.log10(distance);

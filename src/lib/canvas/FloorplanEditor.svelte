@@ -170,6 +170,14 @@ export function getPosition(): { x: number; y: number } {
   return { x: canvasStore.offsetX, y: canvasStore.offsetY };
 }
 
+/**
+ * Exports the current canvas content as a data URL (PNG).
+ */
+export function exportToDataURL(pixelRatio = 2): string | null {
+  if (!stageNode) return null;
+  return stageNode.toDataURL({ pixelRatio, mimeType: 'image/png' });
+}
+
 function clampScale(value: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
 }

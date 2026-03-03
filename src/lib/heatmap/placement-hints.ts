@@ -45,6 +45,8 @@ const DEFAULT_MAX_HINTS = 5;
  * @param gridHeight - Number of rows in the grid
  * @param gridResolutionM - Meters per grid cell
  * @param options - Configuration options
+ * @param originX - X-offset of the grid origin in meters (default: 0)
+ * @param originY - Y-offset of the grid origin in meters (default: 0)
  * @returns Array of placement hints sorted by zone area (largest first)
  */
 export function findPlacementHints(
@@ -53,6 +55,8 @@ export function findPlacementHints(
   gridHeight: number,
   gridResolutionM: number,
   options: PlacementHintOptions = {},
+  originX = 0,
+  originY = 0,
 ): PlacementHint[] {
   const threshold = options.weakThreshold ?? DEFAULT_WEAK_THRESHOLD;
   const minArea = options.minAreaCells ?? DEFAULT_MIN_AREA;
@@ -110,8 +114,8 @@ export function findPlacementHints(
     const avgRssi = region.totalRssi / region.cells.length;
 
     hints.push({
-      xM: centroidCol * gridResolutionM,
-      yM: centroidRow * gridResolutionM,
+      xM: originX + centroidCol * gridResolutionM,
+      yM: originY + centroidRow * gridResolutionM,
       areaCells: region.cells.length,
       avgRssi,
       reason: `Weak zone (avg ${avgRssi.toFixed(0)} dBm, ${region.cells.length} cells)`,

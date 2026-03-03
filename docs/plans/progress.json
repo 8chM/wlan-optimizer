@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-03",
-  "currentPhase": "page-consistency-complete",
+  "currentPhase": "phase-20-complete",
   "phases": {
     "0": { "name": "Autonomie-Recherche", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
     "1": { "name": "Projektsetup", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
@@ -127,6 +127,35 @@
         "18-5": { "name": "MeasureLayer auf Viewer-Seiten", "status": "completed", "auditResult": "PASSED - 2-Punkt-Distanzmessung auf Measure/Mixing" },
         "18-6": { "name": "Read-Only Annotationen", "status": "completed", "auditResult": "PASSED - TextAnnotation draggable=false auf Measure/Mixing" },
         "18-7": { "name": "Flexibles Tuer/Fenster 2-Klick", "status": "completed", "auditResult": "PASSED - 2-Klick-Workflow mit Preview, Fallback auf feste Breite" }
+      }
+    },
+    "19": {
+      "name": "Export, Clipboard, Zoom & Polish",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-03",
+      "auditResult": "PASSED - 6 von 7 Bloecken implementiert (Block 7 optional deferred), Build 0 Errors, svelte-check 0 Errors",
+      "subtasks": {
+        "19-1": { "name": "Browser CSV Export", "status": "completed", "auditResult": "PASSED - 28-Spalten-CSV identisch zum Rust-Backend" },
+        "19-2": { "name": "Canvas-Export PNG", "status": "completed", "auditResult": "PASSED - Konva Stage.toDataURL mit floating Export-Button" },
+        "19-3": { "name": "Copy/Paste/Duplicate", "status": "completed", "auditResult": "PASSED - clipboardStore, Ctrl+C/X/V/D, Offset-Paste, Undo-Support" },
+        "19-4": { "name": "Erweitertes Kontextmenue", "status": "completed", "auditResult": "PASSED - Copy/Cut/Duplicate/Delete/Paste/SelectAll mit Shortcuts" },
+        "19-5": { "name": "Zoom-Slider + Prozent-Eingabe", "status": "completed", "auditResult": "PASSED - Range-Slider 10-500%, editierbares Prozent-Feld" },
+        "19-6": { "name": "Persistente Messlinien", "status": "completed", "auditResult": "PASSED - SavedMeasurements.svelte, localStorage, Enter/Pin-Button, read-only auf Viewer-Seiten" },
+        "19-7": { "name": "Results-Heatmap", "status": "deferred", "auditResult": "DEFERRED - Optional, wuerde Measure-Seite Canvas duplizieren" }
+      }
+    },
+    "20": {
+      "name": "Heatmap-Fix, AP-Hoehe, Tuer/Fenster-Material",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-03",
+      "auditResult": "PASSED - 4 Bloecke implementiert, Build 0 Errors, svelte-check 0 Errors, 576 Tests PASS",
+      "subtasks": {
+        "20-1": { "name": "Dynamische Heatmap-Bounds", "status": "completed", "auditResult": "PASSED - FloorBounds originX/originY, BoundingBox aus Waenden/APs, HeatmapOverlay positioniert" },
+        "20-2": { "name": "AP-Hoehe in RF-Berechnung", "status": "completed", "auditResult": "PASSED - APConfig heightM, 3D-Distanz sqrt(dx²+dy²+dz²), Receiver 1.2m" },
+        "20-3": { "name": "Tuer/Fenster-Material-UI", "status": "completed", "auditResult": "PASSED - MaterialPicker readonly bei door/window Tool, farbiger Hinweis" },
+        "20-4": { "name": "findMaterial-Fallback", "status": "completed", "auditResult": "PASSED - Doppelter Lookup localStorage dann MOCK_MATERIALS, Auto-Seed" }
       }
     }
   },

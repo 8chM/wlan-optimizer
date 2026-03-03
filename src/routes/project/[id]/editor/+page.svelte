@@ -20,6 +20,7 @@ import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
 import WallDrawingTool from '$lib/canvas/WallDrawingTool.svelte';
 import AccessPointMarker from '$lib/canvas/AccessPointMarker.svelte';
 import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
+import SavedMeasurements from '$lib/canvas/SavedMeasurements.svelte';
 import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
 import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
 import CanvasScrollbars from '$lib/canvas/CanvasScrollbars.svelte';
@@ -52,6 +53,7 @@ import { channelStore } from '$lib/stores/channelStore.svelte';
 import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
 import { projectStore } from '$lib/stores/projectStore.svelte';
 import { undoStore, type EditorCommand } from '$lib/stores/undoStore.svelte';
+import { clipboardStore, type ClipboardWall, type ClipboardAp } from '$lib/stores/clipboardStore.svelte';
 import { registerShortcuts } from '$lib/utils/keyboard';
 
 let containerWidth = $state(800);
@@ -70,6 +72,8 @@ let scaleDistanceInput = $state('');
 let scalePixelDistance = $state(0);
 let measureStart = $state<{ x: number; y: number } | null>(null);
 let measureEnd = $state<{ x: number; y: number } | null>(null);
+let savedMeasurements = $state<import('$lib/canvas/SavedMeasurements.svelte').SavedMeasurement[]>([]);
+let selectedMeasurementId = $state<string | null>(null);
 let annotations = $state<AnnotationData[]>([]);
 let editingAnnotationId = $state<string | null>(null);
 let textInputPosition = $state<{ x: number; y: number } | null>(null);
@@ -81,6 +85,7 @@ let roomDrawingLayer: RoomDrawingLayer | undefined = $state();
 let contextMenuVisible = $state(false);
 let contextMenuX = $state(0);
 let contextMenuY = $state(0);
+let editorRef: FloorplanEditor | undefined = $state();
 
 // Door/Window 2-click placement state
 let doorWindowStart = $state<{
@@ -115,10 +120,33 @@ let floor = $derived(projectStore.activeFloor);
 let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
 let floorRotation = $derived(floor?.background_image_rotation ?? 0);
 
-// ── Floor bounds for heatmap ──────────────────────────────────
-let floorBounds = $derived({
-  width: floor?.width_meters ?? 10,
-  height: floor?.height_meters ?? 10,
+// ── Floor bounds for heatmap (dynamic from wall/AP bounding box) ──
+let floorBounds = $derived.by(() => {
+  const walls = floor?.walls ?? [];
+  const aps = floor?.access_points ?? [];
+  if (walls.length === 0 && aps.length === 0) {
+    return { width: floor?.width_meters ?? 10, height: floor?.height_meters ?? 10, originX: 0, originY: 0 };
+  }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const w of walls) {
+    for (const seg of w.segments) {
+      minX = Math.min(minX, seg.x1, seg.x2);
+      minY = Math.min(minY, seg.y1, seg.y2);
+      maxX = Math.max(maxX, seg.x1, seg.x2);
+      maxY = Math.max(maxY, seg.y1, seg.y2);
+    }
+  }
+  for (const ap of aps) {
+    minX = Math.min(minX, ap.x); minY = Math.min(minY, ap.y);
+    maxX = Math.max(maxX, ap.x); maxY = Math.max(maxY, ap.y);
+  }
+  const pad = 2;
+  return {
+    originX: Math.floor(minX) - pad,
+    originY: Math.floor(minY) - pad,
+    width: Math.ceil(maxX - Math.floor(minX)) + 2 * pad,
+    height: Math.ceil(maxY - Math.floor(minY)) + 2 * pad,
+  };
 });
 
 // ── Default material for wall/door/window drawing ─────────────
@@ -249,6 +277,27 @@ function saveAnnotations(): void {
   const floorId = floor?.id;
   if (!floorId) return;
   localStorage.setItem(`wlan-opt:annotations:${floorId}`, JSON.stringify(annotations));
+}
+
+// ── Load saved measurements from localStorage ─────────────
+$effect(() => {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  const stored = localStorage.getItem(`wlan-opt:measurements:${floorId}`);
+  if (stored) {
+    try {
+      savedMeasurements = JSON.parse(stored);
+    } catch { /* ignore */ }
+  } else {
+    savedMeasurements = [];
+  }
+  selectedMeasurementId = null;
+});
+
+function saveMeasurementsToStorage(): void {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  localStorage.setItem(`wlan-opt:measurements:${floorId}`, JSON.stringify(savedMeasurements));
 }
 
 // ── Restore scale reference from localStorage ──────────────
@@ -688,11 +737,46 @@ function resetMeasure(): void {
   measureEnd = null;
 }
 
+function handlePinMeasurement(): void {
+  if (!measureStart || !measureEnd) return;
+  const x1m = measureStart.x / scalePxPerMeter;
+  const y1m = measureStart.y / scalePxPerMeter;
+  const x2m = measureEnd.x / scalePxPerMeter;
+  const y2m = measureEnd.y / scalePxPerMeter;
+  const dist = Math.sqrt((x2m - x1m) ** 2 + (y2m - y1m) ** 2);
+  savedMeasurements = [...savedMeasurements, {
+    id: crypto.randomUUID(),
+    x1: x1m, y1: y1m, x2: x2m, y2: y2m,
+    distanceM: dist,
+  }];
+  saveMeasurementsToStorage();
+  resetMeasure();
+}
+
+function handleDeleteMeasurement(): void {
+  if (!selectedMeasurementId) return;
+  savedMeasurements = savedMeasurements.filter(m => m.id !== selectedMeasurementId);
+  selectedMeasurementId = null;
+  saveMeasurementsToStorage();
+}
+
 // ── Reset measure on tool change ──────────────────────────────
 $effect(() => {
   if (canvasStore.activeTool !== 'measure') {
     resetMeasure();
   }
+});
+
+// ── Enter key to pin measurement ─────────────────────────────
+$effect(() => {
+  function handleEnterPin(e: KeyboardEvent): void {
+    if (e.key === 'Enter' && measureStart && measureEnd) {
+      e.preventDefault();
+      handlePinMeasurement();
+    }
+  }
+  document.addEventListener('keydown', handleEnterPin);
+  return () => document.removeEventListener('keydown', handleEnterPin);
 });
 
 // ── Reset door/window start on tool change ──────────────────
@@ -713,6 +797,10 @@ $effect(() => {
       undoStore.redo();
     },
     delete: () => {
+      if (selectedMeasurementId) {
+        handleDeleteMeasurement();
+        return;
+      }
       handleDeleteSelected();
     },
     save: () => {
@@ -725,6 +813,10 @@ $effect(() => {
       }
       if (doorWindowStart) {
         doorWindowStart = null;
+        return;
+      }
+      if (selectedMeasurementId) {
+        selectedMeasurementId = null;
         return;
       }
       resetMeasure();
@@ -764,6 +856,11 @@ $effect(() => {
     heatmapToggle: () => {
       editorHeatmapStore.toggleVisible();
     },
+    copy: handleCopy,
+    cut: handleCut,
+    paste: () => { handlePaste(); },
+    duplicate: handleDuplicate,
+    selectAll: handleSelectAll,
     shortcutHelp: () => {
       shortcutHelpOpen = !shortcutHelpOpen;
     },
@@ -1006,6 +1103,19 @@ function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'w
   executeDoorWindowSplit(targetWall, dwStart.segIdx, tStart, tEnd, tool);
   doorWindowStart = null;
   return true;
+}
+
+// ── PNG Export ────────────────────────────────────────────────
+
+function handleExportPng(): void {
+  const dataUrl = editorRef?.exportToDataURL(2);
+  if (!dataUrl) return;
+  const link = document.createElement('a');
+  link.download = `floorplan-${Date.now()}.png`;
+  link.href = dataUrl;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 // ── Canvas interaction handlers ───────────────────────────────
@@ -1283,6 +1393,148 @@ async function handleApPositionChange(apId: string, x: number, y: number): Promi
     });
   } catch (err) {
     console.error('[Editor] Failed to update AP position:', err);
+  }
+}
+
+// ── Copy/Paste/Duplicate ──────────────────────────────────────
+
+function handleCopy(): void {
+  const ids = canvasStore.selectedIds;
+  if (ids.length === 0) return;
+
+  const copiedWalls: ClipboardWall[] = [];
+  const copiedAps: ClipboardAp[] = [];
+
+  for (const id of ids) {
+    const wall = floor?.walls?.find((w) => w.id === id);
+    if (wall) {
+      copiedWalls.push({
+        materialId: wall.material_id,
+        segments: wall.segments.map((s) => ({
+          segment_order: s.segment_order,
+          x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2,
+        })),
+        attOverride24: wall.attenuation_override_24ghz,
+        attOverride5: wall.attenuation_override_5ghz,
+        attOverride6: wall.attenuation_override_6ghz,
+      });
+      continue;
+    }
+    const ap = floor?.access_points?.find((a) => a.id === id);
+    if (ap) {
+      copiedAps.push({
+        apModelId: ap.ap_model_id ?? null,
+        label: ap.label ?? null,
+        x: ap.x, y: ap.y,
+        height_m: ap.height_m,
+        mounting: ap.mounting,
+        tx_power_24ghz_dbm: ap.tx_power_24ghz_dbm,
+        tx_power_5ghz_dbm: ap.tx_power_5ghz_dbm,
+        channel_24ghz: ap.channel_24ghz,
+        channel_5ghz: ap.channel_5ghz,
+        channel_width: ap.channel_width,
+        enabled: ap.enabled,
+        orientation_deg: ap.orientation_deg ?? 0,
+      });
+    }
+  }
+
+  clipboardStore.copy(copiedWalls, copiedAps);
+}
+
+function handleCut(): void {
+  handleCopy();
+  handleDeleteSelected();
+}
+
+async function handlePaste(): Promise<void> {
+  const clipboard = clipboardStore.paste();
+  if (!clipboard || !floor) return;
+
+  const offset = clipboardStore.pasteCount * 0.5; // meters
+  const floorId = floor.id;
+  const createdWallIds: string[] = [];
+  const createdApIds: string[] = [];
+
+  for (const w of clipboard.walls) {
+    const offsetSegments = w.segments.map((s) => ({
+      segment_order: s.segment_order,
+      x1: s.x1 + offset, y1: s.y1 + offset,
+      x2: s.x2 + offset, y2: s.y2 + offset,
+    }));
+    const result = await createWall(floorId, w.materialId, offsetSegments);
+    if (w.attOverride24 !== null || w.attOverride5 !== null || w.attOverride6 !== null) {
+      await updateWall(result.id, {
+        attenuationOverride24ghz: w.attOverride24,
+        attenuationOverride5ghz: w.attOverride5,
+        attenuationOverride6ghz: w.attOverride6,
+      });
+    }
+    createdWallIds.push(result.id);
+  }
+
+  for (const a of clipboard.aps) {
+    const result = await createAccessPoint(
+      floorId, a.x + offset, a.y + offset,
+      a.apModelId ?? undefined, a.label ?? undefined,
+    );
+    await updateAccessPoint(result.id, {
+      height_m: a.height_m,
+      mounting: a.mounting,
+      tx_power_24ghz_dbm: a.tx_power_24ghz_dbm ?? undefined,
+      tx_power_5ghz_dbm: a.tx_power_5ghz_dbm ?? undefined,
+      channel_24ghz: a.channel_24ghz ?? undefined,
+      channel_5ghz: a.channel_5ghz ?? undefined,
+      channel_width: a.channel_width,
+      enabled: a.enabled,
+    });
+    createdApIds.push(result.id);
+  }
+
+  await projectStore.refreshFloorData();
+  projectStore.markDirty();
+
+  // Select pasted items
+  canvasStore.clearSelection();
+  for (const id of [...createdWallIds, ...createdApIds]) {
+    canvasStore.selectItem(id, true);
+  }
+
+  // Undo support
+  const capturedWallIds = [...createdWallIds];
+  const capturedApIds = [...createdApIds];
+  undoStore.pushExecuted({
+    label: `Paste ${capturedWallIds.length + capturedApIds.length} Items`,
+    async execute() {
+      await projectStore.refreshFloorData();
+    },
+    async undo() {
+      for (const id of capturedWallIds) {
+        try { await deleteWall(id); } catch { /* ignore */ }
+      }
+      for (const id of capturedApIds) {
+        try { await deleteAccessPoint(id); } catch { /* ignore */ }
+      }
+      canvasStore.clearSelection();
+      await projectStore.refreshFloorData();
+      projectStore.markDirty();
+    },
+  });
+}
+
+function handleDuplicate(): void {
+  handleCopy();
+  handlePaste();
+}
+
+function handleSelectAll(): void {
+  if (!floor) return;
+  canvasStore.clearSelection();
+  for (const w of floor.walls ?? []) {
+    canvasStore.selectItem(w.id, true);
+  }
+  for (const a of floor.access_points ?? []) {
+    canvasStore.selectItem(a.id, true);
   }
 }
 
@@ -1634,6 +1886,7 @@ async function handleFileSelected(event: Event): Promise<void> {
 >
   {#if floor}
     <FloorplanEditor
+      bind:this={editorRef}
       width={containerWidth}
       height={containerHeight}
       floorplanWidthM={floor.width_meters ?? 10}
@@ -1772,6 +2025,17 @@ async function handleFileSelected(event: Event): Promise<void> {
           />
         {/if}
 
+        <!-- Saved/pinned measurements -->
+        {#if savedMeasurements.length > 0}
+          <SavedMeasurements
+            measurements={savedMeasurements}
+            {scalePxPerMeter}
+            interactive={canvasStore.activeTool === 'select'}
+            selectedId={selectedMeasurementId}
+            onSelect={(id) => { selectedMeasurementId = id; canvasStore.clearSelection(); }}
+          />
+        {/if}
+
         <!-- Channel conflict overlay lines -->
         {#if channelStore.overlayVisible && channelStore.analysis}
           <ChannelConflictOverlay
@@ -1857,6 +2121,14 @@ async function handleFileSelected(event: Event): Promise<void> {
       </button>
     {:else}
       <div class="floorplan-actions">
+        <button class="replace-btn" onclick={handleExportPng} title={t('editor.exportPng')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="m21 15-5-5L5 21"/>
+          </svg>
+          PNG
+        </button>
         <button class="replace-btn" onclick={handleUploadClick} title={t('editor.replaceFloorplan')}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -1963,6 +2235,11 @@ async function handleFileSelected(event: Event): Promise<void> {
     {#if canvasStore.activeTool === 'measure' && measuredDistance !== null}
       <div class="measure-result">
         {t('editor.measureDistance')}: {measuredDistance.toFixed(2)} m
+        <button
+          class="pin-btn"
+          onclick={handlePinMeasurement}
+          title={t('editor.saveMeasurement')}
+        >📌</button>
       </div>
     {/if}
 
@@ -2024,6 +2301,7 @@ async function handleFileSelected(event: Event): Promise<void> {
         <MaterialPicker
           selectedMaterialId={canvasStore.selectedMaterialId}
           onSelect={(id) => canvasStore.setSelectedMaterial(id)}
+          activeTool={canvasStore.activeTool}
         />
       </div>
     {/if}
@@ -2045,7 +2323,13 @@ async function handleFileSelected(event: Event): Promise<void> {
       hasWall={selectedWall !== null || selectedWalls.length > 0}
       hasAp={selectedAp !== null}
       hasSelection={canvasStore.selectedIds.length > 0}
+      hasClipboard={clipboardStore.hasData}
       onDelete={handleDeleteSelected}
+      onCopy={handleCopy}
+      onCut={handleCut}
+      onPaste={() => { handlePaste(); }}
+      onDuplicate={handleDuplicate}
+      onSelectAll={handleSelectAll}
       onClose={() => { contextMenuVisible = false; }}
     />
   {:else}
@@ -2307,6 +2591,23 @@ async function handleFileSelected(event: Event): Promise<void> {
     font-family: 'SF Mono', 'Fira Code', monospace;
     backdrop-filter: blur(8px);
     z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pin-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 2px;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+  }
+
+  .pin-btn:hover {
+    opacity: 1;
   }
 
   .scale-hint-bar {

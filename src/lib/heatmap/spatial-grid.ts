@@ -38,6 +38,10 @@ export interface SpatialGrid {
   gridRows: number;
   /** Cell size in meters */
   cellSize: number;
+  /** X-offset of the grid origin in meters */
+  originX: number;
+  /** Y-offset of the grid origin in meters */
+  originY: number;
 }
 
 /** Result of building a spatial grid: the grid itself plus all flattened segments */
@@ -58,12 +62,16 @@ export interface SpatialGridResult {
  * @param walls - Array of walls with their line segments and attenuation
  * @param boundsWidth - Floor plan width in meters
  * @param boundsHeight - Floor plan height in meters
+ * @param originX - X-offset of the grid origin in meters (default: 0)
+ * @param originY - Y-offset of the grid origin in meters (default: 0)
  * @returns The spatial grid and flattened segment array
  */
 export function buildSpatialGrid(
   walls: WallData[],
   boundsWidth: number,
   boundsHeight: number,
+  originX = 0,
+  originY = 0,
 ): SpatialGridResult {
   const cellSize = SPATIAL_GRID_CELL_SIZE;
   const gridCols = Math.ceil(boundsWidth / cellSize) + 1;
@@ -84,10 +92,11 @@ export function buildSpatialGrid(
     if (!entry) continue;
 
     const { seg } = entry;
-    const minX = Math.max(0, Math.floor(Math.min(seg.x1, seg.x2) / cellSize));
-    const maxX = Math.min(gridCols - 1, Math.floor(Math.max(seg.x1, seg.x2) / cellSize));
-    const minY = Math.max(0, Math.floor(Math.min(seg.y1, seg.y2) / cellSize));
-    const maxY = Math.min(gridRows - 1, Math.floor(Math.max(seg.y1, seg.y2) / cellSize));
+    // Convert absolute coordinates to grid-local coordinates
+    const minX = Math.max(0, Math.floor((Math.min(seg.x1, seg.x2) - originX) / cellSize));
+    const maxX = Math.min(gridCols - 1, Math.floor((Math.max(seg.x1, seg.x2) - originX) / cellSize));
+    const minY = Math.max(0, Math.floor((Math.min(seg.y1, seg.y2) - originY) / cellSize));
+    const maxY = Math.min(gridRows - 1, Math.floor((Math.max(seg.y1, seg.y2) - originY) / cellSize));
 
     for (let cy = minY; cy <= maxY; cy++) {
       for (let cx = minX; cx <= maxX; cx++) {
@@ -103,7 +112,7 @@ export function buildSpatialGrid(
   }
 
   return {
-    grid: { cells, gridCols, gridRows, cellSize },
+    grid: { cells, gridCols, gridRows, cellSize, originX, originY },
     allSegments,
   };
 }
@@ -161,13 +170,13 @@ export function computeWallLoss(
   spatialGrid: SpatialGrid,
   allSegments: SpatialGridEntry[],
 ): number {
-  const { cells, gridCols, cellSize } = spatialGrid;
+  const { cells, gridCols, cellSize, originX, originY } = spatialGrid;
 
-  // Determine which cells the ray passes through
-  const rayMinX = Math.max(0, Math.floor(Math.min(ax, bx) / cellSize));
-  const rayMaxX = Math.min(spatialGrid.gridCols - 1, Math.floor(Math.max(ax, bx) / cellSize));
-  const rayMinY = Math.max(0, Math.floor(Math.min(ay, by) / cellSize));
-  const rayMaxY = Math.min(spatialGrid.gridRows - 1, Math.floor(Math.max(ay, by) / cellSize));
+  // Determine which cells the ray passes through (convert to grid-local coords)
+  const rayMinX = Math.max(0, Math.floor((Math.min(ax, bx) - originX) / cellSize));
+  const rayMaxX = Math.min(spatialGrid.gridCols - 1, Math.floor((Math.max(ax, bx) - originX) / cellSize));
+  const rayMinY = Math.max(0, Math.floor((Math.min(ay, by) - originY) / cellSize));
+  const rayMaxY = Math.min(spatialGrid.gridRows - 1, Math.floor((Math.max(ay, by) - originY) / cellSize));
 
   // Collect unique segment indices from traversed cells
   const testedSegments = new Set<number>();

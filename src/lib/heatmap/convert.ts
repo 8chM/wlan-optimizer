@@ -46,6 +46,7 @@ export function convertApsToConfig(
         id: ap.id,
         x: ap.x,
         y: ap.y,
+        heightM: ap.height_m ?? 0,
         txPowerDbm: txPower,
         antennaGainDbi: antennaGain,
         enabled: true,
@@ -68,7 +69,7 @@ export function convertWallsToData(
       y2: seg.y2,
     })),
     attenuationDb: band === '2.4ghz'
-      ? (wall.attenuation_override_24ghz ?? 3)
-      : (wall.attenuation_override_5ghz ?? 5),
+      ? (wall.attenuation_override_24ghz ?? wall.material?.attenuation_24ghz_db ?? 3)
+      : (wall.attenuation_override_5ghz ?? wall.material?.attenuation_5ghz_db ?? 5),
   }));
 }

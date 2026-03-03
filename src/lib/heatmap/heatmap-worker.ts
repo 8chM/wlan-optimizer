@@ -103,8 +103,13 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   // Filter enabled APs only
   const activeAPs = aps.filter((ap) => ap.enabled);
 
+  // Grid origin offset (supports floor plans not at 0,0)
+  const originX = bounds.originX ?? 0;
+  const originY = bounds.originY ?? 0;
+
   // Build spatial grid for wall intersection acceleration
-  const { grid: spatialGrid, allSegments } = buildSpatialGrid(walls, bounds.width, bounds.height);
+  // Pass origin so segments outside (0,0) are correctly indexed
+  const { grid: spatialGrid, allSegments } = buildSpatialGrid(walls, bounds.width, bounds.height, originX, originY);
 
   // Build the color LUT for the chosen scheme
   const colorLUT = getColorLUT(colorScheme);
@@ -126,10 +131,10 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   let binNone = 0;      // < -85
 
   for (let gy = 0; gy < gridHeight; gy++) {
-    const pointY = gy * gridStep;
+    const pointY = originY + gy * gridStep;
 
     for (let gx = 0; gx < gridWidth; gx++) {
-      const pointX = gx * gridStep;
+      const pointX = originX + gx * gridStep;
 
       // Compute combined RSSI from all active APs (max-signal model)
       let bestRSSI = Number.NEGATIVE_INFINITY;
@@ -165,7 +170,7 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   const avgRSSI = totalPoints > 0 ? sumRSSI / totalPoints : RSSI_MIN;
 
   // Find weak coverage zones for AP placement suggestions
-  const placementHints = findPlacementHints(rssiGrid, gridWidth, gridHeight, gridStep);
+  const placementHints = findPlacementHints(rssiGrid, gridWidth, gridHeight, gridStep, {}, originX, originY);
 
   // Upscale to output resolution with bilinear interpolation and colorize
   const buffer = interpolateAndColorize(

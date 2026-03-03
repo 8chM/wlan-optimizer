@@ -685,17 +685,26 @@ function cancelScaleSetting(): void {
   scaleDistanceInput = '';
 }
 
+/** Compute bounding box dimensions of a rotated rectangle. */
+function getRotatedBoundingBox(w: number, h: number, angleDeg: number): { w: number; h: number } {
+  const rad = ((angleDeg % 360 + 360) % 360) * Math.PI / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  return { w: w * cos + h * sin, h: w * sin + h * cos };
+}
+
 async function confirmScale(): Promise<void> {
   const distance = parseFloat(scaleDistanceInput);
   if (!floor || isNaN(distance) || distance <= 0 || scalePixelDistance <= 0) return;
 
   const newPxPerMeter = scalePixelDistance / distance;
-  // Use actual image dimensions for accurate floor size calculation
+  // Use rotated bounding box dimensions for accurate floor size calculation
   let widthM: number;
   let heightM: number;
   if (loadedImageWidth > 0 && loadedImageHeight > 0) {
-    widthM = loadedImageWidth / newPxPerMeter;
-    heightM = loadedImageHeight / newPxPerMeter;
+    const { w, h } = getRotatedBoundingBox(loadedImageWidth, loadedImageHeight, floorRotation);
+    widthM = w / newPxPerMeter;
+    heightM = h / newPxPerMeter;
   } else {
     widthM = floor.width_meters ?? 10;
     heightM = floor.height_meters ?? 10;
@@ -1779,24 +1788,29 @@ function handleUploadClick(): void {
 async function handleRotateFloorplan(): Promise<void> {
   if (!floor) return;
   const newRotation = ((floorRotation + 90) % 360);
-  try {
-    await setFloorRotation(floor.id, newRotation);
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
-  } catch (err) {
-    console.error('[Editor] Failed to rotate floor plan:', err);
-  }
+  await applyRotation(newRotation);
 }
 
 async function handleSetRotation(degrees: number): Promise<void> {
   if (!floor) return;
   const clamped = ((degrees % 360) + 360) % 360;
+  await applyRotation(clamped);
+}
+
+/** Apply rotation and update floor dimensions to match rotated bounding box. */
+async function applyRotation(newRotation: number): Promise<void> {
+  if (!floor) return;
   try {
-    await setFloorRotation(floor.id, clamped);
+    await setFloorRotation(floor.id, newRotation);
+    // Update floor dimensions to match rotated bounding box
+    if (loadedImageWidth > 0 && loadedImageHeight > 0 && scalePxPerMeter > 0) {
+      const { w, h } = getRotatedBoundingBox(loadedImageWidth, loadedImageHeight, newRotation);
+      await setFloorScale(floor.id, scalePxPerMeter, w / scalePxPerMeter, h / scalePxPerMeter);
+    }
     await projectStore.refreshFloorData();
     projectStore.markDirty();
   } catch (err) {
-    console.error('[Editor] Failed to set rotation:', err);
+    console.error('[Editor] Failed to apply rotation:', err);
   }
 }
 

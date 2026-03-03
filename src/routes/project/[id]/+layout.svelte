@@ -49,7 +49,7 @@ function handleSetScale(): void {
 
 <Layout
   showSidebar={true}
-  showEditorTools={true}
+  toolbarConfig={canvasStore.toolbarConfig}
   {projectId}
   activeTool={canvasStore.activeTool}
   zoomLevel={canvasStore.zoomPercent}

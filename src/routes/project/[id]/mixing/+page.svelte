@@ -15,6 +15,12 @@
   import GridOverlay from '$lib/canvas/GridOverlay.svelte';
   import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
   import HeatmapOverlay from '$lib/canvas/HeatmapOverlay.svelte';
+  import RulerOverlay from '$lib/canvas/RulerOverlay.svelte';
+  import CanvasScrollbars from '$lib/canvas/CanvasScrollbars.svelte';
+  import CrosshairCursor from '$lib/canvas/CrosshairCursor.svelte';
+  import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
+  import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
+  import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
   import MixingConsole from '$lib/components/mixing/MixingConsole.svelte';
   import ChangeList from '$lib/components/mixing/ChangeList.svelte';
   import AssistSteps from '$lib/components/mixing/AssistSteps.svelte';
@@ -27,12 +33,33 @@
   import { comparisonStore } from '$lib/stores/comparisonStore.svelte';
   import { safeInvoke } from '$lib/api/invoke';
   import { t } from '$lib/i18n';
+  import { registerShortcuts } from '$lib/utils/keyboard';
+  import type { Position } from '$lib/models/types';
+
+  // Set page context for toolbar filtering
+  $effect(() => {
+    canvasStore.setPageContext('mixing');
+  });
 
   // ─── Layout State ─────────────────────────────────────────────
 
   let containerWidth = $state(800);
   let containerHeight = $state(600);
   let floorImageDataUrl = $state<string | null>(null);
+  let mousePosition = $state<Position | null>(null);
+  let measureStart = $state<{ x: number; y: number } | null>(null);
+  let measureEnd = $state<{ x: number; y: number } | null>(null);
+  let annotations = $state<AnnotationData[]>([]);
+
+  // Cursor per tool
+  let canvasCursor = $derived.by(() => {
+    if (canvasStore.spaceHeld) return 'grab';
+    switch (canvasStore.activeTool) {
+      case 'pan': return 'grab';
+      case 'measure': return 'crosshair';
+      default: return 'default';
+    }
+  });
 
   let floor = $derived(projectStore.activeFloor);
   let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
@@ -69,6 +96,18 @@
           canvasStore.setBackgroundOffset(data.x, data.y);
         }
       } catch { /* ignore */ }
+    }
+  });
+
+  // ─── Load annotations from localStorage (read-only) ─────────
+  $effect(() => {
+    const id = floor?.id;
+    if (!id) return;
+    const stored = localStorage.getItem(`wlan-opt:annotations:${id}`);
+    if (stored) {
+      try { annotations = JSON.parse(stored); } catch { /* ignore */ }
+    } else {
+      annotations = [];
     }
   });
 
@@ -175,6 +214,72 @@
     forecastStats = stats;
   }
 
+  function handleCanvasMouseMove(canvasX: number, canvasY: number): void {
+    mousePosition = { x: canvasX, y: canvasY };
+    canvasStore.setMousePosition(canvasX / scalePxPerMeter, canvasY / scalePxPerMeter);
+  }
+
+  // Reset measure on tool change
+  $effect(() => {
+    if (canvasStore.activeTool !== 'measure') {
+      measureStart = null;
+      measureEnd = null;
+    }
+  });
+
+  function handleMeasureCanvasClick(canvasX: number, canvasY: number): void {
+    if (canvasStore.activeTool === 'measure') {
+      if (!measureStart) {
+        measureStart = { x: canvasX, y: canvasY };
+        measureEnd = null;
+      } else if (!measureEnd) {
+        measureEnd = { x: canvasX, y: canvasY };
+      } else {
+        measureStart = { x: canvasX, y: canvasY };
+        measureEnd = null;
+      }
+    }
+  }
+
+  // ─── Keyboard Shortcuts ────────────────────────────────────────
+  $effect(() => {
+    const cleanup = registerShortcuts({
+      selectTool: () => canvasStore.setTool('select'),
+      panTool: () => canvasStore.setTool('pan'),
+      measureTool: () => canvasStore.setTool('measure'),
+      gridToggle: () => canvasStore.toggleGrid(),
+      deselect: () => {
+        if (measureStart) {
+          measureStart = null;
+          measureEnd = null;
+          return;
+        }
+        canvasStore.setTool('select');
+        canvasStore.clearSelection();
+      },
+      save: () => {
+        // no-op on viewer pages
+      },
+    });
+    return cleanup;
+  });
+
+  // Track modifier keys for panning
+  function handleKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Shift') canvasStore.setShiftHeld(true);
+    if (event.key === ' ' || event.code === 'Space') {
+      event.preventDefault();
+      canvasStore.setSpaceHeld(true);
+    }
+  }
+
+  function handleKeyUp(event: KeyboardEvent): void {
+    if (event.key === 'Shift') canvasStore.setShiftHeld(false);
+    if (event.key === ' ' || event.code === 'Space') {
+      canvasStore.setSpaceHeld(false);
+    }
+  }
+
   function handleTakeSnapshot(): void {
     if (!forecastCanvas) return;
     if (!comparisonStore.beforeCanvas) {
@@ -190,6 +295,8 @@
 <svelte:head>
   <title>{t('nav.mixing')} - {t('app.title')}</title>
 </svelte:head>
+
+<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
 
 <!-- Headless forecast heatmap renderer -->
 {#if floor}
@@ -249,6 +356,7 @@
     class="mixing-canvas"
     bind:clientWidth={containerWidth}
     bind:clientHeight={containerHeight}
+    style:cursor={canvasCursor}
   >
     {#if floor}
       <FloorplanEditor
@@ -257,6 +365,8 @@
         floorplanWidthM={floor.width_meters ?? 10}
         floorplanHeightM={floor.height_meters ?? 10}
         {scalePxPerMeter}
+        onCanvasMouseMove={handleCanvasMouseMove}
+        onCanvasClick={handleMeasureCanvasClick}
       >
         {#snippet background()}
           {#if canvasStore.backgroundVisible}
@@ -308,6 +418,16 @@
             {/each}
           {/if}
 
+          <!-- Text annotations (read-only) -->
+          {#each annotations as annotation (annotation.id)}
+            <TextAnnotation
+              {annotation}
+              {scalePxPerMeter}
+              selected={false}
+              draggable={false}
+            />
+          {/each}
+
           <!-- Access points (read-only in mixing mode) -->
           {#if floor.access_points}
             {#each floor.access_points as ap (ap.id)}
@@ -319,8 +439,45 @@
               />
             {/each}
           {/if}
+
+          <!-- Measure tool layer (distance ruler) -->
+          {#if canvasStore.activeTool === 'measure' && measureStart}
+            <MeasureLayer
+              startPoint={measureStart}
+              endPoint={measureEnd}
+              {scalePxPerMeter}
+              mousePosition={mousePosition}
+            />
+          {/if}
+
+          <!-- Crosshair cursor for measure tool -->
+          {#if mousePosition && canvasStore.activeTool === 'measure'}
+            <CrosshairCursor x={mousePosition.x} y={mousePosition.y} />
+          {/if}
+
+          <!-- Ruler overlay (always visible, rendered last so it's on top) -->
+          <RulerOverlay
+            widthPx={containerWidth}
+            heightPx={containerHeight}
+            {scalePxPerMeter}
+            stageScale={canvasStore.scale}
+            stageOffsetX={canvasStore.offsetX}
+            stageOffsetY={canvasStore.offsetY}
+          />
         {/snippet}
       </FloorplanEditor>
+
+      <!-- Canvas scrollbars overlay -->
+      <CanvasScrollbars
+        viewportWidth={containerWidth}
+        viewportHeight={containerHeight}
+        contentWidth={(floor.width_meters ?? 10) * scalePxPerMeter}
+        contentHeight={(floor.height_meters ?? 10) * scalePxPerMeter}
+        scale={canvasStore.scale}
+        offsetX={canvasStore.offsetX}
+        offsetY={canvasStore.offsetY}
+        onOffsetChange={(x, y) => canvasStore.setOffset(x, y)}
+      />
 
       <!-- Forecast stats overlay -->
       {#if forecastStats && mixingStore.forecastMode}

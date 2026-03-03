@@ -5,6 +5,8 @@
  * for the FloorplanEditor canvas.
  */
 
+import { TOOLSETS, type PageContext, type ToolbarConfig } from '$lib/config/toolsets';
+
 // ─── Types ──────────────────────────────────────────────────────
 
 export type EditorTool = 'select' | 'pan' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text' | 'room';
@@ -44,6 +46,7 @@ function createCanvasStore() {
   let backgroundOpacity = $state(0.3);
   let backgroundOffsetX = $state(0);
   let backgroundOffsetY = $state(0);
+  let pageContext = $state<PageContext>('editor');
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -67,6 +70,11 @@ function createCanvasStore() {
     get backgroundOpacity() { return backgroundOpacity; },
     get backgroundOffsetX() { return backgroundOffsetX; },
     get backgroundOffsetY() { return backgroundOffsetY; },
+    get pageContext() { return pageContext; },
+
+    get toolbarConfig(): ToolbarConfig {
+      return TOOLSETS[pageContext];
+    },
 
     get zoomPercent(): number {
       return scale * 100;
@@ -74,7 +82,20 @@ function createCanvasStore() {
 
     // ── Actions ─────────────────────────────────────────────
 
+    setPageContext(ctx: PageContext): void {
+      pageContext = ctx;
+      // Reset to select if current tool is not allowed on the new page
+      const allowed = TOOLSETS[ctx].allowedTools;
+      if (allowed.length > 0 && !allowed.includes(activeTool)) {
+        activeTool = 'select';
+        selectedIds = [];
+      }
+    },
+
     setTool(tool: EditorTool): void {
+      // Validate against allowed tools for the current page context
+      const allowed = TOOLSETS[pageContext].allowedTools;
+      if (allowed.length > 0 && !allowed.includes(tool)) return;
       activeTool = tool;
       // Clear selection when switching tools
       if (tool !== 'select') {

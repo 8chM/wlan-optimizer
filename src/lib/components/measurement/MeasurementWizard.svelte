@@ -75,6 +75,10 @@
     onUpdateRunStatus?: (runId: string, status: 'completed' | 'cancelled') => void;
     /** Callback: delete a measurement point */
     onDeletePoint?: (pointId: string) => void;
+    /** Callback: start placing a new measurement point on the canvas */
+    onStartPlacingPoint?: () => void;
+    /** Whether we are currently placing a measurement point */
+    isPlacingPoint?: boolean;
   }
 
   let {
@@ -106,6 +110,8 @@
     onDeleteRun,
     onUpdateRunStatus,
     onDeletePoint,
+    onStartPlacingPoint,
+    isPlacingPoint = false,
   }: MeasurementWizardProps = $props();
 
   // ─── Local State ──────────────────────────────────────────────
@@ -197,9 +203,17 @@
 
       {#if points.length === 0}
         <p class="hint-text">{t('measurement.addPoint')}</p>
+        <button class="add-point-btn" onclick={() => onStartPlacingPoint?.()} disabled={isPlacingPoint}>
+          {isPlacingPoint ? t('measurement.clickToPlace') : t('measurement.placePoint')}
+        </button>
       {:else}
         <div class="points-section">
-          <span class="section-label">{points.length} {t('measurement.pointsCount')}</span>
+          <div class="points-header">
+            <span class="section-label">{points.length} {t('measurement.pointsCount')}</span>
+            <button class="add-point-btn small" onclick={() => onStartPlacingPoint?.()} disabled={isPlacingPoint}>
+              {isPlacingPoint ? t('measurement.clickToPlace') : '+'}
+            </button>
+          </div>
           <div class="point-list">
             {#each points as point (point.id)}
               <button
@@ -317,6 +331,47 @@
 
   .points-section {
     margin-bottom: 8px;
+  }
+
+  .points-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .add-point-btn {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 6px;
+    color: #c7d2fe;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-top: 6px;
+  }
+
+  .add-point-btn:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.5);
+  }
+
+  .add-point-btn:disabled {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #86efac;
+    cursor: default;
+  }
+
+  .add-point-btn.small {
+    width: auto;
+    padding: 2px 8px;
+    margin-top: 0;
+    font-size: 0.75rem;
   }
 
   .section-label {

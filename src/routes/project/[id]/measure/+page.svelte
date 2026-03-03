@@ -16,6 +16,12 @@
   import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
   import HeatmapOverlay from '$lib/canvas/HeatmapOverlay.svelte';
   import MeasurementPoints from '$lib/canvas/MeasurementPoints.svelte';
+  import RulerOverlay from '$lib/canvas/RulerOverlay.svelte';
+  import CanvasScrollbars from '$lib/canvas/CanvasScrollbars.svelte';
+  import CrosshairCursor from '$lib/canvas/CrosshairCursor.svelte';
+  import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
+  import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
+  import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
   import MeasurementWizard from '$lib/components/measurement/MeasurementWizard.svelte';
   import EditorHeatmap from '$lib/components/editor/EditorHeatmap.svelte';
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
@@ -24,12 +30,35 @@
   import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
   import { safeInvoke } from '$lib/api/invoke';
   import { t } from '$lib/i18n';
+  import { registerShortcuts } from '$lib/utils/keyboard';
+  import type { Position } from '$lib/models/types';
+
+  // Set page context for toolbar filtering
+  $effect(() => {
+    canvasStore.setPageContext('measure');
+  });
 
   // ─── Layout State ─────────────────────────────────────────────
 
   let containerWidth = $state(800);
   let containerHeight = $state(600);
   let floorImageDataUrl = $state<string | null>(null);
+  let mousePosition = $state<Position | null>(null);
+  let isPlacingMeasurementPoint = $state(false);
+  let measureStart = $state<{ x: number; y: number } | null>(null);
+  let measureEnd = $state<{ x: number; y: number } | null>(null);
+  let annotations = $state<AnnotationData[]>([]);
+
+  // Cursor per tool
+  let canvasCursor = $derived.by(() => {
+    if (canvasStore.spaceHeld) return 'grab';
+    if (isPlacingMeasurementPoint) return 'crosshair';
+    switch (canvasStore.activeTool) {
+      case 'pan': return 'grab';
+      case 'measure': return 'crosshair';
+      default: return 'default';
+    }
+  });
 
   let floor = $derived(projectStore.activeFloor);
   let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
@@ -60,6 +89,18 @@
           canvasStore.setBackgroundOffset(data.x, data.y);
         }
       } catch { /* ignore */ }
+    }
+  });
+
+  // ─── Load annotations from localStorage (read-only) ─────────
+  $effect(() => {
+    const id = floor?.id;
+    if (!id) return;
+    const stored = localStorage.getItem(`wlan-opt:annotations:${id}`);
+    if (stored) {
+      try { annotations = JSON.parse(stored); } catch { /* ignore */ }
+    } else {
+      annotations = [];
     }
   });
 
@@ -191,42 +232,127 @@
     await measurementStore.deletePoint(pointId);
   }
 
+  function handleCanvasMouseMove(canvasX: number, canvasY: number): void {
+    mousePosition = { x: canvasX, y: canvasY };
+    canvasStore.setMousePosition(canvasX / scalePxPerMeter, canvasY / scalePxPerMeter);
+  }
+
+  // ─── Keyboard Shortcuts ────────────────────────────────────────
+  $effect(() => {
+    const cleanup = registerShortcuts({
+      selectTool: () => canvasStore.setTool('select'),
+      panTool: () => canvasStore.setTool('pan'),
+      measureTool: () => canvasStore.setTool('measure'),
+      gridToggle: () => canvasStore.toggleGrid(),
+      deselect: () => {
+        if (isPlacingMeasurementPoint) {
+          isPlacingMeasurementPoint = false;
+          return;
+        }
+        if (measureStart) {
+          measureStart = null;
+          measureEnd = null;
+          return;
+        }
+        canvasStore.setTool('select');
+        canvasStore.clearSelection();
+      },
+      save: () => {
+        // no-op on viewer pages
+      },
+    });
+    return cleanup;
+  });
+
+  // Track modifier keys for panning
+  function handleKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Shift') canvasStore.setShiftHeld(true);
+    if (event.key === ' ' || event.code === 'Space') {
+      event.preventDefault();
+      canvasStore.setSpaceHeld(true);
+    }
+  }
+
+  function handleKeyUp(event: KeyboardEvent): void {
+    if (event.key === 'Shift') canvasStore.setShiftHeld(false);
+    if (event.key === ' ' || event.code === 'Space') {
+      canvasStore.setSpaceHeld(false);
+    }
+  }
+
+  // Reset measure on tool change
+  $effect(() => {
+    if (canvasStore.activeTool !== 'measure') {
+      measureStart = null;
+      measureEnd = null;
+    }
+  });
+
+  function handleMeasureCanvasClick(canvasX: number, canvasY: number): void {
+    if (canvasStore.activeTool === 'measure') {
+      if (!measureStart) {
+        measureStart = { x: canvasX, y: canvasY };
+        measureEnd = null;
+      } else if (!measureEnd) {
+        measureEnd = { x: canvasX, y: canvasY };
+      } else {
+        // Reset and start new
+        measureStart = { x: canvasX, y: canvasY };
+        measureEnd = null;
+      }
+    }
+  }
+
+  function handleStartPlacingPoint(): void {
+    isPlacingMeasurementPoint = true;
+  }
+
   /**
-   * Handle canvas click to add measurement points in measure mode.
+   * Add a measurement point at the given position (meters).
    */
-  async function handleCanvasClick(event: MouseEvent): Promise<void> {
-    if (canvasStore.activeTool !== 'measure') return;
+  async function addMeasurementPointAt(x: number, y: number): Promise<void> {
     if (!floorId) return;
-
-    // Convert screen coordinates to world coordinates (meters),
-    // accounting for canvas pan offset and zoom level
-    const target = event.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const scale = canvasStore.scale ?? 1;
-    const offsetX = canvasStore.offsetX ?? 0;
-    const offsetY = canvasStore.offsetY ?? 0;
-
-    // Screen position relative to container
-    const containerX = event.clientX - rect.left;
-    const containerY = event.clientY - rect.top;
-
-    // Convert to world pixel coordinates (accounting for pan and zoom)
-    const worldPxX = (containerX - offsetX) / scale;
-    const worldPxY = (containerY - offsetY) / scale;
-
-    // Convert pixels to meters
-    const x = worldPxX / scalePxPerMeter;
-    const y = worldPxY / scalePxPerMeter;
-
     const pointIndex = measurementStore.points.length + 1;
     const label = `P${pointIndex}`;
     await measurementStore.addPoint(floorId, label, x, y);
+  }
+
+  /**
+   * Handle canvas click: route to measurement point placement or other tools.
+   */
+  async function handleCanvasClick(event: MouseEvent): Promise<void> {
+    if (!floorId) return;
+
+    // Convert screen coordinates to world coordinates (meters)
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const scale = canvasStore.scale ?? 1;
+    const oX = canvasStore.offsetX ?? 0;
+    const oY = canvasStore.offsetY ?? 0;
+
+    const containerX = event.clientX - rect.left;
+    const containerY = event.clientY - rect.top;
+    const worldPxX = (containerX - oX) / scale;
+    const worldPxY = (containerY - oY) / scale;
+    const x = worldPxX / scalePxPerMeter;
+    const y = worldPxY / scalePxPerMeter;
+
+    // Measurement point placement (from wizard button)
+    if (isPlacingMeasurementPoint) {
+      await addMeasurementPointAt(x, y);
+      isPlacingMeasurementPoint = false;
+      return;
+    }
+
+    // MeasureLayer distance tool is handled separately via FloorplanEditor onCanvasClick
   }
 </script>
 
 <svelte:head>
   <title>{t('nav.measure')} - {t('app.title')}</title>
 </svelte:head>
+
+<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
 
 <!-- Headless live heatmap renderer -->
 {#if floor}
@@ -272,11 +398,14 @@
       onDeleteRun={handleDeleteRun}
       onUpdateRunStatus={handleUpdateRunStatus}
       onDeletePoint={handleDeletePoint}
+      onStartPlacingPoint={handleStartPlacingPoint}
+      isPlacingPoint={isPlacingMeasurementPoint}
     />
   </aside>
 
   <!-- Center area with canvas -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="measure-canvas"
     bind:clientWidth={containerWidth}
@@ -285,6 +414,7 @@
     tabindex="-1"
     onclick={handleCanvasClick}
     onkeydown={() => {}}
+    style:cursor={canvasCursor}
   >
     {#if floor}
       <FloorplanEditor
@@ -293,6 +423,8 @@
         floorplanWidthM={floor.width_meters ?? 10}
         floorplanHeightM={floor.height_meters ?? 10}
         {scalePxPerMeter}
+        onCanvasMouseMove={handleCanvasMouseMove}
+        onCanvasClick={handleMeasureCanvasClick}
       >
         {#snippet background()}
           {#if canvasStore.backgroundVisible}
@@ -355,6 +487,16 @@
             {/each}
           {/if}
 
+          <!-- Text annotations (read-only) -->
+          {#each annotations as annotation (annotation.id)}
+            <TextAnnotation
+              {annotation}
+              {scalePxPerMeter}
+              selected={false}
+              draggable={false}
+            />
+          {/each}
+
           <!-- Measurement points -->
           <MeasurementPoints
             points={measurementStore.points}
@@ -365,8 +507,45 @@
             interactive={!measurementStore.isMeasuring}
             onPointClick={handlePointClick}
           />
+
+          <!-- Measure tool layer (distance ruler) -->
+          {#if canvasStore.activeTool === 'measure' && measureStart}
+            <MeasureLayer
+              startPoint={measureStart}
+              endPoint={measureEnd}
+              {scalePxPerMeter}
+              mousePosition={mousePosition}
+            />
+          {/if}
+
+          <!-- Crosshair cursor for measure tool -->
+          {#if mousePosition && canvasStore.activeTool === 'measure'}
+            <CrosshairCursor x={mousePosition.x} y={mousePosition.y} />
+          {/if}
+
+          <!-- Ruler overlay (always visible, rendered last so it's on top) -->
+          <RulerOverlay
+            widthPx={containerWidth}
+            heightPx={containerHeight}
+            {scalePxPerMeter}
+            stageScale={canvasStore.scale}
+            stageOffsetX={canvasStore.offsetX}
+            stageOffsetY={canvasStore.offsetY}
+          />
         {/snippet}
       </FloorplanEditor>
+
+      <!-- Canvas scrollbars overlay -->
+      <CanvasScrollbars
+        viewportWidth={containerWidth}
+        viewportHeight={containerHeight}
+        contentWidth={(floor.width_meters ?? 10) * scalePxPerMeter}
+        contentHeight={(floor.height_meters ?? 10) * scalePxPerMeter}
+        scale={canvasStore.scale}
+        offsetX={canvasStore.offsetX}
+        offsetY={canvasStore.offsetY}
+        onOffsetChange={(x, y) => canvasStore.setOffset(x, y)}
+      />
     {:else}
       <div class="empty-canvas">
         <p>{t('editor.noFloorplan')}</p>

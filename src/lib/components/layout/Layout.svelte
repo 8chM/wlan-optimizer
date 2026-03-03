@@ -10,6 +10,7 @@
 <script lang="ts">
 import { canvasStore } from '$lib/stores/canvasStore.svelte';
 import type { EditorTool } from '$lib/stores/canvasStore.svelte';
+import type { ToolbarConfig } from '$lib/config/toolsets';
 import type { Snippet } from 'svelte';
 import Toolbar from './Toolbar.svelte';
 import Sidebar from './Sidebar.svelte';
@@ -23,6 +24,8 @@ interface LayoutProps {
   showSidebar?: boolean;
   /** Show editor tools in toolbar */
   showEditorTools?: boolean;
+  /** Toolbar configuration (overrides showEditorTools) */
+  toolbarConfig?: ToolbarConfig | null;
   /** Current project ID for sidebar navigation */
   projectId?: string;
   /** Active editor tool */
@@ -63,6 +66,7 @@ let {
   toolbarExtra,
   showSidebar = false,
   showEditorTools = false,
+  toolbarConfig = null,
   projectId = '',
   activeTool = 'select',
   zoomLevel = 100,
@@ -99,6 +103,7 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
       {activeTool}
       {zoomLevel}
       {showEditorTools}
+      {toolbarConfig}
       {gridVisible}
       {settingScale}
       {onToolChange}
@@ -138,7 +143,7 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
     {@render children()}
   </main>
 
-  {#if showEditorTools}
+  {#if showEditorTools || (toolbarConfig !== null && toolbarConfig.allowedTools.length > 0)}
     <div class="layout-statusbar">
       <StatusBar
         {mouseX}

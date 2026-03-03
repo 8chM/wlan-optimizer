@@ -20,6 +20,8 @@
     annotation: AnnotationData;
     scalePxPerMeter: number;
     selected?: boolean;
+    /** Whether the annotation can be dragged (false = read-only) */
+    draggable?: boolean;
     onSelect?: (id: string) => void;
     onPositionChange?: (id: string, x: number, y: number) => void;
     onEdit?: (id: string) => void;
@@ -29,6 +31,7 @@
     annotation,
     scalePxPerMeter,
     selected = false,
+    draggable = true,
     onSelect,
     onPositionChange,
     onEdit,
@@ -62,11 +65,11 @@
 <Group
   x={posX}
   y={posY}
-  draggable={true}
+  {draggable}
   dragDistance={3}
-  onclick={handleClick}
-  ondblclick={handleDblClick}
-  ondragend={handleDragEnd}
+  onclick={draggable ? handleClick : undefined}
+  ondblclick={draggable ? handleDblClick : undefined}
+  ondragend={draggable ? handleDragEnd : undefined}
 >
   <!-- Background -->
   <Rect

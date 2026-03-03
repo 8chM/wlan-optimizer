@@ -11,6 +11,7 @@ import { createAccessPoint, deleteAccessPoint, updateAccessPoint } from '$lib/ap
 import { importFloorImage, setFloorScale, setFloorRotation } from '$lib/api/floor';
 import { safeInvoke, type MaterialResponse, type SegmentInput } from '$lib/api/invoke';
 import { createWall, deleteWall, updateWall, type WallSegmentInput } from '$lib/api/wall';
+import { Line, Circle } from 'svelte-konva';
 import { FloorplanEditor } from '$lib/canvas';
 import BackgroundImage from '$lib/canvas/BackgroundImage.svelte';
 import GridOverlay from '$lib/canvas/GridOverlay.svelte';
@@ -81,7 +82,21 @@ let contextMenuVisible = $state(false);
 let contextMenuX = $state(0);
 let contextMenuY = $state(0);
 
+// Door/Window 2-click placement state
+let doorWindowStart = $state<{
+  wallId: string;
+  segIdx: number;
+  t: number;
+  x: number;
+  y: number;
+} | null>(null);
+
 let settingScale = $derived(canvasStore.settingScale);
+
+// Set page context for toolbar filtering
+$effect(() => {
+  canvasStore.setPageContext('editor');
+});
 
 // Cursor per tool (space held = grab for panning)
 let canvasCursor = $derived.by(() => {
@@ -127,6 +142,45 @@ let wallSnapTargets = $derived.by((): Position[] => {
     }
   }
   return points;
+});
+
+// ── Door/Window 2-click preview ─────────────────────────────
+interface DoorWindowPreview {
+  x1: number; y1: number; x2: number; y2: number;
+  type: 'door' | 'window';
+}
+
+let doorWindowPreview = $derived.by((): DoorWindowPreview | null => {
+  const dwStart = doorWindowStart;
+  if (!dwStart || !mousePosition) return null;
+  const tool = canvasStore.activeTool;
+  if (tool !== 'door' && tool !== 'window') return null;
+
+  const walls = floor?.walls ?? [];
+  const wall = walls.find(w => w.id === dwStart.wallId);
+  if (!wall) return null;
+
+  const sorted = wall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
+  const seg = sorted[dwStart.segIdx];
+  if (!seg) return null;
+
+  // Project current mouse onto the same segment
+  const mouseXM = mousePosition.x / scalePxPerMeter;
+  const mouseYM = mousePosition.y / scalePxPerMeter;
+  const proj = projectPointOnSegment(mouseXM, mouseYM, seg.x1, seg.y1, seg.x2, seg.y2);
+
+  const tStart = Math.min(dwStart.t, proj.t);
+  const tEnd = Math.max(dwStart.t, proj.t);
+  const dx = seg.x2 - seg.x1;
+  const dy = seg.y2 - seg.y1;
+
+  return {
+    x1: (seg.x1 + dx * tStart) * scalePxPerMeter,
+    y1: (seg.y1 + dy * tStart) * scalePxPerMeter,
+    x2: (seg.x1 + dx * tEnd) * scalePxPerMeter,
+    y2: (seg.y1 + dy * tEnd) * scalePxPerMeter,
+    type: tool,
+  };
 });
 
 // ── Selection-based properties panel ──────────────────────────
@@ -641,6 +695,14 @@ $effect(() => {
   }
 });
 
+// ── Reset door/window start on tool change ──────────────────
+$effect(() => {
+  const tool = canvasStore.activeTool;
+  if (tool !== 'door' && tool !== 'window') {
+    doorWindowStart = null;
+  }
+});
+
 // ── Keyboard Shortcuts ────────────────────────────────────────
 $effect(() => {
   const cleanup = registerShortcuts({
@@ -659,6 +721,10 @@ $effect(() => {
     deselect: () => {
       if (settingScale) {
         cancelScaleSetting();
+        return;
+      }
+      if (doorWindowStart) {
+        doorWindowStart = null;
         return;
       }
       resetMeasure();
@@ -732,20 +798,22 @@ function projectPointOnSegment(px: number, py: number, x1: number, y1: number, x
   return { t, dist, projX, projY };
 }
 
-function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'window'): boolean {
+/** Find the nearest wall segment to a point (in meters). Returns null if none within maxDistM. */
+function findNearestWallSegment(clickXM: number, clickYM: number, maxDistM: number): {
+  wall: NonNullable<typeof floor>['walls'][number];
+  segIdx: number;
+  t: number;
+  projX: number;
+  projY: number;
+} | null {
   const walls = floor?.walls ?? [];
-  const clickXM = canvasX / scalePxPerMeter;
-  const clickYM = canvasY / scalePxPerMeter;
-  const maxDistM = 0.5; // Max click distance from wall in meters
-  const openingWidthM = tool === 'door' ? 0.9 : 1.2;
-  const materialId = tool === 'door' ? 'mat-wood-door' : 'mat-window';
-
-  // Skip walls that are already doors/windows
   const doorWindowMats = ['mat-wood-door', 'mat-metal-door', 'mat-glass-door', 'mat-window'];
 
   let bestWall: (typeof walls)[number] | null = null;
   let bestSegIdx = -1;
   let bestT = 0;
+  let bestProjX = 0;
+  let bestProjY = 0;
   let bestDist = Infinity;
 
   for (const wall of walls) {
@@ -759,49 +827,41 @@ function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'w
         bestWall = wall;
         bestSegIdx = i;
         bestT = proj.t;
+        bestProjX = proj.projX;
+        bestProjY = proj.projY;
       }
     }
   }
 
-  if (!bestWall) return false;
+  if (!bestWall) return null;
+  return { wall: bestWall, segIdx: bestSegIdx, t: bestT, projX: bestProjX, projY: bestProjY };
+}
 
-  const sorted = bestWall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
-  const seg = sorted[bestSegIdx]!;
+/** Execute the wall split to insert a door/window between tStart and tEnd on a wall segment. */
+function executeDoorWindowSplit(
+  targetWall: NonNullable<typeof floor>['walls'][number],
+  segIdx: number,
+  tStart: number,
+  tEnd: number,
+  tool: 'door' | 'window',
+): void {
+  const materialId = tool === 'door' ? 'mat-wood-door' : 'mat-window';
+  const sorted = targetWall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
+  const seg = sorted[segIdx]!;
   const dx = seg.x2 - seg.x1;
   const dy = seg.y2 - seg.y1;
-  const segLen = Math.sqrt(dx * dx + dy * dy);
-
-  if (segLen < openingWidthM * 0.5) return false;
-
-  // Calculate split points
-  const halfWidth = openingWidthM / 2;
-  const tHalf = halfWidth / segLen;
-  let tStart = bestT - tHalf;
-  let tEnd = bestT + tHalf;
-
-  // Clamp to segment bounds
-  if (tStart < 0) { tEnd -= tStart; tStart = 0; }
-  if (tEnd > 1) { tStart -= (tEnd - 1); tEnd = 1; }
-  tStart = Math.max(0, tStart);
-  tEnd = Math.min(1, tEnd);
 
   const splitStartX = seg.x1 + dx * tStart;
   const splitStartY = seg.y1 + dy * tStart;
   const splitEndX = seg.x1 + dx * tEnd;
   const splitEndY = seg.y1 + dy * tEnd;
 
-  // Create up to 3 new wall segments:
-  // 1. original_start → split_start (keep original material)
-  // 2. split_start → split_end (door/window material) - new wall
-  // 3. split_end → original_end (keep original material)
-
-  const floorId = bestWall.floor_id;
-  const origMaterial = bestWall.material_id;
-  const wallId = bestWall.id;
+  const floorId = targetWall.floor_id;
+  const origMaterial = targetWall.material_id;
+  const wallId = targetWall.id;
 
   (async () => {
     try {
-      // Delete original wall
       await deleteWall(wallId);
 
       const newWallIds: string[] = [];
@@ -831,7 +891,6 @@ function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'w
       await projectStore.refreshFloorData();
       projectStore.markDirty();
 
-      // Push undo command
       const capturedNewIds = [...newWallIds];
       undoStore.pushExecuted({
         label: `Insert ${tool === 'door' ? 'Door' : 'Window'}`,
@@ -839,7 +898,6 @@ function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'w
           await projectStore.refreshFloorData();
         },
         async undo() {
-          // Delete all new walls and recreate the original
           for (const id of capturedNewIds) {
             try { await deleteWall(id); } catch { /* may already be deleted */ }
           }
@@ -854,7 +912,99 @@ function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'w
       console.error(`[Editor] Failed to insert ${tool}:`, err);
     }
   })();
+}
 
+/**
+ * 2-click door/window placement on existing walls.
+ * Click 1: set start point on nearest wall.
+ * Click 2: set end point on same wall → split.
+ * If clicks are too close (< min width), fall back to fixed width.
+ */
+function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'window'): boolean {
+  const clickXM = canvasX / scalePxPerMeter;
+  const clickYM = canvasY / scalePxPerMeter;
+  const maxDistM = 0.5;
+  const minWidthM = tool === 'door' ? 0.3 : 0.2;
+  const fallbackWidthM = tool === 'door' ? 0.9 : 1.2;
+
+  // ── First click: set start point ──
+  if (!doorWindowStart) {
+    const hit = findNearestWallSegment(clickXM, clickYM, maxDistM);
+    if (!hit) return false;
+
+    doorWindowStart = {
+      wallId: hit.wall.id,
+      segIdx: hit.segIdx,
+      t: hit.t,
+      x: hit.projX,
+      y: hit.projY,
+    };
+    return true;
+  }
+
+  // ── Second click: set end point and split ──
+  const dwStart = doorWindowStart;
+  const walls = floor?.walls ?? [];
+  const targetWall = walls.find(w => w.id === dwStart.wallId);
+  if (!targetWall) {
+    doorWindowStart = null;
+    return false;
+  }
+
+  const sorted = targetWall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
+  const seg = sorted[dwStart.segIdx];
+  if (!seg) {
+    doorWindowStart = null;
+    return false;
+  }
+
+  // Project the second click onto the same wall segment
+  const proj = projectPointOnSegment(clickXM, clickYM, seg.x1, seg.y1, seg.x2, seg.y2);
+
+  // Check if second click is on the same wall (close enough)
+  if (proj.dist > maxDistM) {
+    // Clicked too far from the wall - try a different wall as new start
+    const hit = findNearestWallSegment(clickXM, clickYM, maxDistM);
+    if (hit) {
+      doorWindowStart = {
+        wallId: hit.wall.id,
+        segIdx: hit.segIdx,
+        t: hit.t,
+        x: hit.projX,
+        y: hit.projY,
+      };
+      return true;
+    }
+    doorWindowStart = null;
+    return false;
+  }
+
+  let tStart = Math.min(dwStart.t, proj.t);
+  let tEnd = Math.max(dwStart.t, proj.t);
+
+  // Calculate actual width in meters
+  const dx = seg.x2 - seg.x1;
+  const dy = seg.y2 - seg.y1;
+  const segLen = Math.sqrt(dx * dx + dy * dy);
+  const widthM = (tEnd - tStart) * segLen;
+
+  // Fallback: if clicks are too close, use fixed width centered on midpoint
+  if (widthM < minWidthM) {
+    const midT = (dwStart.t + proj.t) / 2;
+    const halfWidth = fallbackWidthM / 2;
+    const tHalf = halfWidth / segLen;
+    tStart = midT - tHalf;
+    tEnd = midT + tHalf;
+
+    // Clamp to segment bounds
+    if (tStart < 0) { tEnd -= tStart; tStart = 0; }
+    if (tEnd > 1) { tStart -= (tEnd - 1); tEnd = 1; }
+    tStart = Math.max(0, tStart);
+    tEnd = Math.min(1, tEnd);
+  }
+
+  executeDoorWindowSplit(targetWall, dwStart.segIdx, tStart, tEnd, tool);
+  doorWindowStart = null;
   return true;
 }
 
@@ -1640,6 +1790,32 @@ async function handleFileSelected(event: Event): Promise<void> {
           />
         {/if}
 
+        <!-- Door/Window 2-click preview -->
+        {#if doorWindowStart}
+          <!-- Start point marker -->
+          <Circle
+            x={doorWindowStart.x * scalePxPerMeter}
+            y={doorWindowStart.y * scalePxPerMeter}
+            radius={5}
+            fill={canvasStore.activeTool === 'door' ? '#8B6914' : '#64B5F6'}
+            stroke="#ffffff"
+            strokeWidth={2}
+            listening={false}
+          />
+          <!-- Preview line from start to current mouse position -->
+          {#if doorWindowPreview}
+            <Line
+              points={[doorWindowPreview.x1, doorWindowPreview.y1, doorWindowPreview.x2, doorWindowPreview.y2]}
+              stroke={doorWindowPreview.type === 'door' ? '#8B6914' : '#64B5F6'}
+              strokeWidth={6}
+              dash={doorWindowPreview.type === 'door' ? [6, 4] : [2, 3]}
+              opacity={0.7}
+              lineCap="butt"
+              listening={false}
+            />
+          {/if}
+        {/if}
+
         <!-- Crosshair cursor (always visible when mouse is on canvas, except pan/select) -->
         {#if mousePosition && canvasStore.activeTool !== 'pan' && canvasStore.activeTool !== 'select'}
           <CrosshairCursor x={mousePosition.x} y={mousePosition.y} />
@@ -1795,6 +1971,16 @@ async function handleFileSelected(event: Event): Promise<void> {
       <div class="scale-hint-bar">
         {t('editor.scaleHint')}
         <button class="btn-cancel-small" onclick={cancelScaleSetting}>{t('project.cancel')}</button>
+      </div>
+    {/if}
+
+    <!-- Door/Window 2-click hint -->
+    {#if (canvasStore.activeTool === 'door' || canvasStore.activeTool === 'window') && !settingScale}
+      <div class="scale-hint-bar">
+        {doorWindowStart ? t('editor.doorWindowHint2') : t('editor.doorWindowHint1')}
+        {#if doorWindowStart}
+          <button class="btn-cancel-small" onclick={() => { doorWindowStart = null; }}>{t('project.cancel')}</button>
+        {/if}
       </div>
     {/if}
 

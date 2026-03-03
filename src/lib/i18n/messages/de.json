@@ -118,7 +118,9 @@
     "rotateFloorplan": "90\u00B0 drehen",
     "rotationDegrees": "Rotation (Grad)",
     "annotationPlaceholder": "Raumname...",
-    "uploadFailed": "Grundriss-Upload fehlgeschlagen. Bitte erneut versuchen."
+    "uploadFailed": "Grundriss-Upload fehlgeschlagen. Bitte erneut versuchen.",
+    "doorWindowHint1": "Klicke auf eine Wand um den Startpunkt zu setzen. ESC zum Abbrechen.",
+    "doorWindowHint2": "Klicke auf die Wand um den Endpunkt zu setzen. ESC zum Abbrechen."
   },
   "material": {
     "light": "Leicht",
@@ -193,6 +195,8 @@
     "deleteRunConfirm": "Moechtest du diesen Durchlauf und alle zugehoerigen Messungen wirklich loeschen?",
     "deletePoint": "Messpunkt loeschen",
     "deletePointConfirm": "Moechtest du diesen Messpunkt wirklich loeschen?",
+    "placePoint": "Punkt hinzufuegen",
+    "clickToPlace": "Auf Grundriss klicken...",
     "completeRun": "Abschliessen",
     "cancelRun": "Abbrechen"
   },

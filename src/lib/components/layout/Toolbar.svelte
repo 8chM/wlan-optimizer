@@ -8,12 +8,14 @@
 import { t } from '$lib/i18n';
 import { themeStore } from '$lib/stores/themeStore.svelte';
 import type { EditorTool } from '$lib/stores/canvasStore.svelte';
+import type { ToolbarConfig } from '$lib/config/toolsets';
 import type { Snippet } from 'svelte';
 
 interface ToolbarProps {
   activeTool?: EditorTool;
   zoomLevel?: number;
   showEditorTools?: boolean;
+  toolbarConfig?: ToolbarConfig | null;
   onToolChange?: (tool: EditorTool) => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
@@ -39,6 +41,7 @@ let {
   activeTool = 'select',
   zoomLevel = 100,
   showEditorTools = false,
+  toolbarConfig = null,
   onToolChange,
   onZoomIn,
   onZoomOut,
@@ -60,7 +63,7 @@ let {
   children,
 }: ToolbarProps = $props();
 
-const tools: Array<{ id: EditorTool; label: string; icon: string; shortcut: string }> = [
+const allTools: Array<{ id: EditorTool; label: string; icon: string; shortcut: string }> = [
   { id: 'select', label: 'toolbar.select', icon: '\u22B9', shortcut: 'V' },
   { id: 'pan', label: 'toolbar.pan', icon: '\u270B', shortcut: 'H' },
   { id: 'wall', label: 'toolbar.wall', icon: '\u25AC', shortcut: 'W' },
@@ -71,6 +74,21 @@ const tools: Array<{ id: EditorTool; label: string; icon: string; shortcut: stri
   { id: 'measure', label: 'toolbar.measure', icon: '\u229E', shortcut: 'M' },
   { id: 'text', label: 'toolbar.text', icon: 'T', shortcut: 'T' },
 ];
+
+// Filter tools based on toolbarConfig (if provided), else show all when showEditorTools is true
+let visibleTools = $derived.by(() => {
+  if (toolbarConfig) {
+    const allowed = toolbarConfig.allowedTools;
+    return allTools.filter(t => allowed.includes(t.id));
+  }
+  return allTools;
+});
+
+let showUndoRedo = $derived(toolbarConfig ? toolbarConfig.showUndoRedo : true);
+let showSnap = $derived(toolbarConfig ? toolbarConfig.showSnapToggle : true);
+let showScale = $derived(toolbarConfig ? toolbarConfig.showScaleCalibration : true);
+let showBgOpacity = $derived(toolbarConfig ? toolbarConfig.showBackgroundOpacity : true);
+let hasTools = $derived(showEditorTools || (toolbarConfig !== null && visibleTools.length > 0));
 
 function selectTool(tool: EditorTool): void {
   onToolChange?.(tool);
@@ -100,23 +118,25 @@ let themeLabel = $derived(
     </a>
   </div>
 
-  {#if showEditorTools}
+  {#if hasTools}
     <div class="toolbar-section toolbar-center">
-      <div class="tool-group">
-        {#each tools as tool (tool.id)}
-          <button
-            class="tool-btn"
-            class:active={activeTool === tool.id}
-            onclick={() => selectTool(tool.id)}
-            title="{t(tool.label)} ({tool.shortcut})"
-          >
-            <span class="tool-icon">{tool.icon}</span>
-            <span class="tool-label">{t(tool.label)}</span>
-          </button>
-        {/each}
-      </div>
+      {#if visibleTools.length > 0}
+        <div class="tool-group">
+          {#each visibleTools as tool (tool.id)}
+            <button
+              class="tool-btn"
+              class:active={activeTool === tool.id}
+              onclick={() => selectTool(tool.id)}
+              title="{t(tool.label)} ({tool.shortcut})"
+            >
+              <span class="tool-icon">{tool.icon}</span>
+              <span class="tool-label">{t(tool.label)}</span>
+            </button>
+          {/each}
+        </div>
 
-      <div class="separator"></div>
+        <div class="separator"></div>
+      {/if}
 
       <div class="tool-group">
         <button class="tool-btn" onclick={onZoomOut} title={t('toolbar.zoomOut')}>
@@ -131,26 +151,28 @@ let themeLabel = $derived(
         </button>
       </div>
 
-      <div class="separator"></div>
+      {#if showUndoRedo}
+        <div class="separator"></div>
 
-      <div class="tool-group">
-        <button
-          class="tool-btn"
-          onclick={onUndo}
-          disabled={!canUndo}
-          title="{t('action.undo')} (\u2318Z)"
-        >
-          <span class="tool-icon">\u21A9</span>
-        </button>
-        <button
-          class="tool-btn"
-          onclick={onRedo}
-          disabled={!canRedo}
-          title="{t('action.redo')} (\u21E7\u2318Z)"
-        >
-          <span class="tool-icon">\u21AA</span>
-        </button>
-      </div>
+        <div class="tool-group">
+          <button
+            class="tool-btn"
+            onclick={onUndo}
+            disabled={!canUndo}
+            title="{t('action.undo')} (\u2318Z)"
+          >
+            <span class="tool-icon">\u21A9</span>
+          </button>
+          <button
+            class="tool-btn"
+            onclick={onRedo}
+            disabled={!canRedo}
+            title="{t('action.redo')} (\u21E7\u2318Z)"
+          >
+            <span class="tool-icon">\u21AA</span>
+          </button>
+        </div>
+      {/if}
 
       <div class="separator"></div>
 
@@ -164,15 +186,17 @@ let themeLabel = $derived(
           <span class="tool-icon">⊞</span>
           <span class="tool-label">{t('toolbar.grid')}</span>
         </button>
-        <button
-          class="tool-btn"
-          class:active={snapEnabled}
-          onclick={onToggleSnap}
-          title={t('toolbar.toggleSnap')}
-        >
-          <span class="tool-icon">⊹</span>
-          <span class="tool-label">{t('toolbar.snap')}</span>
-        </button>
+        {#if showSnap}
+          <button
+            class="tool-btn"
+            class:active={snapEnabled}
+            onclick={onToggleSnap}
+            title={t('toolbar.toggleSnap')}
+          >
+            <span class="tool-icon">⊹</span>
+            <span class="tool-label">{t('toolbar.snap')}</span>
+          </button>
+        {/if}
         <button
           class="tool-btn"
           class:active={backgroundVisible}
@@ -181,7 +205,7 @@ let themeLabel = $derived(
         >
           <span class="tool-icon">🖼</span>
         </button>
-        {#if backgroundVisible}
+        {#if showBgOpacity && backgroundVisible}
           <input
             type="range"
             class="opacity-slider"
@@ -192,15 +216,17 @@ let themeLabel = $derived(
             title={t('toolbar.backgroundOpacity')}
           />
         {/if}
-        <button
-          class="tool-btn"
-          class:active={settingScale}
-          onclick={onSetScale}
-          title={t('toolbar.setScale')}
-        >
-          <span class="tool-icon">↔</span>
-          <span class="tool-label">{t('toolbar.setScale')}</span>
-        </button>
+        {#if showScale}
+          <button
+            class="tool-btn"
+            class:active={settingScale}
+            onclick={onSetScale}
+            title={t('toolbar.setScale')}
+          >
+            <span class="tool-icon">↔</span>
+            <span class="tool-label">{t('toolbar.setScale')}</span>
+          </button>
+        {/if}
       </div>
     </div>
   {/if}

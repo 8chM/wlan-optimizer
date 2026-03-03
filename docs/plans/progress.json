@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
-  "lastUpdated": "2026-03-02",
-  "currentPhase": "editor-improvements-ii-complete",
+  "lastUpdated": "2026-03-03",
+  "currentPhase": "page-consistency-complete",
   "phases": {
     "0": { "name": "Autonomie-Recherche", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
     "1": { "name": "Projektsetup", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
@@ -111,6 +111,22 @@
         "17-H1": { "name": "Pfeiltasten", "status": "completed", "auditResult": "PASSED - 0.01m/0.1m Step fuer APs + Annotationen" },
         "17-H2": { "name": "Ctrl+A Alles auswaehlen", "status": "completed", "auditResult": "PASSED - Walls + APs + Annotationen" },
         "17-H3": { "name": "Rechtsklick-Kontextmenue", "status": "completed", "auditResult": "PASSED - ContextMenu.svelte mit Delete-Aktion" }
+      }
+    },
+    "18": {
+      "name": "Seitenkonsistenz + Editor-Verfeinerungen",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-03",
+      "auditResult": "PASSED - 7 Bloecke implementiert, Build 0 Errors, svelte-check 0 Errors",
+      "subtasks": {
+        "18-1": { "name": "Per-Page Werkzeug-Konfiguration", "status": "completed", "auditResult": "PASSED - toolsets.ts, canvasStore pageContext, Toolbar filtert per Config" },
+        "18-2": { "name": "Canvas-Konsistenz (Ruler, Scrollbars, Cursor)", "status": "completed", "auditResult": "PASSED - RulerOverlay, CanvasScrollbars, CrosshairCursor auf Measure/Mixing" },
+        "18-3": { "name": "Keyboard-Shortcuts auf Viewer-Seiten", "status": "completed", "auditResult": "PASSED - registerShortcuts mit Subset, Space/Shift-Tracking" },
+        "18-4": { "name": "Messpunkt-Platzierung entkoppeln", "status": "completed", "auditResult": "PASSED - isPlacingMeasurementPoint Flag, Wizard steuert Platzierung" },
+        "18-5": { "name": "MeasureLayer auf Viewer-Seiten", "status": "completed", "auditResult": "PASSED - 2-Punkt-Distanzmessung auf Measure/Mixing" },
+        "18-6": { "name": "Read-Only Annotationen", "status": "completed", "auditResult": "PASSED - TextAnnotation draggable=false auf Measure/Mixing" },
+        "18-7": { "name": "Flexibles Tuer/Fenster 2-Klick", "status": "completed", "auditResult": "PASSED - 2-Klick-Workflow mit Preview, Fallback auf feste Breite" }
       }
     }
   },

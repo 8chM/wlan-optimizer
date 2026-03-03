@@ -41,7 +41,7 @@ function createCanvasStore() {
   let shiftHeld = $state(false);
   let spaceHeld = $state(false);
   let backgroundVisible = $state(true);
-  let backgroundOpacity = $state(0.5);
+  let backgroundOpacity = $state(0.3);
   let backgroundOffsetX = $state(0);
   let backgroundOffsetY = $state(0);
 
@@ -204,7 +204,7 @@ function createCanvasStore() {
       shiftHeld = false;
       spaceHeld = false;
       backgroundVisible = true;
-      backgroundOpacity = 0.5;
+      backgroundOpacity = 0.3;
       backgroundOffsetX = 0;
       backgroundOffsetY = 0;
     },

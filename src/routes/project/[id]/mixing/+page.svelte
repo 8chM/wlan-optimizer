@@ -21,6 +21,7 @@
   import ForecastHeatmap from '$lib/components/mixing/ForecastHeatmap.svelte';
   import HeatmapComparison from '$lib/components/comparison/HeatmapComparison.svelte';
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
+  import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { mixingStore } from '$lib/stores/mixingStore.svelte';
   import { comparisonStore } from '$lib/stores/comparisonStore.svelte';
@@ -40,6 +41,7 @@
 
   // Access points from the floor data
   let accessPoints = $derived(floor?.access_points ?? []);
+  let floorRotation = $derived(floor?.background_image_rotation ?? 0);
 
   // Forecast heatmap state
   let forecastCanvas = $state<HTMLCanvasElement | null>(null);
@@ -53,6 +55,22 @@
 
   // Changes as an array for components
   let changesArray = $derived(mixingStore.getChangeSummary());
+
+  // ─── Load background offset from localStorage ─────────────────
+
+  $effect(() => {
+    const id = floor?.id;
+    if (!id) return;
+    const stored = localStorage.getItem(`wlan-opt:bg-offset:${id}`);
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        if (typeof data.x === 'number' && typeof data.y === 'number') {
+          canvasStore.setBackgroundOffset(data.x, data.y);
+        }
+      } catch { /* ignore */ }
+    }
+  });
 
   // ─── Load Floor Image ──────────────────────────────────────────
 
@@ -241,6 +259,16 @@
         {scalePxPerMeter}
       >
         {#snippet background()}
+          {#if canvasStore.backgroundVisible}
+            <BackgroundImage
+              imageData={floorImageDataUrl}
+              {scalePxPerMeter}
+              rotation={floorRotation}
+              opacity={canvasStore.backgroundOpacity}
+              userOffsetX={canvasStore.backgroundOffsetX}
+              userOffsetY={canvasStore.backgroundOffsetY}
+            />
+          {/if}
           <GridOverlay
             gridSizeM={canvasStore.gridSize}
             {scalePxPerMeter}
@@ -250,10 +278,6 @@
             viewportWidth={containerWidth}
             viewportHeight={containerHeight}
             visible={canvasStore.gridVisible}
-          />
-          <BackgroundImage
-            imageData={floorImageDataUrl}
-            {scalePxPerMeter}
           />
           <ScaleIndicator
             {scalePxPerMeter}
@@ -268,7 +292,7 @@
             bounds={floorBounds}
             {scalePxPerMeter}
             visible={mixingStore.forecastMode && forecastCanvas !== null}
-            opacity={0.65}
+            opacity={editorHeatmapStore.opacity}
           />
         {/snippet}
 

@@ -14,11 +14,14 @@
   import AccessPointMarker from '$lib/canvas/AccessPointMarker.svelte';
   import GridOverlay from '$lib/canvas/GridOverlay.svelte';
   import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
+  import HeatmapOverlay from '$lib/canvas/HeatmapOverlay.svelte';
   import MeasurementPoints from '$lib/canvas/MeasurementPoints.svelte';
   import MeasurementWizard from '$lib/components/measurement/MeasurementWizard.svelte';
+  import EditorHeatmap from '$lib/components/editor/EditorHeatmap.svelte';
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { measurementStore } from '$lib/stores/measurementStore.svelte';
+  import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
   import { safeInvoke } from '$lib/api/invoke';
   import { t } from '$lib/i18n';
 
@@ -31,11 +34,34 @@
   let floor = $derived(projectStore.activeFloor);
   let scalePxPerMeter = $derived(floor?.scale_px_per_meter ?? 50);
   let floorId = $derived(floor?.id ?? '');
+  let floorRotation = $derived(floor?.background_image_rotation ?? 0);
+
+  // Floor bounds for heatmap
+  let floorBounds = $derived({
+    width: floor?.width_meters ?? 10,
+    height: floor?.height_meters ?? 10,
+  });
 
   // Determine active run number for shape rendering
   let activeRunNumber = $derived(
     measurementStore.currentRun?.run_number ?? 1,
   );
+
+  // ─── Load background offset from localStorage ─────────────────
+
+  $effect(() => {
+    const id = floor?.id;
+    if (!id) return;
+    const stored = localStorage.getItem(`wlan-opt:bg-offset:${id}`);
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        if (typeof data.x === 'number' && typeof data.y === 'number') {
+          canvasStore.setBackgroundOffset(data.x, data.y);
+        }
+      } catch { /* ignore */ }
+    }
+  });
 
   // ─── Load floor image ────────────────────────────────────────
 
@@ -202,6 +228,18 @@
   <title>{t('nav.measure')} - {t('app.title')}</title>
 </svelte:head>
 
+<!-- Headless live heatmap renderer -->
+{#if floor}
+  <EditorHeatmap
+    accessPoints={floor.access_points ?? []}
+    walls={floor.walls ?? []}
+    bounds={floorBounds}
+    {scalePxPerMeter}
+    outputWidth={containerWidth}
+    outputHeight={containerHeight}
+  />
+{/if}
+
 <div class="measure-page">
   <!-- Left sidebar with measurement wizard -->
   <aside class="measure-sidebar">
@@ -257,6 +295,16 @@
         {scalePxPerMeter}
       >
         {#snippet background()}
+          {#if canvasStore.backgroundVisible}
+            <BackgroundImage
+              imageData={floorImageDataUrl}
+              {scalePxPerMeter}
+              rotation={floorRotation}
+              opacity={canvasStore.backgroundOpacity}
+              userOffsetX={canvasStore.backgroundOffsetX}
+              userOffsetY={canvasStore.backgroundOffsetY}
+            />
+          {/if}
           <GridOverlay
             gridSizeM={canvasStore.gridSize}
             {scalePxPerMeter}
@@ -267,10 +315,6 @@
             viewportHeight={containerHeight}
             visible={canvasStore.gridVisible}
           />
-          <BackgroundImage
-            imageData={floorImageDataUrl}
-            {scalePxPerMeter}
-          />
           <ScaleIndicator
             {scalePxPerMeter}
             stageScale={canvasStore.scale}
@@ -278,7 +322,13 @@
         {/snippet}
 
         {#snippet heatmap()}
-          <!-- Heatmap overlay placeholder -->
+          <HeatmapOverlay
+            heatmapCanvas={editorHeatmapStore.canvas}
+            bounds={floorBounds}
+            {scalePxPerMeter}
+            visible={editorHeatmapStore.visible && editorHeatmapStore.canvas !== null}
+            opacity={editorHeatmapStore.opacity}
+          />
         {/snippet}
 
         {#snippet ui()}

@@ -9,9 +9,7 @@ import { goto } from '$app/navigation';
 import type { ProjectResponse } from '$lib/api/invoke';
 import { t } from '$lib/i18n';
 import { projectStore } from '$lib/stores/projectStore.svelte';
-import NewProjectDialog from './NewProjectDialog.svelte';
 
-let showNewDialog = $state(false);
 let deleteConfirmId = $state<string | null>(null);
 let renameId = $state<string | null>(null);
 let renameValue = $state('');
@@ -65,10 +63,8 @@ function handleRenameKeydown(event: KeyboardEvent): void {
   }
 }
 
-function handleProjectCreated(project: ProjectResponse): void {
-  showNewDialog = false;
-  // Navigate to new project using SvelteKit client-side routing
-  goto(`/project/${project.id}/editor`);
+function handleNewProject(): void {
+  goto('/project/wizard');
 }
 </script>
 
@@ -78,7 +74,7 @@ function handleProjectCreated(project: ProjectResponse): void {
       <h1>{t('app.title')}</h1>
       <p class="subtitle">{t('app.description')}</p>
     </div>
-    <button class="btn-primary" onclick={() => (showNewDialog = true)}>
+    <button class="btn-primary" onclick={handleNewProject}>
       + {t('project.newProject')}
     </button>
   </header>
@@ -98,7 +94,7 @@ function handleProjectCreated(project: ProjectResponse): void {
     <div class="empty-state">
       <div class="empty-icon">📡</div>
       <p>{t('project.noProjects')}</p>
-      <button class="btn-primary" onclick={() => (showNewDialog = true)}>
+      <button class="btn-primary" onclick={handleNewProject}>
         + {t('project.newProject')}
       </button>
     </div>
@@ -173,12 +169,6 @@ function handleProjectCreated(project: ProjectResponse): void {
     </div>
   {/if}
 
-  {#if showNewDialog}
-    <NewProjectDialog
-      onClose={() => (showNewDialog = false)}
-      onCreated={handleProjectCreated}
-    />
-  {/if}
 </div>
 
 <style>

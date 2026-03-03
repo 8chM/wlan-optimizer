@@ -61,6 +61,19 @@
     materials.find((m) => m.id === wall.material_id) ?? null
   );
 
+  /** Detect door/window type for label display */
+  let isDoor = $derived(
+    wall.material_id === 'mat-wood-door' ||
+    wall.material_id === 'mat-metal-door' ||
+    wall.material_id === 'mat-glass-door'
+  );
+  let isWindow = $derived(wall.material_id === 'mat-window');
+  let typeLabel = $derived(
+    isDoor ? t('toolbar.door')
+    : isWindow ? t('toolbar.window')
+    : null
+  );
+
   function materialDisplayName(mat: MaterialResponse): string {
     const locale = getLocale();
     return locale === 'de' ? mat.name_de : mat.name_en;
@@ -104,6 +117,12 @@
 
   <!-- Wall Info -->
   <div class="prop-section">
+    {#if typeLabel}
+      <div class="prop-row type-label-row">
+        <span class="type-dot" style="background: {isDoor ? '#8B6914' : '#64B5F6'}"></span>
+        <span class="type-label">{typeLabel}</span>
+      </div>
+    {/if}
     <div class="prop-row">
       <span class="prop-label">{t('label.material')}</span>
       <select
@@ -123,6 +142,12 @@
     </div>
 
     {#if currentMaterial}
+      {#if currentMaterial.default_thickness_cm}
+        <div class="prop-row info">
+          <span class="prop-label">{t('label.thickness')}</span>
+          <span class="prop-value">{currentMaterial.default_thickness_cm} cm</span>
+        </div>
+      {/if}
       <div class="prop-row info">
         <span class="prop-label">{t('material.attenuation')}</span>
         <span class="prop-value mono">
@@ -231,6 +256,28 @@
 
   .prop-row.info {
     opacity: 0.7;
+  }
+
+  .type-label-row {
+    justify-content: flex-start;
+    gap: 8px;
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .type-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .type-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e0e0f0;
   }
 
   .prop-label {

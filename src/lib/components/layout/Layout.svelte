@@ -59,6 +59,8 @@ interface LayoutProps {
   snapEnabled?: boolean;
   backgroundVisible?: boolean;
   settingScale?: boolean;
+  /** URL to navigate to for project settings/wizard */
+  projectSettingsUrl?: string | null;
 }
 
 let {
@@ -94,6 +96,7 @@ let {
   backgroundOpacity = 0.5,
   onBackgroundOpacityChange,
   settingScale = false,
+  projectSettingsUrl = null,
 }: LayoutProps = $props();
 
 let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
@@ -125,6 +128,7 @@ let sidebarCollapsed = $derived(canvasStore.sidebarCollapsed);
       {onRedo}
       {canUndo}
       {canRedo}
+      {projectSettingsUrl}
     >
       {#if toolbarExtra}
         {@render toolbarExtra()}

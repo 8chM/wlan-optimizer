@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-03",
-  "currentPhase": "phase-20-complete",
+  "currentPhase": "phase-21-complete",
   "phases": {
     "0": { "name": "Autonomie-Recherche", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
     "1": { "name": "Projektsetup", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
@@ -156,6 +156,22 @@
         "20-2": { "name": "AP-Hoehe in RF-Berechnung", "status": "completed", "auditResult": "PASSED - APConfig heightM, 3D-Distanz sqrt(dx²+dy²+dz²), Receiver 1.2m" },
         "20-3": { "name": "Tuer/Fenster-Material-UI", "status": "completed", "auditResult": "PASSED - MaterialPicker readonly bei door/window Tool, farbiger Hinweis" },
         "20-4": { "name": "findMaterial-Fallback", "status": "completed", "auditResult": "PASSED - Doppelter Lookup localStorage dann MOCK_MATERIALS, Auto-Seed" }
+      }
+    },
+    "21": {
+      "name": "Projekt-Wizard + Editor-Lockdown",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-03",
+      "auditResult": "PASSED - 7 Bloecke implementiert, 12 neue Dateien, 10 geaenderte Dateien, Build 0 Errors, svelte-check 0 Errors, 576 Tests PASS",
+      "subtasks": {
+        "21-1": { "name": "Material-Dicke + i18n Wizard-Keys", "status": "completed", "auditResult": "PASSED - Dicke in WallProperties + MaterialPicker, 28 Wizard-i18n-Keys EN+DE" },
+        "21-2": { "name": "Tuer/Fenster UX-Verbesserungen", "status": "completed", "auditResult": "PASSED - hitStrokeWidth 25, Pointer-Cursor, Typ-Label mit Farbpunkt" },
+        "21-3": { "name": "Wizard-Infrastruktur + Route", "status": "completed", "auditResult": "PASSED - wizardStore, WizardStepper, ProjectWizard, 2 Routen" },
+        "21-4": { "name": "Step 1 + Step 2", "status": "completed", "auditResult": "PASSED - StepBasics (Name/Desc/AP-Modell), StepFloorplan (Drag-Drop Upload)" },
+        "21-5": { "name": "Step 3 Kalibrierung", "status": "completed", "auditResult": "PASSED - StepCalibration (Rotation + 2-Punkt-Skalierung + manuelle Masse)" },
+        "21-6": { "name": "Step 4-6", "status": "completed", "auditResult": "PASSED - StepWalls, StepAccessPoints (Editor-Link), StepFinish (Zusammenfassung)" },
+        "21-7": { "name": "Editor-Lockdown", "status": "completed", "auditResult": "PASSED - BackgroundImage locked Prop, Toolbar projectSettingsUrl, wizard-done localStorage" }
       }
     }
   },

@@ -122,7 +122,7 @@
           title="{materialDisplayName(mat)}: {mat.attenuation_24ghz_db}/{mat.attenuation_5ghz_db} dB"
         >
           <span class="quick-dot"></span>
-          <span class="quick-label">{materialDisplayName(mat)}</span>
+          <span class="quick-label">{materialDisplayName(mat)}{#if mat.default_thickness_cm} ({mat.default_thickness_cm}cm){/if}</span>
           <span class="quick-db">{mat.attenuation_24ghz_db}/{mat.attenuation_5ghz_db}</span>
         </button>
 

@@ -98,6 +98,16 @@ let doorWindowStart = $state<{
 
 let settingScale = $derived(canvasStore.settingScale);
 
+// Lock background image when wizard has been completed for this project
+let backgroundLocked = $state(false);
+
+$effect(() => {
+  const pid = projectStore.currentProject?.id;
+  if (pid) {
+    backgroundLocked = localStorage.getItem(`wlan-opt:wizard-done:${pid}`) === 'true';
+  }
+});
+
 // Set page context for toolbar filtering
 $effect(() => {
   canvasStore.setPageContext('editor');
@@ -1922,6 +1932,7 @@ async function handleFileSelected(event: Event): Promise<void> {
             userOffsetX={canvasStore.backgroundOffsetX}
             userOffsetY={canvasStore.backgroundOffsetY}
             draggable={canvasStore.activeTool === 'select'}
+            locked={backgroundLocked}
             onDragEnd={handleBackgroundDragEnd}
           />
         {/if}

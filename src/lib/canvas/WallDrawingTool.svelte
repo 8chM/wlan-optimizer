@@ -240,9 +240,11 @@
       dash={strokeDash}
       lineCap="butt"
       lineJoin="miter"
-      hitStrokeWidth={interactive ? 20 : 0}
+      hitStrokeWidth={interactive ? ((isDoor || isWindow) ? 25 : 20) : 0}
       listening={interactive}
       onclick={handleClick}
+      onmouseenter={(e) => { if (interactive && (isDoor || isWindow)) e.target.getStage()?.container().style.setProperty('cursor', 'pointer'); }}
+      onmouseleave={(e) => { if (interactive && (isDoor || isWindow)) e.target.getStage()?.container().style.removeProperty('cursor'); }}
     />
 
     <!-- Length labels -->

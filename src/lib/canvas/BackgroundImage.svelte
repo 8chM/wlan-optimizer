@@ -24,6 +24,8 @@
     userOffsetY?: number;
     /** Whether the image is draggable */
     draggable?: boolean;
+    /** Lock the image (overrides draggable, prevents any interaction) */
+    locked?: boolean;
     /** Callback when drag ends, with new user offset */
     onDragEnd?: (x: number, y: number) => void;
   }
@@ -36,8 +38,12 @@
     userOffsetX = 0,
     userOffsetY = 0,
     draggable = false,
+    locked = false,
     onDragEnd,
   }: BackgroundImageProps = $props();
+
+  /** Effective draggable state: locked overrides draggable */
+  let effectiveDraggable = $derived(!locked && draggable);
 
   function handleDragEnd(event: KonvaDragTransformEvent): void {
     const node = event.target;
@@ -128,8 +134,8 @@
     offsetY={offsetConfig.offsetY}
     rotation={rotation}
     {opacity}
-    listening={draggable}
-    draggable={draggable}
+    listening={effectiveDraggable}
+    draggable={effectiveDraggable}
     ondragend={handleDragEnd}
   />
 {/if}

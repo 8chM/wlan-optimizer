@@ -35,6 +35,8 @@ interface ToolbarProps {
   snapEnabled?: boolean;
   backgroundVisible?: boolean;
   settingScale?: boolean;
+  /** URL to navigate to for project settings/wizard */
+  projectSettingsUrl?: string | null;
   children?: Snippet;
 }
 
@@ -62,6 +64,7 @@ let {
   backgroundOpacity = 0.5,
   onBackgroundOpacityChange,
   settingScale = false,
+  projectSettingsUrl = null,
   children,
 }: ToolbarProps = $props();
 
@@ -285,6 +288,16 @@ let themeLabel = $derived(
   {/if}
 
   <div class="toolbar-section toolbar-right">
+    {#if projectSettingsUrl}
+      <a
+        href={projectSettingsUrl}
+        class="tool-btn settings-link"
+        title={t('wizard.editProject')}
+      >
+        <span class="tool-icon">⚙</span>
+        <span class="tool-label">{t('wizard.editProject')}</span>
+      </a>
+    {/if}
     <button
       class="tool-btn theme-toggle"
       onclick={() => themeStore.toggleTheme()}
@@ -491,6 +504,10 @@ let themeLabel = $derived(
   .zoom-display-btn:hover {
     background: var(--bg-tertiary, #f0f0f5);
     border-color: var(--border, #d0d0e0);
+  }
+
+  .settings-link {
+    text-decoration: none;
   }
 
   .zoom-input {

@@ -80,6 +80,7 @@ function handleSetScale(): void {
   backgroundOpacity={canvasStore.backgroundOpacity}
   onBackgroundOpacityChange={(v) => canvasStore.setBackgroundOpacity(v)}
   onSetScale={handleSetScale}
+  projectSettingsUrl={`/project/${projectId}/wizard`}
 >
   {@render children()}
 </Layout>

@@ -67,7 +67,14 @@
   let effortLevel = $derived<EffortLevel>(EFFORT_LEVELS[rec.type] ?? 'config');
   let isBlocked = $derived((rec.blockedByConstraints?.length ?? 0) > 0);
   let isDone = $derived(stepState === 'applied' || stepState === 'skipped');
-  let isConfigType = $derived(rec.type === 'change_channel' || rec.type === 'adjust_tx_power' || rec.type === 'disable_ap');
+  let isConfigType = $derived(rec.type === 'change_channel' || rec.type === 'adjust_tx_power' || rec.type === 'disable_ap' || rec.type === 'roaming_tx_adjustment');
+
+  const INFORMATIONAL_UI_TYPES = new Set([
+    'constraint_conflict', 'coverage_warning', 'band_limit_warning',
+    'roaming_hint', 'overlap_warning', 'low_ap_value', 'blocked_recommendation',
+    'sticky_client_risk', 'handoff_gap_warning',
+  ]);
+  let isInformational = $derived(INFORMATIONAL_UI_TYPES.has(rec.type));
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -112,7 +119,11 @@
             {t('opt.preview')}
           </button>
         {/if}
-        {#if isConfigType}
+        {#if isInformational}
+          <button class="action-btn acknowledge" onclick={(e) => { e.stopPropagation(); onSkip(rec); }}>
+            {t('opt.acknowledge')}
+          </button>
+        {:else if isConfigType}
           <button class="action-btn apply" disabled={previewActive} onclick={(e) => { e.stopPropagation(); onApply(rec); }}>
             {t('opt.apply')}
           </button>
@@ -121,12 +132,14 @@
             {t('opt.instructionOnly')}
           </button>
         {/if}
-        <button class="action-btn skip" disabled={previewActive} onclick={(e) => { e.stopPropagation(); onSkip(rec); }}>
-          {t('opt.skip')}
-        </button>
-        <button class="action-btn reject" disabled={previewActive} onclick={(e) => { e.stopPropagation(); rejectOpen = !rejectOpen; }}>
-          {t('rec.rejectBtn')}
-        </button>
+        {#if !isInformational}
+          <button class="action-btn skip" disabled={previewActive} onclick={(e) => { e.stopPropagation(); onSkip(rec); }}>
+            {t('opt.skip')}
+          </button>
+          <button class="action-btn reject" disabled={previewActive} onclick={(e) => { e.stopPropagation(); rejectOpen = !rejectOpen; }}>
+            {t('rec.rejectBtn')}
+          </button>
+        {/if}
       </div>
 
       {#if rejectOpen}
@@ -288,6 +301,16 @@
 
   .action-btn.apply:hover {
     background: rgba(34, 197, 94, 0.25);
+  }
+
+  .action-btn.acknowledge {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #60a5fa;
+  }
+
+  .action-btn.acknowledge:hover {
+    background: rgba(59, 130, 246, 0.25);
   }
 
   .action-btn.instruction {

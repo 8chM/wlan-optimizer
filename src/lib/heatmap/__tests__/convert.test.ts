@@ -108,6 +108,15 @@ describe('convertApsToConfig', () => {
     expect(result[0]!.txPowerDbm).toBe(15);
   });
 
+  it('respects enabled-override to filter out AP', () => {
+    const aps = [makeMockAp({ id: 'ap-1', enabled: true })];
+    const overrides = new Map<string, Record<string, string>>();
+    overrides.set('ap-1', { enabled: 'false' });
+
+    const result = convertApsToConfig(aps, '5ghz', overrides);
+    expect(result).toHaveLength(0);
+  });
+
   it('uses default when AP model is null', () => {
     const aps = [makeMockAp({ ap_model: null })];
     const result = convertApsToConfig(aps, '5ghz');

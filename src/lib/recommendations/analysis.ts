@@ -122,11 +122,11 @@ export function computeAPMetrics(
 function computeBandSuitabilityScore(
   stats: HeatmapStats,
   band: FrequencyBand,
-): number {
-  if (!stats.uplinkLimitedGrid) return 70; // Neutral-positive when data missing
+): number | null {
+  if (!stats.uplinkLimitedGrid) return null; // No data — exclude from formula
 
   const total = stats.totalCells ?? 0;
-  if (total === 0) return 70;
+  if (total === 0) return null;
 
   let uplinkLimitedCount = 0;
   for (let i = 0; i < total; i++) {
@@ -217,38 +217,50 @@ export function computeOverallScore(
     conflictPenalty = maxPossible > 0 ? (totalScore / maxPossible) * 100 : 0;
   }
 
-  // Roaming score: average delta normalized (higher delta = better roaming distinction)
+  // Roaming score: improved with sticky-client and handoff-gap penalties
+  const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
   let roamingScore = 0;
   if (stats.deltaGrid && total > 0) {
     let deltaSum = 0;
     let count = 0;
+    let stickyCount = 0;
+    let gapCount = 0;
+
     for (let i = 0; i < total; i++) {
       const d = stats.deltaGrid[i] ?? 99;
-      if (d < 99) { // exclude single-AP cells
+      if (d < 99) {
         deltaSum += d;
         count++;
+        if (d > 15) stickyCount++;
+        const rssi = stats.rssiGrid?.[i] ?? -100;
+        if (d < 8 && rssi < thresholds.fair) gapCount++;
       }
     }
+
     if (count > 0) {
       const avgDelta = deltaSum / count;
-      // Normalize: 0dB delta = 0 score, 15dB+ delta = 100 score
-      roamingScore = Math.min(100, (avgDelta / 15) * 100);
+      const deltaComponent = Math.min(100, (avgDelta / 15) * 100);
+      const stickyPenalty = (stickyCount / count) * 30;
+      const gapPenalty = (gapCount / count) * 40;
+      roamingScore = Math.max(0, deltaComponent - stickyPenalty - gapPenalty);
     }
   }
 
-  // Band suitability: derived from uplink-limited ratio
-  const bandSuitabilityScore = computeBandSuitabilityScore(stats, band);
+  // Band suitability: derived from uplink-limited ratio (null = no data available)
+  const bandSuitabilityRaw = computeBandSuitabilityScore(stats, band);
+  const hasBandData = bandSuitabilityRaw !== null;
+  const bandSuitabilityScore = bandSuitabilityRaw ?? 0;
 
-  // Overall score
+  // Overall score — exclude band component when no uplink data available
   const rawScore =
     coverageScore * weights.coverage
     - overlapPenalty * weights.overlap
     - conflictPenalty * weights.conflict
     + roamingScore * weights.roaming
-    + bandSuitabilityScore * weights.band;
+    + (hasBandData ? bandSuitabilityScore * weights.band : 0);
 
-  // Normalize to 0-100
-  const maxPossible = 100 * weights.coverage + 100 * weights.roaming + 100 * weights.band;
+  // Normalize to 0-100 — denominator excludes band when no data
+  const maxPossible = 100 * weights.coverage + 100 * weights.roaming + (hasBandData ? 100 * weights.band : 0);
   const overallScore = Math.max(0, Math.min(100, (rawScore / maxPossible) * 100));
 
   return {
@@ -443,6 +455,121 @@ export function findOverlapZones(stats: HeatmapStats, originX = 0, originY = 0):
 
   zones.sort((a, b) => b.cellCount - a.cellCount);
   return zones.slice(0, 10);
+}
+
+// ─── Roaming Pair Analysis ────────────────────────────────────────
+
+/** Metrics for an AP pair's roaming characteristics */
+export interface RoamingPairMetrics {
+  ap1Id: string;
+  ap2Id: string;
+  /** Cells in the handoff zone (delta < handoffThreshold) */
+  handoffZoneCells: number;
+  /** Ratio of handoff zone to total multi-AP cells */
+  handoffZoneRatio: number;
+  /** Average delta in the handoff zone */
+  avgDeltaInZone: number;
+  /** Cells with weak signal in handoff zone (gap) */
+  gapCells: number;
+  /** Average RSSI in the handoff zone */
+  avgRssiInZone: number;
+  /** Ratio of cells with delta > stickyThreshold (no realistic handoff) */
+  stickyRatio: number;
+}
+
+const HANDOFF_THRESHOLD = 8;  // dB — close enough for client roaming
+const STICKY_THRESHOLD = 15;  // dB — too far apart, clients won't roam
+
+/**
+ * Analyze roaming characteristics for all AP pairs.
+ *
+ * Uses deltaGrid, apIndexGrid, secondBestApIndexGrid, and rssiGrid
+ * to compute per-pair handoff zones, gaps, and sticky-client risk.
+ */
+export function analyzeRoamingPairs(
+  stats: HeatmapStats,
+  apIds: string[],
+  band: FrequencyBand,
+): RoamingPairMetrics[] {
+  const { deltaGrid, apIndexGrid, secondBestApIndexGrid, rssiGrid } = stats;
+  const total = stats.totalCells ?? 0;
+
+  if (!deltaGrid || !apIndexGrid || !secondBestApIndexGrid || total === 0 || apIds.length < 2) {
+    return [];
+  }
+
+  const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
+
+  // Accumulator map: "ap1Id|ap2Id" (sorted) → accumulators
+  const pairMap = new Map<string, {
+    ap1Id: string;
+    ap2Id: string;
+    handoffCells: number;
+    handoffDeltaSum: number;
+    handoffRssiSum: number;
+    gapCells: number;
+    stickyCells: number;
+    totalPairCells: number;
+  }>();
+
+  for (let i = 0; i < total; i++) {
+    const delta = deltaGrid[i] ?? 99;
+    if (delta >= 99) continue; // Single-AP cell, skip
+
+    const bestIdx = apIndexGrid[i]!;
+    const secondIdx = secondBestApIndexGrid[i];
+    if (secondIdx === undefined || secondIdx === 255) continue;
+
+    const ap1Id = apIds[bestIdx];
+    const ap2Id = apIds[secondIdx];
+    if (!ap1Id || !ap2Id || ap1Id === ap2Id) continue;
+
+    // Sorted key for consistent pairing
+    const key = ap1Id < ap2Id ? `${ap1Id}|${ap2Id}` : `${ap2Id}|${ap1Id}`;
+    let acc = pairMap.get(key);
+    if (!acc) {
+      const [sortedA, sortedB] = ap1Id < ap2Id ? [ap1Id, ap2Id] : [ap2Id, ap1Id];
+      acc = {
+        ap1Id: sortedA!, ap2Id: sortedB!,
+        handoffCells: 0, handoffDeltaSum: 0, handoffRssiSum: 0,
+        gapCells: 0, stickyCells: 0, totalPairCells: 0,
+      };
+      pairMap.set(key, acc);
+    }
+
+    acc.totalPairCells++;
+
+    if (delta < HANDOFF_THRESHOLD) {
+      acc.handoffCells++;
+      acc.handoffDeltaSum += delta;
+      const rssi = rssiGrid?.[i] ?? -100;
+      acc.handoffRssiSum += rssi;
+      if (rssi < thresholds.fair) {
+        acc.gapCells++;
+      }
+    }
+
+    if (delta > STICKY_THRESHOLD) {
+      acc.stickyCells++;
+    }
+  }
+
+  const results: RoamingPairMetrics[] = [];
+  for (const acc of pairMap.values()) {
+    if (acc.totalPairCells === 0) continue;
+    results.push({
+      ap1Id: acc.ap1Id,
+      ap2Id: acc.ap2Id,
+      handoffZoneCells: acc.handoffCells,
+      handoffZoneRatio: acc.handoffCells / acc.totalPairCells,
+      avgDeltaInZone: acc.handoffCells > 0 ? acc.handoffDeltaSum / acc.handoffCells : 0,
+      gapCells: acc.gapCells,
+      avgRssiInZone: acc.handoffCells > 0 ? acc.handoffRssiSum / acc.handoffCells : -100,
+      stickyRatio: acc.stickyCells / acc.totalPairCells,
+    });
+  }
+
+  return results;
 }
 
 // ─── Low-Value AP Detection ───────────────────────────────────────

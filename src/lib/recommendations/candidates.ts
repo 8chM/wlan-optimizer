@@ -10,7 +10,7 @@ import type {
   CandidateLocation,
   ConstraintZone,
 } from './types';
-import type { WallData } from '$lib/heatmap/worker-types';
+import type { WallData, FloorBounds } from '$lib/heatmap/worker-types';
 
 /** Result of matching an ideal target to the best candidate */
 export interface CandidateMatch {
@@ -274,4 +274,33 @@ export function isPhysicallyValidApPosition(
     }
   }
   return true;
+}
+
+/**
+ * Find the nearest valid position when the ideal target is inside a wall or
+ * in a forbidden zone. Searches 8 compass directions at increasing offsets.
+ *
+ * @returns A valid position or null if none found within the search radius.
+ */
+export function findNearestValidPosition(
+  x: number,
+  y: number,
+  walls: WallData[],
+  zones: ConstraintZone[],
+  bounds: FloorBounds,
+  offsets: number[] = [0.5, 1.0],
+): { x: number; y: number } | null {
+  const ox = bounds.originX ?? 0;
+  const oy = bounds.originY ?? 0;
+  const directions = [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+  for (const offset of offsets) {
+    for (const [dx, dy] of directions) {
+      const nx = x + dx! * offset;
+      const ny = y + dy! * offset;
+      if (nx < ox || nx > ox + bounds.width || ny < oy || ny > oy + bounds.height) continue;
+      if (!isNewApAllowed(nx, ny, zones)) continue;
+      if (isPhysicallyValidApPosition(nx, ny, walls)) return { x: nx, y: ny };
+    }
+  }
+  return null;
 }

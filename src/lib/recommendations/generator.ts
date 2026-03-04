@@ -23,9 +23,11 @@ import {
   findWeakZones,
   findOverlapZones,
   findLowValueAPs,
+  analyzeRoamingPairs,
 } from './analysis';
 import { simulateChange, simulateAddAP, clearSimulatorCache, simulateGrid, scoreFromBins } from './simulator';
-import { findBestCandidate, isMovementAllowed, isNewApAllowed, isPhysicallyValidApPosition, getConstraintsAtPoint } from './candidates';
+import { BAND_THRESHOLDS } from '$lib/heatmap/coverage-stats';
+import { findBestCandidate, isMovementAllowed, isNewApAllowed, isPhysicallyValidApPosition, getConstraintsAtPoint, findNearestValidPosition } from './candidates';
 import {
   isActionAllowed,
   getBlockingReasons,
@@ -46,6 +48,7 @@ import type {
   APModification,
   RecommendationContext,
   CoverageBinPercents,
+  SimulatedDelta,
 } from './types';
 import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES } from './types';
 
@@ -144,6 +147,17 @@ export function generateRecommendations(
   // 8. Roaming hints (informational)
   generateRoamingHints(recommendations, stats, totalCells, band, gridStep);
 
+  // 8b. Roaming TX power adjustments (actionable)
+  generateRoamingTxAdjustments(
+    recommendations, stats, apMetrics, aps, walls, bounds, band, rfConfig, weights, apIds, apLabel,
+  );
+
+  // 8c. Sticky-client risk warnings (informational)
+  generateStickyClientWarnings(recommendations, stats, apIds, band, apLabel);
+
+  // 8d. Handoff gap warnings (informational)
+  generateHandoffGapWarnings(recommendations, stats, apIds, band, apLabel);
+
   // 9. Low-value AP warnings
   generateLowValueWarnings(recommendations, lowValueApIds, apMetrics, band, apLabel);
 
@@ -157,7 +171,7 @@ export function generateRecommendations(
   generateBandLimitWarnings(recommendations, stats, band, totalCells);
 
   // 13. Constraint conflict warnings
-  generateConstraintConflictWarnings(recommendations, aps, band, ctx, apLabel);
+  generateConstraintConflictWarnings(recommendations, aps, band, ctx, apLabel, stats);
 
   // 14. Preferred candidate location suggestions
   generatePreferredCandidateSuggestions(recommendations, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx);
@@ -209,7 +223,8 @@ export function generateRecommendations(
 /** Informational types: not actionable, should not compete with actionable recommendations */
 const INFORMATIONAL_TYPES = new Set([
   'coverage_warning', 'band_limit_warning', 'roaming_hint',
-  'overlap_warning', 'low_ap_value',
+  'overlap_warning', 'low_ap_value', 'blocked_recommendation',
+  'sticky_client_risk', 'handoff_gap_warning',
 ]);
 
 function enrichWithFeasibilityScores(rec: Recommendation, ctx: RecommendationContext): void {
@@ -340,7 +355,7 @@ function generateAddApSuggestions(
     if (ctx.candidates.length > 0) {
       const match = findBestCandidate(idealX, idealY, ctx.candidates, ctx.constraintZones);
 
-      if (match.candidate) {
+      if (match.candidate && isPhysicallyValidApPosition(match.candidate.x, match.candidate.y, walls)) {
         const delta = simulateAddAP(
           aps, walls, bounds, band, rfConfig,
           { x: match.candidate.x, y: match.candidate.y },
@@ -425,13 +440,18 @@ function generateAddApSuggestions(
     }
 
     // Fallback: no candidate locations defined — use weighted target directly
-    if (!isNewApAllowed(idealX, idealY, ctx.constraintZones)) continue;
-    // Physical validation: ensure position is not inside a wall
-    if (!isPhysicallyValidApPosition(idealX, idealY, walls)) continue;
+    let validX = idealX;
+    let validY = idealY;
+    if (!isNewApAllowed(idealX, idealY, ctx.constraintZones) || !isPhysicallyValidApPosition(idealX, idealY, walls)) {
+      const alt = findNearestValidPosition(idealX, idealY, walls, ctx.constraintZones, bounds);
+      if (!alt) continue;
+      validX = alt.x;
+      validY = alt.y;
+    }
 
     const delta = simulateAddAP(
       aps, walls, bounds, band, rfConfig,
-      { x: idealX, y: idealY },
+      { x: validX, y: validY },
       templateConfig,
       weights,
     );
@@ -444,8 +464,8 @@ function generateAddApSuggestions(
         severity: 'warning',
         titleKey: 'rec.addApTitle',
         titleParams: {
-          x: Math.round(idealX * 10) / 10,
-          y: Math.round(idealY * 10) / 10,
+          x: Math.round(validX * 10) / 10,
+          y: Math.round(validY * 10) / 10,
         },
         reasonKey: 'rec.addApReason',
         reasonParams: {
@@ -457,7 +477,7 @@ function generateAddApSuggestions(
         suggestedChange: {
           parameter: 'position',
           currentValue: 'none',
-          suggestedValue: `(${idealX.toFixed(1)}, ${idealY.toFixed(1)})`,
+          suggestedValue: `(${validX.toFixed(1)}, ${validY.toFixed(1)})`,
         },
         evidence: {
           metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi },
@@ -526,9 +546,8 @@ function generateMoveApSuggestions(
       continue;
     }
 
-    // Find nearest weak zone (skip zones in PriorityZones preferring a different band)
-    let nearestZone: WeakZone | null = null;
-    let nearestDist = Infinity;
+    // Find top weak zones weighted by distance and priority zone importance (multi-zone)
+    const scoredZones: { zone: WeakZone; score: number; pz?: typeof ctx.priorityZones[0] }[] = [];
     for (const zone of weakZones) {
       const zonePZ = ctx.priorityZones.find(pz =>
         zone.centroidX >= pz.x && zone.centroidX <= pz.x + pz.width &&
@@ -539,82 +558,93 @@ function generateMoveApSuggestions(
       const dx = zone.centroidX - ap.x;
       const dy = zone.centroidY - ap.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestZone = zone;
-      }
+      if (dist < 1) continue; // Too close to current position
+
+      // Score: closer zones score higher, priority zones get boost, larger zones preferred
+      const distScore = Math.max(0, 100 - dist * 5);
+      const priorityBoost = zonePZ ? zonePZ.weight * 20 : 0;
+      const sizeBoost = Math.min(30, zone.cellCount / 5);
+      scoredZones.push({ zone, score: distScore + priorityBoost + sizeBoost, pz: zonePZ });
     }
+    scoredZones.sort((a, b) => b.score - a.score);
+    const topZones = scoredZones.slice(0, 3);
+    if (topZones.length === 0) continue;
 
-    if (!nearestZone || nearestDist < 1) continue;
-
-    let bestDelta = null;
+    let bestDelta: SimulatedDelta | null = null;
     let bestPos = { x: ap.x, y: ap.y };
     let selectedCandidateLabel: string | undefined;
+    let bestTarget = { x: topZones[0]!.zone.centroidX, y: topZones[0]!.zone.centroidY };
+    const alternativePositions: { pos: { x: number; y: number }; delta: SimulatedDelta; label?: string }[] = [];
 
-    // Strategy 1: Use candidate locations if available (preferred)
-    if (ctx.candidates.length > 0) {
-      const match = findBestCandidate(
-        nearestZone.centroidX, nearestZone.centroidY,
-        ctx.candidates, ctx.constraintZones,
-      );
+    const ox = bounds.originX ?? 0;
+    const oy = bounds.originY ?? 0;
 
-      if (match.candidate) {
-        // Simulate moving to each ranked candidate
-        for (const ranked of match.rankedCandidates) {
-          const c = ranked.candidate;
-          // Skip candidates that are too close to current position (no real move)
-          const distFromCurrent = Math.sqrt((c.x - ap.x) ** 2 + (c.y - ap.y) ** 2);
-          if (distFromCurrent < 0.5) continue;
+    for (const { zone } of topZones) {
+      // RF-weighted target instead of geometric centroid (Task 5)
+      const target = computeWeightedTarget(zone, stats, ox, oy, gridStep);
+
+      // Strategy 1: Use candidate locations if available (preferred)
+      if (ctx.candidates.length > 0) {
+        const match = findBestCandidate(
+          target.x, target.y,
+          ctx.candidates, ctx.constraintZones,
+        );
+
+        if (match.candidate) {
+          for (const ranked of match.rankedCandidates) {
+            const c = ranked.candidate;
+            const distFromCurrent = Math.sqrt((c.x - ap.x) ** 2 + (c.y - ap.y) ** 2);
+            if (distFromCurrent < 0.5) continue;
+            // Physical validation: skip candidates inside walls (Task 7)
+            if (!isPhysicallyValidApPosition(c.x, c.y, walls)) continue;
+
+            const mod: APModification = {
+              apId: ap.id,
+              position: { x: c.x, y: c.y },
+            };
+            const delta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
+
+            if (delta.changePercent > 3) {
+              alternativePositions.push({ pos: { x: c.x, y: c.y }, delta, label: c.label });
+            }
+
+            if (!bestDelta || delta.scoreAfter > bestDelta.scoreAfter) {
+              bestDelta = delta;
+              bestPos = { x: c.x, y: c.y };
+              selectedCandidateLabel = c.label;
+              bestTarget = target;
+            }
+          }
+        }
+      }
+
+      // Strategy 2: Fallback — interpolate towards RF-weighted target
+      if (!bestDelta || bestDelta.changePercent <= 3) {
+        const dx = target.x - ap.x;
+        const dy = target.y - ap.y;
+        const fractions = [0.25, 0.5, 0.75];
+
+        for (const frac of fractions) {
+          const candidateX = ap.x + dx * frac;
+          const candidateY = ap.y + dy * frac;
+
+          if (candidateX < ox || candidateX > ox + bounds.width ||
+              candidateY < oy || candidateY > oy + bounds.height) continue;
+          if (!isMovementAllowed(candidateX, candidateY, ctx.constraintZones)) continue;
+          if (!isPhysicallyValidApPosition(candidateX, candidateY, walls)) continue;
 
           const mod: APModification = {
             apId: ap.id,
-            position: { x: c.x, y: c.y },
+            position: { x: candidateX, y: candidateY },
           };
           const delta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
 
           if (!bestDelta || delta.scoreAfter > bestDelta.scoreAfter) {
             bestDelta = delta;
-            bestPos = { x: c.x, y: c.y };
-            selectedCandidateLabel = c.label;
+            bestPos = { x: candidateX, y: candidateY };
+            selectedCandidateLabel = undefined;
+            bestTarget = target;
           }
-        }
-      }
-    }
-
-    // Strategy 2: Fallback — interpolate towards RF-weighted target (only if no candidates or no improvement)
-    if (!bestDelta || bestDelta.changePercent <= 3) {
-      const originX = bounds.originX ?? 0;
-      const originY = bounds.originY ?? 0;
-      const target = computeWeightedTarget(nearestZone, stats, originX, originY, gridStep);
-      const dx = target.x - ap.x;
-      const dy = target.y - ap.y;
-      const fractions = [0.25, 0.5, 0.75];
-
-      for (const frac of fractions) {
-        const candidateX = ap.x + dx * frac;
-        const candidateY = ap.y + dy * frac;
-
-        // Bounds check
-        const ox = bounds.originX ?? 0;
-        const oy = bounds.originY ?? 0;
-        if (candidateX < ox || candidateX > ox + bounds.width ||
-            candidateY < oy || candidateY > oy + bounds.height) continue;
-
-        // Constraint check: is target position allowed?
-        if (!isMovementAllowed(candidateX, candidateY, ctx.constraintZones)) continue;
-        // Physical validation: not inside a wall
-        if (!isPhysicallyValidApPosition(candidateX, candidateY, walls)) continue;
-
-        const mod: APModification = {
-          apId: ap.id,
-          position: { x: candidateX, y: candidateY },
-        };
-        const delta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
-
-        if (!bestDelta || delta.scoreAfter > bestDelta.scoreAfter) {
-          bestDelta = delta;
-          bestPos = { x: candidateX, y: candidateY };
-          selectedCandidateLabel = undefined;
         }
       }
     }
@@ -627,6 +657,43 @@ function generateMoveApSuggestions(
       };
       if (selectedCandidateLabel) {
         titleParams.candidate = selectedCandidateLabel;
+      }
+
+      // Build alternative recommendations from other viable positions (Task 8)
+      const alternatives: Recommendation[] = [];
+      for (const alt of alternativePositions) {
+        if (alt.pos.x === bestPos.x && alt.pos.y === bestPos.y) continue;
+        if (!alt.delta || alt.delta.changePercent <= 1) continue;
+        alternatives.push({
+          id: genId(),
+          type: 'move_ap',
+          priority: alt.delta.changePercent > 10 ? 'high' : 'medium',
+          severity: alt.delta.changePercent > 10 ? 'critical' : 'warning',
+          titleKey: alt.label ? 'rec.moveApToCandidateTitle' : 'rec.moveApTitle',
+          titleParams: {
+            ap: apLabel(ap.id),
+            x: Math.round(alt.pos.x * 10) / 10,
+            y: Math.round(alt.pos.y * 10) / 10,
+            ...(alt.label ? { candidate: alt.label } : {}),
+          },
+          reasonKey: 'rec.moveApReason',
+          reasonParams: {
+            coverage: Math.round(metrics.primaryCoverageRatio * 100),
+            improvement: Math.round(alt.delta.changePercent),
+          },
+          affectedApIds: [ap.id],
+          affectedBand: band,
+          suggestedChange: {
+            apId: ap.id,
+            parameter: 'position',
+            currentValue: `(${ap.x.toFixed(1)}, ${ap.y.toFixed(1)})`,
+            suggestedValue: `(${alt.pos.x.toFixed(1)}, ${alt.pos.y.toFixed(1)})`,
+          },
+          evidence: { metrics: { improvement: alt.delta.changePercent }, gridStep },
+          simulatedDelta: alt.delta,
+          confidence: 0.7,
+          selectedCandidatePosition: alt.pos,
+        });
       }
 
       recs.push({
@@ -659,10 +726,9 @@ function generateMoveApSuggestions(
         simulatedDelta: bestDelta,
         confidence: 0.75,
         selectedCandidatePosition: bestPos,
-        idealTargetPosition: nearestZone ? { x: nearestZone.centroidX, y: nearestZone.centroidY } : undefined,
-        distanceToIdeal: nearestZone
-          ? Math.sqrt((bestPos.x - nearestZone.centroidX) ** 2 + (bestPos.y - nearestZone.centroidY) ** 2)
-          : undefined,
+        idealTargetPosition: bestTarget,
+        distanceToIdeal: Math.sqrt((bestPos.x - bestTarget.x) ** 2 + (bestPos.y - bestTarget.y) ** 2),
+        alternativeRecommendations: alternatives.length > 0 ? alternatives.slice(0, 3) : undefined,
       });
     }
   }
@@ -1074,6 +1140,168 @@ function generateRoamingHints(
   }
 }
 
+// ─── Roaming Generators ──────────────────────────────────────────
+
+function generateRoamingTxAdjustments(
+  recs: Recommendation[],
+  stats: HeatmapStats,
+  apMetrics: Map<string, APMetrics>,
+  aps: APConfig[],
+  walls: WallData[],
+  bounds: FloorBounds,
+  band: FrequencyBand,
+  rfConfig: RFConfig,
+  weights: ScoringWeights,
+  apIds: string[],
+  apLabel: (id: string) => string,
+): void {
+  const pairs = analyzeRoamingPairs(stats, apIds, band);
+  const txParamName = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
+
+  for (const pair of pairs) {
+    if (pair.stickyRatio <= 0.30) continue;
+
+    // Identify dominant AP in this pair
+    const m1 = apMetrics.get(pair.ap1Id);
+    const m2 = apMetrics.get(pair.ap2Id);
+    if (!m1 || !m2) continue;
+
+    const dominantId = m1.primaryCoverageRatio >= m2.primaryCoverageRatio ? pair.ap1Id : pair.ap2Id;
+    const otherId = dominantId === pair.ap1Id ? pair.ap2Id : pair.ap1Id;
+    const dominantAp = aps.find(a => a.id === dominantId);
+    if (!dominantAp) continue;
+
+    const reducedPower = dominantAp.txPowerDbm - 3;
+    if (reducedPower < 10) continue; // Don't go below 10 dBm
+
+    // Simulate TX power reduction
+    const delta = simulateChange(aps, walls, bounds, band, rfConfig, {
+      apId: dominantId,
+      txPowerDbm: reducedPower,
+    }, weights);
+
+    // Only suggest if score doesn't drop too much
+    if (delta.changePercent < -5) continue;
+
+    recs.push({
+      id: genId(),
+      type: 'roaming_tx_adjustment',
+      priority: 'medium',
+      severity: 'warning',
+      titleKey: 'rec.roamingTxTitle',
+      titleParams: { ap: apLabel(dominantId) },
+      reasonKey: 'rec.roamingTxReason',
+      reasonParams: {
+        ap: apLabel(dominantId),
+        otherAp: apLabel(otherId),
+        percent: Math.round(pair.stickyRatio * 100),
+        delta: 3,
+      },
+      affectedApIds: [dominantId],
+      affectedBand: band,
+      suggestedChange: {
+        apId: dominantId,
+        parameter: txParamName,
+        currentValue: dominantAp.txPowerDbm,
+        suggestedValue: reducedPower,
+      },
+      evidence: {
+        metrics: {
+          stickyRatio: pair.stickyRatio,
+          handoffZoneCells: pair.handoffZoneCells,
+          gapCells: pair.gapCells,
+        },
+      },
+      simulatedDelta: delta,
+      confidence: 0.7,
+    });
+  }
+}
+
+function generateStickyClientWarnings(
+  recs: Recommendation[],
+  stats: HeatmapStats,
+  apIds: string[],
+  band: FrequencyBand,
+  apLabel: (id: string) => string,
+): void {
+  const pairs = analyzeRoamingPairs(stats, apIds, band);
+  const totalCells = stats.totalCells ?? 0;
+
+  for (const pair of pairs) {
+    if (pair.stickyRatio <= 0.50) continue;
+    // Only warn if handoff zone is very small (<5% of pair cells)
+    if (totalCells > 0 && pair.handoffZoneCells / totalCells >= 0.05) continue;
+
+    recs.push({
+      id: genId(),
+      type: 'sticky_client_risk',
+      priority: 'low',
+      severity: 'info',
+      titleKey: 'rec.stickyClientTitle',
+      titleParams: { ap1: apLabel(pair.ap1Id), ap2: apLabel(pair.ap2Id) },
+      reasonKey: 'rec.stickyClientReason',
+      reasonParams: {
+        ap1: apLabel(pair.ap1Id),
+        ap2: apLabel(pair.ap2Id),
+        percent: Math.round(pair.stickyRatio * 100),
+      },
+      affectedApIds: [pair.ap1Id, pair.ap2Id],
+      affectedBand: band,
+      evidence: {
+        metrics: {
+          stickyRatio: pair.stickyRatio,
+          handoffZoneCells: pair.handoffZoneCells,
+        },
+      },
+      confidence: 0.75,
+    });
+  }
+}
+
+function generateHandoffGapWarnings(
+  recs: Recommendation[],
+  stats: HeatmapStats,
+  apIds: string[],
+  band: FrequencyBand,
+  apLabel: (id: string) => string,
+): void {
+  const pairs = analyzeRoamingPairs(stats, apIds, band);
+  const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
+
+  for (const pair of pairs) {
+    if (pair.gapCells <= 10) continue;
+    if (pair.handoffZoneCells === 0) continue;
+    if (pair.gapCells / pair.handoffZoneCells <= 0.20) continue;
+
+    recs.push({
+      id: genId(),
+      type: 'handoff_gap_warning',
+      priority: 'medium',
+      severity: 'warning',
+      titleKey: 'rec.handoffGapTitle',
+      titleParams: { ap1: apLabel(pair.ap1Id), ap2: apLabel(pair.ap2Id) },
+      reasonKey: 'rec.handoffGapReason',
+      reasonParams: {
+        ap1: apLabel(pair.ap1Id),
+        ap2: apLabel(pair.ap2Id),
+        cells: pair.gapCells,
+        threshold: thresholds.fair,
+      },
+      affectedApIds: [pair.ap1Id, pair.ap2Id],
+      affectedBand: band,
+      evidence: {
+        metrics: {
+          gapCells: pair.gapCells,
+          handoffZoneCells: pair.handoffZoneCells,
+          avgRssiInZone: pair.avgRssiInZone,
+        },
+      },
+      confidence: 0.8,
+    });
+  }
+}
+
 function generateLowValueWarnings(
   recs: Recommendation[],
   lowValueApIds: string[],
@@ -1210,8 +1438,10 @@ function generateDisableApSuggestions(
 ): void {
   for (const [apId, metrics] of apMetrics) {
     if (metrics.primaryCoverageRatio >= 0.02) continue;
-    const overlapRatio = totalCells > 0 ? metrics.overlapCells / totalCells : 0;
-    if (overlapRatio < 0.10) continue;
+    // Use secondBestCoverageCells: how often this AP is "present but not best"
+    // (overlapCells can never exceed primaryCells, making the old check unsatisfiable)
+    const presenceRatio = totalCells > 0 ? metrics.secondBestCoverageCells / totalCells : 0;
+    if (presenceRatio < 0.10) continue;
 
     // Simulate disabling by removing this AP
     const apsWithout = aps.filter(a => a.id !== apId);
@@ -1236,12 +1466,18 @@ function generateDisableApSuggestions(
         reasonParams: {
           ap: apLabel(apId),
           coverage: Math.round(metrics.primaryCoverageRatio * 100),
-          overlap: Math.round(overlapRatio * 100),
+          overlap: Math.round(presenceRatio * 100),
         },
         affectedApIds: [apId],
         affectedBand: band,
+        suggestedChange: {
+          apId: apId,
+          parameter: 'enabled',
+          currentValue: 'true',
+          suggestedValue: 'false',
+        },
         evidence: {
-          metrics: { primaryCoverageRatio: metrics.primaryCoverageRatio, overlapRatio },
+          metrics: { primaryCoverageRatio: metrics.primaryCoverageRatio, presenceRatio },
         },
         simulatedDelta: {
           scoreBefore,
@@ -1296,6 +1532,7 @@ function generateConstraintConflictWarnings(
   band: FrequencyBand,
   ctx: RecommendationContext,
   apLabel: (id: string) => string,
+  stats: HeatmapStats = {} as HeatmapStats,
 ): void {
   // Check APs in forbidden/discouraged zones
   for (const ap of aps) {
@@ -1313,37 +1550,103 @@ function generateConstraintConflictWarnings(
           reasonParams: { ap: apLabel(ap.id), zoneType: zone.type },
           affectedApIds: [ap.id],
           affectedBand: band,
+          suggestedChange: {
+            apId: ap.id,
+            parameter: 'position',
+            currentValue: `(${ap.x.toFixed(1)}, ${ap.y.toFixed(1)})`,
+            suggestedValue: 'move_out_of_zone',
+          },
           evidence: {
             metrics: { zoneWeight: zone.weight },
           },
           confidence: 0.95,
+          requiresUserDecision: true,
         });
       }
     }
   }
 
-  // Check PriorityZones with mustHaveCoverage that have no AP in range
+  // Check PriorityZones with mustHaveCoverage using actual RSSI grid data
   for (const pz of ctx.priorityZones) {
     if (!pz.mustHaveCoverage) continue;
-    const zoneCenterX = pz.x + pz.width / 2;
-    const zoneCenterY = pz.y + pz.height / 2;
-    const zoneRadius = Math.max(pz.width, pz.height);
-    const hasNearbyAP = aps.some(a =>
-      Math.sqrt((a.x - zoneCenterX) ** 2 + (a.y - zoneCenterY) ** 2) < zoneRadius,
-    );
-    if (!hasNearbyAP) {
+
+    const gridWidth = stats.gridWidth ?? 0;
+    const gridHeight = stats.gridHeight ?? 0;
+    const gridStep = stats.gridStep ?? 0.25;
+    const sOriginX = (stats as unknown as Record<string, number>).originX ?? 0;
+    const sOriginY = (stats as unknown as Record<string, number>).originY ?? 0;
+    const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
+    const threshold = pz.targetMinRssi ?? thresholds.fair;
+
+    if (!stats.rssiGrid || gridWidth === 0 || gridHeight === 0) {
+      // Fallback: AP proximity check when no RSSI data available
+      const zoneCenterX = pz.x + pz.width / 2;
+      const zoneCenterY = pz.y + pz.height / 2;
+      const zoneRadius = Math.max(pz.width, pz.height);
+      const hasNearbyAP = aps.some(a =>
+        Math.sqrt((a.x - zoneCenterX) ** 2 + (a.y - zoneCenterY) ** 2) < zoneRadius,
+      );
+      if (!hasNearbyAP) {
+        recs.push({
+          id: genId(),
+          type: 'constraint_conflict',
+          severity: 'critical',
+          priority: 'high',
+          titleKey: 'rec.mustHaveCoverageTitle',
+          titleParams: { zone: pz.label },
+          reasonKey: 'rec.mustHaveCoverageReason',
+          reasonParams: { zone: pz.label },
+          affectedApIds: [],
+          affectedBand: band,
+          evidence: { metrics: { zoneWeight: pz.weight } },
+          confidence: 0.7,
+        });
+      }
+      continue;
+    }
+
+    // Real RSSI coverage check within the priority zone
+    let belowCount = 0;
+    let totalInZone = 0;
+    for (let r = 0; r < gridHeight; r++) {
+      for (let c = 0; c < gridWidth; c++) {
+        const wx = sOriginX + c * gridStep;
+        const wy = sOriginY + r * gridStep;
+        if (wx >= pz.x && wx <= pz.x + pz.width && wy >= pz.y && wy <= pz.y + pz.height) {
+          totalInZone++;
+          if ((stats.rssiGrid[r * gridWidth + c] ?? -100) < threshold) belowCount++;
+        }
+      }
+    }
+
+    if (totalInZone === 0) continue;
+    const violationRatio = belowCount / totalInZone;
+
+    // Warning if more than 30% of the zone is below threshold
+    if (violationRatio > 0.3) {
       recs.push({
         id: genId(),
         type: 'constraint_conflict',
-        severity: 'critical',
-        priority: 'high',
+        severity: violationRatio > 0.6 ? 'critical' : 'warning',
+        priority: violationRatio > 0.6 ? 'high' : 'medium',
         titleKey: 'rec.mustHaveCoverageTitle',
         titleParams: { zone: pz.label },
-        reasonKey: 'rec.mustHaveCoverageReason',
-        reasonParams: { zone: pz.label },
+        reasonKey: 'rec.mustHaveCoverageViolationReason',
+        reasonParams: {
+          zone: pz.label,
+          violationPercent: Math.round(violationRatio * 100),
+          threshold,
+        },
         affectedApIds: [],
         affectedBand: band,
-        evidence: { metrics: { zoneWeight: pz.weight } },
+        evidence: {
+          metrics: {
+            zoneWeight: pz.weight,
+            violationRatio,
+            belowThresholdCells: belowCount,
+            totalZoneCells: totalInZone,
+          },
+        },
         confidence: 0.9,
       });
     }
@@ -1386,17 +1689,23 @@ function generatePreferredCandidateSuggestions(
     );
 
     if (delta.changePercent > 1) {
+      const requiresInfra = !cand.hasLan || !cand.hasPoe;
       recs.push({
         id: genId(),
-        type: 'preferred_candidate_location',
+        type: requiresInfra ? 'infrastructure_required' : 'preferred_candidate_location',
         priority: 'medium',
-        severity: 'info',
-        titleKey: 'rec.preferredCandidateTitle',
-        titleParams: { candidate: cand.label },
+        severity: requiresInfra ? 'warning' : 'info',
+        titleKey: requiresInfra ? 'rec.infraRequiredTitle' : 'rec.preferredCandidateTitle',
+        titleParams: requiresInfra
+          ? { x: Math.round(cand.x * 10) / 10, y: Math.round(cand.y * 10) / 10 }
+          : { candidate: cand.label },
         reasonKey: 'rec.preferredCandidateReason',
         reasonParams: {
           candidate: cand.label,
           improvement: Math.round(delta.changePercent),
+          mounting: cand.mountingOptions.join('/') || 'ceiling',
+          hasLan: cand.hasLan ? 'yes' : 'no',
+          hasPoe: cand.hasPoe ? 'yes' : 'no',
         },
         affectedApIds: [],
         affectedBand: band,
@@ -1406,13 +1715,18 @@ function generatePreferredCandidateSuggestions(
           suggestedValue: `(${cand.x.toFixed(1)}, ${cand.y.toFixed(1)})`,
         },
         evidence: {
-          metrics: { improvement: delta.changePercent },
+          metrics: {
+            improvement: delta.changePercent,
+            hasLan: cand.hasLan ? 1 : 0,
+            hasPoe: cand.hasPoe ? 1 : 0,
+          },
           gridStep,
         },
         simulatedDelta: delta,
         confidence: 0.7,
         selectedCandidatePosition: { x: cand.x, y: cand.y },
-        infrastructureRequired: !cand.hasLan || !cand.hasPoe,
+        selectedBecause: `user_preferred${cand.hasLan ? ', has_lan' : ''}${cand.hasPoe ? ', has_poe' : ''}`,
+        infrastructureRequired: requiresInfra,
       });
     }
   }

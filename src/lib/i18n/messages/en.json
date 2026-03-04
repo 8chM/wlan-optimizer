@@ -538,7 +538,14 @@
     "preferredCandidateTitle": "Use preferred location {candidate}",
     "preferredCandidateReason": "Preferred location {candidate} is not covered by any AP — adding one would improve coverage by {improvement}%",
     "mustHaveCoverageTitle": "Coverage required: {zone}",
-    "mustHaveCoverageReason": "Priority zone '{zone}' requires coverage but no AP is in range"
+    "mustHaveCoverageReason": "Priority zone '{zone}' requires coverage but no AP is in range",
+    "mustHaveCoverageViolationReason": "Priority zone '{zone}': {violationPercent}% of the area is below {threshold} dBm threshold",
+    "roamingTxTitle": "Adjust TX power for roaming: {ap}",
+    "roamingTxReason": "AP {ap} dominates {percent}% of handoff zone with {otherAp}. Reducing TX power by {delta}dBm improves client handoff.",
+    "stickyClientTitle": "Sticky-client risk: {ap1} \u2194 {ap2}",
+    "stickyClientReason": "{percent}% of the area between {ap1} and {ap2} has >15dB signal difference \u2014 clients may not roam.",
+    "handoffGapTitle": "Handoff dead zone: {ap1} \u2194 {ap2}",
+    "handoffGapReason": "{cells} cells in the handoff zone between {ap1} and {ap2} have signal below {threshold}dBm \u2014 coverage gap during roaming."
   },
   "candidate": {
     "title": "Candidate Location",
@@ -602,7 +609,8 @@
     "instructionOnly": "Follow the instruction manually",
     "preview": "Preview",
     "previewActive": "Preview active",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "acknowledge": "Acknowledge"
   },
   "capabilities": {
     "title": "Capabilities",

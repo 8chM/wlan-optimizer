@@ -27,7 +27,10 @@ export type RecommendationType =
   | 'constraint_conflict'
   | 'infrastructure_required'
   | 'preferred_candidate_location'
-  | 'blocked_recommendation';
+  | 'blocked_recommendation'
+  | 'roaming_tx_adjustment'
+  | 'sticky_client_risk'
+  | 'handoff_gap_warning';
 
 export type RecommendationSeverity = 'critical' | 'warning' | 'info';
 export type RecommendationPriority = 'high' | 'medium' | 'low';
@@ -323,6 +326,9 @@ export const EFFORT_LEVELS: Record<RecommendationType, EffortLevel> = {
   infrastructure_required: 'infrastructure',
   preferred_candidate_location: 'infrastructure',
   blocked_recommendation: 'config',
+  roaming_tx_adjustment: 'config',
+  sticky_client_risk: 'config',
+  handoff_gap_warning: 'config',
 };
 
 /** Effort score values for each level */

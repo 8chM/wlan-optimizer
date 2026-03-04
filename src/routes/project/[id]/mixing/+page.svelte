@@ -46,6 +46,8 @@
   import type { CandidateLocation, ConstraintZone, APCapabilities, Recommendation, RejectionReason } from '$lib/recommendations/types';
   import { safeInvoke } from '$lib/api/invoke';
   import { updateAccessPoint } from '$lib/api/accessPoint';
+  import { addApCommand, updateApCommand } from '$lib/stores/commands/apCommands';
+  import { undoStore } from '$lib/stores/undoStore.svelte';
   import { t } from '$lib/i18n';
   import { registerShortcuts } from '$lib/utils/keyboard';
   import type { Position } from '$lib/models/types';
@@ -327,14 +329,14 @@
       // Legacy parameter name — map to band-specific
       const band = editorHeatmapStore.band;
       if (band === '2.4ghz') updates.tx_power_24ghz_dbm = Number(suggestedValue);
-      else if (band === '6ghz') updates.tx_power_5ghz_dbm = Number(suggestedValue);
+      else if (band === '6ghz') updates.tx_power_6ghz_dbm = Number(suggestedValue);
       else updates.tx_power_5ghz_dbm = Number(suggestedValue);
     } else if (parameter === 'tx_power_24ghz') {
       updates.tx_power_24ghz_dbm = Number(suggestedValue);
     } else if (parameter === 'tx_power_5ghz') {
       updates.tx_power_5ghz_dbm = Number(suggestedValue);
     } else if (parameter === 'tx_power_6ghz') {
-      updates.tx_power_5ghz_dbm = Number(suggestedValue); // 6 GHz uses same field
+      updates.tx_power_6ghz_dbm = Number(suggestedValue);
     } else if (parameter === 'channel') {
       // Legacy parameter name — map to band-specific
       const band = editorHeatmapStore.band;
@@ -354,10 +356,24 @@
 
   // ─── Recommendation Step Handlers ───────────────────────────────
 
+  const AP_CREATION_TYPES = new Set(['add_ap', 'preferred_candidate_location', 'infrastructure_required']);
+
   async function handleStepApply(rec: Recommendation): Promise<void> {
     if (rec.type === 'disable_ap' && rec.affectedApIds[0]) {
-      await updateAccessPoint(rec.affectedApIds[0], { enabled: false });
-      await projectStore.refreshFloorData();
+      const cmd = updateApCommand(
+        rec.affectedApIds[0],
+        { enabled: true },
+        { enabled: false },
+        () => projectStore.refreshFloorData(),
+      );
+      await undoStore.execute(cmd);
+    } else if (AP_CREATION_TYPES.has(rec.type)) {
+      const pos = rec.selectedCandidatePosition ?? rec.idealTargetPosition;
+      const currentFloorId = floor?.id;
+      if (pos && currentFloorId) {
+        const cmd = addApCommand(currentFloorId, pos.x, pos.y, undefined, undefined, () => projectStore.refreshFloorData());
+        await undoStore.execute(cmd);
+      }
     } else if (rec.suggestedChange?.apId) {
       await applyRecommendationToAP(rec.suggestedChange);
     }

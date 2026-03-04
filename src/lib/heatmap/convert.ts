@@ -21,7 +21,12 @@ export function convertApsToConfig(
   overrides?: Map<string, Record<string, string>>,
 ): APConfig[] {
   return accessPoints
-    .filter((ap) => ap.enabled)
+    .filter((ap) => {
+      const apOverrides = overrides?.get(ap.id);
+      const enabledOverride = apOverrides?.['enabled'];
+      if (enabledOverride === 'false') return false;
+      return ap.enabled;
+    })
     .map((ap): APConfig => {
       const apOverrides = overrides?.get(ap.id);
 

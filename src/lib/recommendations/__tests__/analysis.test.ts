@@ -11,6 +11,7 @@ import {
   findWeakZones,
   findOverlapZones,
   findLowValueAPs,
+  analyzeRoamingPairs,
 } from '../analysis';
 import { EXPERT_PROFILES } from '../types';
 import type { PriorityZone } from '../types';
@@ -152,15 +153,57 @@ describe('computeOverallScore', () => {
     expect(score.overallScore).toBeLessThanOrEqual(100);
   });
 
-  it('should return bandSuitabilityScore 70 when no uplinkLimitedGrid', () => {
+  it('should return bandSuitabilityScore 0 when no uplinkLimitedGrid (excluded from formula)', () => {
     const stats = makeStats({
       coverageBins: { excellent: 50, good: 30, fair: 10, poor: 5, none: 5 },
       totalCells: 100,
     });
     const apMetrics = new Map();
     const score = computeOverallScore(stats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced);
-    // Without uplinkLimitedGrid, bandSuitabilityScore should be 70 (neutral-positive)
-    expect(score.bandSuitabilityScore).toBe(70);
+    // Without uplinkLimitedGrid, bandSuitabilityScore should be 0 (excluded from formula)
+    expect(score.bandSuitabilityScore).toBe(0);
+  });
+
+  it('should compute real bandSuitabilityScore when uplinkLimitedGrid is present', () => {
+    const grids = makeGrids(10, 10, { uplink: 0 });
+    const stats = makeStats({
+      ...grids,
+      coverageBins: { excellent: 50, good: 30, fair: 10, poor: 5, none: 5 },
+      totalCells: 100,
+      gridWidth: 10,
+      gridHeight: 10,
+    });
+    const apMetrics = new Map();
+    const score = computeOverallScore(stats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced, '5ghz');
+    // No uplink-limited cells → bandSuitabilityScore should be 100
+    expect(score.bandSuitabilityScore).toBe(100);
+  });
+
+  it('should produce lower bandSuitabilityScore when many cells are uplink-limited', () => {
+    const grids = makeGrids(10, 10, { uplink: 1 }); // all uplink-limited
+    const stats = makeStats({
+      ...grids,
+      coverageBins: { excellent: 50, good: 30, fair: 10, poor: 5, none: 5 },
+      totalCells: 100,
+      gridWidth: 10,
+      gridHeight: 10,
+    });
+    const apMetrics = new Map();
+    const score = computeOverallScore(stats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced, '5ghz');
+    // All uplink-limited → bandSuitabilityScore should be 0
+    expect(score.bandSuitabilityScore).toBe(0);
+  });
+
+  it('should not penalize overall score when band data is missing', () => {
+    const stats = makeStats({
+      coverageBins: { excellent: 100, good: 0, fair: 0, poor: 0, none: 0 },
+      totalCells: 100,
+    });
+    const apMetrics = new Map();
+    const score = computeOverallScore(stats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced);
+    // With perfect coverage and no band data, overall score should still be high
+    // (band component excluded from both numerator and denominator)
+    expect(score.overallScore).toBeGreaterThan(60);
   });
 
   it('should reduce coverage score with priorityZone penalty', () => {
@@ -326,5 +369,100 @@ describe('findLowValueAPs', () => {
 
     const lowValue = findLowValueAPs(apMetrics);
     expect(lowValue.length).toBe(0);
+  });
+});
+
+// ─── analyzeRoamingPairs ──────────────────────────────────────────
+
+describe('analyzeRoamingPairs', () => {
+  it('should detect pair with high sticky ratio', () => {
+    // AP-0 dominates 80% with delta > 15 everywhere (sticky)
+    const grids = makeGrids(10, 10, { delta: 20, rssi: -50 });
+    // First 80 cells: AP 0 primary, AP 1 secondary
+    // Last 20 cells: AP 1 primary, AP 0 secondary
+    for (let i = 80; i < 100; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 80; i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = 80; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats = makeStats({
+      ...grids,
+      gridWidth: 10,
+      gridHeight: 10,
+      totalCells: 100,
+    });
+
+    const pairs = analyzeRoamingPairs(stats, ['ap-0', 'ap-1'], '5ghz');
+    expect(pairs.length).toBe(1);
+    expect(pairs[0]!.stickyRatio).toBeGreaterThan(0.5);
+  });
+
+  it('should detect handoff gap cells', () => {
+    // Create handoff zone with weak RSSI (gap)
+    const grids = makeGrids(10, 10, { delta: 5, rssi: -80 }); // delta < 8, rssi < fair (-70)
+    for (let i = 50; i < 100; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 50; i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = 50; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats = makeStats({
+      ...grids,
+      gridWidth: 10,
+      gridHeight: 10,
+      totalCells: 100,
+    });
+
+    const pairs = analyzeRoamingPairs(stats, ['ap-0', 'ap-1'], '5ghz');
+    expect(pairs.length).toBe(1);
+    // rssi=-80 < fair=-70 threshold AND delta=5 < 8 → all cells are gap cells
+    expect(pairs[0]!.gapCells).toBeGreaterThan(0);
+  });
+
+  it('should return empty for single AP', () => {
+    const grids = makeGrids(10, 10, { delta: 99 });
+    const stats = makeStats({
+      ...grids,
+      gridWidth: 10,
+      gridHeight: 10,
+      totalCells: 100,
+    });
+
+    const pairs = analyzeRoamingPairs(stats, ['ap-0'], '5ghz');
+    expect(pairs.length).toBe(0);
+  });
+});
+
+// ─── roamingScore improvement ─────────────────────────────────────
+
+describe('computeOverallScore roaming improvements', () => {
+  it('should penalize sticky cells in roaming score', () => {
+    // Uniform delta=10 (good roaming)
+    const uniformGrids = makeGrids(10, 10, { delta: 10, rssi: -50 });
+    for (let i = 50; i < 100; i++) uniformGrids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 50; i++) uniformGrids.secondBestApIndexGrid[i] = 1;
+    for (let i = 50; i < 100; i++) uniformGrids.secondBestApIndexGrid[i] = 0;
+    const uniformStats = makeStats({
+      ...uniformGrids,
+      gridWidth: 10,
+      gridHeight: 10,
+      totalCells: 100,
+    });
+
+    // Many sticky cells delta>15
+    const stickyGrids = makeGrids(10, 10, { delta: 25, rssi: -50 });
+    for (let i = 50; i < 100; i++) stickyGrids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 50; i++) stickyGrids.secondBestApIndexGrid[i] = 1;
+    for (let i = 50; i < 100; i++) stickyGrids.secondBestApIndexGrid[i] = 0;
+    const stickyStats = makeStats({
+      ...stickyGrids,
+      gridWidth: 10,
+      gridHeight: 10,
+      totalCells: 100,
+    });
+
+    const apMetrics = new Map();
+    const uniformScore = computeOverallScore(uniformStats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced, '5ghz');
+    const stickyScore = computeOverallScore(stickyStats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced, '5ghz');
+
+    // Sticky cells should result in lower roaming score despite higher average delta
+    expect(stickyScore.roamingScore).toBeLessThan(uniformScore.roamingScore + 30);
   });
 });

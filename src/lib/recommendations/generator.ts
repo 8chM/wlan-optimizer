@@ -90,8 +90,8 @@ export function generateRecommendations(
   // Per-AP metrics
   const apMetrics = computeAPMetrics(stats, apIds, channelAnalysis);
 
-  // Overall score
-  const score = computeOverallScore(stats, apMetrics, channelAnalysis, weights, band);
+  // Overall score (with priority zone weighting)
+  const score = computeOverallScore(stats, apMetrics, channelAnalysis, weights, band, ctx.priorityZones);
 
   // Find problem zones (with priority zone weighting)
   const weakZones = findWeakZones(stats, band, originX, originY, ctx.priorityZones);
@@ -138,7 +138,7 @@ export function generateRecommendations(
 
   // 7. Add AP suggestions (infrastructure)
   generateAddApSuggestions(
-    recommendations, weakZones, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, stats,
+    recommendations, weakZones, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, stats, apMetrics,
   );
 
   // 8. Roaming hints (informational)
@@ -206,7 +206,24 @@ export function generateRecommendations(
 
 // ─── Feasibility Enrichment ──────────────────────────────────────
 
+/** Informational types: not actionable, should not compete with actionable recommendations */
+const INFORMATIONAL_TYPES = new Set([
+  'coverage_warning', 'band_limit_warning', 'roaming_hint',
+  'overlap_warning', 'low_ap_value',
+]);
+
 function enrichWithFeasibilityScores(rec: Recommendation, ctx: RecommendationContext): void {
+  // Informational types get zero benefit/effort — sorted by severity/priority instead
+  if (INFORMATIONAL_TYPES.has(rec.type)) {
+    rec.benefitScore = 0;
+    rec.effortScore = 0;
+    rec.feasibilityScore = 100;
+    rec.riskScore = 0;
+    rec.infrastructureCostScore = 0;
+    rec.recommendationScore = 0;
+    return;
+  }
+
   // Benefit score from simulation delta
   if (rec.simulatedDelta) {
     rec.benefitScore = Math.max(0, Math.min(100, rec.simulatedDelta.changePercent * 5 + 50));
@@ -284,12 +301,13 @@ function generateAddApSuggestions(
   gridStep: number,
   ctx: RecommendationContext,
   stats: HeatmapStats,
+  apMetrics?: Map<string, APMetrics>,
 ): void {
   const largeZones = weakZones.filter(z => z.cellCount >= 20);
   if (largeZones.length === 0) return;
 
-  // Template AP from existing APs
-  const templateAp = aps.length > 0 ? aps[0]! : undefined;
+  // Select best AP as template (by primary coverage), fallback to defaults
+  const templateAp = selectTemplateAp(aps, apMetrics);
   const templateConfig = {
     txPowerDbm: templateAp?.txPowerDbm ?? 20,
     antennaGainDbi: templateAp?.antennaGainDbi ?? 4.0,
@@ -308,6 +326,15 @@ function generateAddApSuggestions(
     const target = computeWeightedTarget(zone, stats, originX, originY, gridStep);
     const idealX = target.x;
     const idealY = target.y;
+
+    // Skip if zone is in a PriorityZone that prefers a different band
+    const matchingPZ = ctx.priorityZones.find(pz =>
+      idealX >= pz.x && idealX <= pz.x + pz.width &&
+      idealY >= pz.y && idealY <= pz.y + pz.height,
+    );
+    if (matchingPZ && matchingPZ.targetBand !== 'either' && matchingPZ.targetBand !== band) {
+      continue;
+    }
 
     // Try to find a candidate location if candidates are available
     if (ctx.candidates.length > 0) {
@@ -499,10 +526,16 @@ function generateMoveApSuggestions(
       continue;
     }
 
-    // Find nearest weak zone
+    // Find nearest weak zone (skip zones in PriorityZones preferring a different band)
     let nearestZone: WeakZone | null = null;
     let nearestDist = Infinity;
     for (const zone of weakZones) {
+      const zonePZ = ctx.priorityZones.find(pz =>
+        zone.centroidX >= pz.x && zone.centroidX <= pz.x + pz.width &&
+        zone.centroidY >= pz.y && zone.centroidY <= pz.y + pz.height,
+      );
+      if (zonePZ && zonePZ.targetBand !== 'either' && zonePZ.targetBand !== band) continue;
+
       const dx = zone.centroidX - ap.x;
       const dy = zone.centroidY - ap.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1105,6 +1138,30 @@ function generateOverlapWarnings(
   }
 }
 
+// ─── Helper: Template AP Selection ───────────────────────────────
+
+/**
+ * Select the AP with best coverage as a template for new APs.
+ * Falls back to the first AP if no metrics available.
+ */
+function selectTemplateAp(
+  aps: APConfig[],
+  apMetrics?: Map<string, APMetrics>,
+): APConfig | undefined {
+  if (aps.length === 0) return undefined;
+  if (!apMetrics || apMetrics.size === 0) return aps[0];
+  let best = aps[0]!;
+  let bestCoverage = 0;
+  for (const ap of aps) {
+    const m = apMetrics.get(ap.id);
+    if (m && m.primaryCoverageRatio > bestCoverage) {
+      best = ap;
+      bestCoverage = m.primaryCoverageRatio;
+    }
+  }
+  return best;
+}
+
 // ─── Helper: RF-Weighted Target ──────────────────────────────────
 
 /**
@@ -1240,6 +1297,7 @@ function generateConstraintConflictWarnings(
   ctx: RecommendationContext,
   apLabel: (id: string) => string,
 ): void {
+  // Check APs in forbidden/discouraged zones
   for (const ap of aps) {
     const zones = getConstraintsAtPoint(ap.x, ap.y, ctx.constraintZones);
     for (const zone of zones) {
@@ -1263,6 +1321,33 @@ function generateConstraintConflictWarnings(
       }
     }
   }
+
+  // Check PriorityZones with mustHaveCoverage that have no AP in range
+  for (const pz of ctx.priorityZones) {
+    if (!pz.mustHaveCoverage) continue;
+    const zoneCenterX = pz.x + pz.width / 2;
+    const zoneCenterY = pz.y + pz.height / 2;
+    const zoneRadius = Math.max(pz.width, pz.height);
+    const hasNearbyAP = aps.some(a =>
+      Math.sqrt((a.x - zoneCenterX) ** 2 + (a.y - zoneCenterY) ** 2) < zoneRadius,
+    );
+    if (!hasNearbyAP) {
+      recs.push({
+        id: genId(),
+        type: 'constraint_conflict',
+        severity: 'critical',
+        priority: 'high',
+        titleKey: 'rec.mustHaveCoverageTitle',
+        titleParams: { zone: pz.label },
+        reasonKey: 'rec.mustHaveCoverageReason',
+        reasonParams: { zone: pz.label },
+        affectedApIds: [],
+        affectedBand: band,
+        evidence: { metrics: { zoneWeight: pz.weight } },
+        confidence: 0.9,
+      });
+    }
+  }
 }
 
 function generatePreferredCandidateSuggestions(
@@ -1280,6 +1365,9 @@ function generatePreferredCandidateSuggestions(
   if (preferredCandidates.length === 0) return;
 
   for (const cand of preferredCandidates) {
+    // Physical validation: skip candidates inside walls
+    if (!isPhysicallyValidApPosition(cand.x, cand.y, walls)) continue;
+
     const nearestApDist = aps.length > 0
       ? Math.min(...aps.map(a => Math.sqrt((a.x - cand.x) ** 2 + (a.y - cand.y) ** 2)))
       : Infinity;
@@ -1356,12 +1444,20 @@ function deduplicateRecommendations(recs: Recommendation[]): Recommendation[] {
       continue;
     }
 
-    // Sort by effort level (config first) and simulated impact
+    // Sort by effort level (config first) UNLESS higher effort yields 3x better improvement
     group.sort((a, b) => {
       const effortA = EFFORT_SCORES[EFFORT_LEVELS[a.type] ?? 'config'];
       const effortB = EFFORT_SCORES[EFFORT_LEVELS[b.type] ?? 'config'];
+      const deltaA = a.simulatedDelta?.changePercent ?? 0;
+      const deltaB = b.simulatedDelta?.changePercent ?? 0;
+
+      // If higher-effort option has 3x better improvement AND >10% absolute, prefer it
+      if (effortA < effortB && deltaB > deltaA * 3 && deltaB > 10) return 1;
+      if (effortB < effortA && deltaA > deltaB * 3 && deltaA > 10) return -1;
+
+      // Otherwise: config-first (lower effort preferred)
       if (effortA !== effortB) return effortA - effortB;
-      return (b.simulatedDelta?.changePercent ?? 0) - (a.simulatedDelta?.changePercent ?? 0);
+      return deltaB - deltaA;
     });
 
     // Keep the best recommendation, store rest as alternatives

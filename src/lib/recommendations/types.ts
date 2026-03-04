@@ -26,8 +26,6 @@ export type RecommendationType =
   | 'overlap_warning'
   | 'constraint_conflict'
   | 'infrastructure_required'
-  | 'config_only_improvement'
-  | 'best_effort_improvement'
   | 'preferred_candidate_location'
   | 'blocked_recommendation';
 
@@ -323,8 +321,6 @@ export const EFFORT_LEVELS: Record<RecommendationType, EffortLevel> = {
   overlap_warning: 'config',
   constraint_conflict: 'config',
   infrastructure_required: 'infrastructure',
-  config_only_improvement: 'config',
-  best_effort_improvement: 'config',
   preferred_candidate_location: 'infrastructure',
   blocked_recommendation: 'config',
 };

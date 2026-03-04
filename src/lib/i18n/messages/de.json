@@ -536,7 +536,9 @@
     "constraintConflictTitle": "{ap} in {zoneType}-Zone",
     "constraintConflictReason": "AP {ap} befindet sich aktuell in einer {zoneType}-Zone — Verschiebung erwaegen",
     "preferredCandidateTitle": "Bevorzugten Standort {candidate} nutzen",
-    "preferredCandidateReason": "Bevorzugter Standort {candidate} wird von keinem AP abgedeckt — Hinzufuegen wuerde Abdeckung um {improvement}% verbessern"
+    "preferredCandidateReason": "Bevorzugter Standort {candidate} wird von keinem AP abgedeckt — Hinzufuegen wuerde Abdeckung um {improvement}% verbessern",
+    "mustHaveCoverageTitle": "Abdeckung erforderlich: {zone}",
+    "mustHaveCoverageReason": "Prioritaetszone '{zone}' erfordert Abdeckung, aber kein AP ist in Reichweite"
   },
   "candidate": {
     "title": "Kandidaten-Position",

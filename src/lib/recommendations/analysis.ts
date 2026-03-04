@@ -123,10 +123,10 @@ function computeBandSuitabilityScore(
   stats: HeatmapStats,
   band: FrequencyBand,
 ): number {
-  if (!stats.uplinkLimitedGrid) return 50; // Fallback when data missing
+  if (!stats.uplinkLimitedGrid) return 70; // Neutral-positive when data missing
 
   const total = stats.totalCells ?? 0;
-  if (total === 0) return 50;
+  if (total === 0) return 70;
 
   let uplinkLimitedCount = 0;
   for (let i = 0; i < total; i++) {
@@ -157,6 +157,7 @@ export function computeOverallScore(
   channelAnalysis: ChannelAnalysisResult | null,
   weights: ScoringWeights,
   band: FrequencyBand = '5ghz',
+  priorityZones: PriorityZone[] = [],
 ): ScoreBreakdown {
   const bins = stats.coverageBins;
   const total = stats.totalCells ?? 0;
@@ -166,6 +167,39 @@ export function computeOverallScore(
   if (bins && total > 0) {
     const weighted = bins.excellent * 4 + bins.good * 3 + bins.fair * 2 + bins.poor * 1;
     coverageScore = (weighted / (total * 4)) * 100;
+  }
+
+  // PriorityZone penalty: reduce coverage score if priority zones have weak coverage
+  if (priorityZones.length > 0 && stats.rssiGrid) {
+    const gridWidth = stats.gridWidth ?? 0;
+    const gridHeight = stats.gridHeight ?? 0;
+    const gridStep = stats.gridStep ?? 0.25;
+    const originX = (stats as unknown as Record<string, number>).originX ?? 0;
+    const originY = (stats as unknown as Record<string, number>).originY ?? 0;
+    let priorityPenalty = 0;
+
+    for (const pz of priorityZones) {
+      const threshold = pz.targetMinRssi ?? BAND_THRESHOLDS[band].fair;
+      let belowCount = 0;
+      let totalInZone = 0;
+      for (let r = 0; r < gridHeight; r++) {
+        for (let c = 0; c < gridWidth; c++) {
+          const wx = originX + c * gridStep;
+          const wy = originY + r * gridStep;
+          if (wx >= pz.x && wx <= pz.x + pz.width && wy >= pz.y && wy <= pz.y + pz.height) {
+            totalInZone++;
+            if ((stats.rssiGrid[r * gridWidth + c] ?? -100) < threshold) belowCount++;
+          }
+        }
+      }
+      if (totalInZone > 0) {
+        const violationRatio = belowCount / totalInZone;
+        priorityPenalty += violationRatio * pz.weight * (pz.mustHaveCoverage ? 2.0 : 1.0);
+      }
+    }
+    // Reduce coverage score proportionally (max 30% penalty from priority zones)
+    const penaltyFactor = Math.min(0.3, priorityPenalty / priorityZones.length * 0.15);
+    coverageScore *= (1 - penaltyFactor);
   }
 
   // Overlap penalty: ratio of overlap cells (0-100)

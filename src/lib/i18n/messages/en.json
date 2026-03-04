@@ -536,7 +536,9 @@
     "constraintConflictTitle": "{ap} in {zoneType} zone",
     "constraintConflictReason": "AP {ap} is currently placed in a {zoneType} zone — consider moving it",
     "preferredCandidateTitle": "Use preferred location {candidate}",
-    "preferredCandidateReason": "Preferred location {candidate} is not covered by any AP — adding one would improve coverage by {improvement}%"
+    "preferredCandidateReason": "Preferred location {candidate} is not covered by any AP — adding one would improve coverage by {improvement}%",
+    "mustHaveCoverageTitle": "Coverage required: {zone}",
+    "mustHaveCoverageReason": "Priority zone '{zone}' requires coverage but no AP is in range"
   },
   "candidate": {
     "title": "Candidate Location",

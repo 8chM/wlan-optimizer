@@ -13,6 +13,7 @@ import {
   findLowValueAPs,
 } from '../analysis';
 import { EXPERT_PROFILES } from '../types';
+import type { PriorityZone } from '../types';
 
 // ─── Helper: create minimal HeatmapStats ──────────────────────────
 
@@ -149,6 +150,43 @@ describe('computeOverallScore', () => {
 
     expect(score.overallScore).toBeGreaterThanOrEqual(0);
     expect(score.overallScore).toBeLessThanOrEqual(100);
+  });
+
+  it('should return bandSuitabilityScore 70 when no uplinkLimitedGrid', () => {
+    const stats = makeStats({
+      coverageBins: { excellent: 50, good: 30, fair: 10, poor: 5, none: 5 },
+      totalCells: 100,
+    });
+    const apMetrics = new Map();
+    const score = computeOverallScore(stats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced);
+    // Without uplinkLimitedGrid, bandSuitabilityScore should be 70 (neutral-positive)
+    expect(score.bandSuitabilityScore).toBe(70);
+  });
+
+  it('should reduce coverage score with priorityZone penalty', () => {
+    const grids = makeGrids(10, 10, { rssi: -90 }); // all weak
+    const stats = makeStats({
+      ...grids,
+      coverageBins: { excellent: 10, good: 20, fair: 30, poor: 30, none: 10 },
+      totalCells: 100,
+      gridWidth: 10,
+      gridHeight: 10,
+    });
+    const apMetrics = new Map();
+    const pz: PriorityZone = {
+      zoneId: 'pz-1',
+      label: 'Office',
+      x: 0, y: 0, width: 10, height: 10,
+      weight: 2.0,
+      targetBand: 'either',
+      mustHaveCoverage: true,
+    };
+
+    const withoutPZ = computeOverallScore(stats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced, '5ghz');
+    const withPZ = computeOverallScore(stats, apMetrics, emptyChannelAnalysis, EXPERT_PROFILES.balanced, '5ghz', [pz]);
+
+    // Coverage score should be reduced with priority zone penalty
+    expect(withPZ.coverageScore).toBeLessThanOrEqual(withoutPZ.coverageScore);
   });
 });
 

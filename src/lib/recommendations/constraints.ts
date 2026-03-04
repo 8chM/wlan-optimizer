@@ -232,7 +232,16 @@ export function computeRecommendationScore(rec: Recommendation): number {
   const infraCost = rec.infrastructureCostScore ?? 0;
 
   // Weighted combination — no artificial offset
-  const raw = benefit * 0.40 + feasibility * 0.25 - effort * 0.15 - risk * 0.10 - infraCost * 0.10;
+  let raw = benefit * 0.40 + feasibility * 0.25 - effort * 0.15 - risk * 0.10 - infraCost * 0.10;
+
+  // Severity boost: critical +8, warning +4
+  if (rec.severity === 'critical') raw += 8;
+  else if (rec.severity === 'warning') raw += 4;
+
+  // Priority boost: high +5, medium +2
+  if (rec.priority === 'high') raw += 5;
+  else if (rec.priority === 'medium') raw += 2;
+
   return Math.max(0, Math.min(100, raw));
 }
 

@@ -159,6 +159,50 @@ describe('computeRecommendationScore', () => {
     });
     expect(computeRecommendationScore(easy)).toBeGreaterThan(computeRecommendationScore(hard));
   });
+
+  it('should boost score for critical severity', () => {
+    const base = makeRec('change_channel', {
+      severity: 'info',
+      priority: 'low',
+      benefitScore: 50,
+      effortScore: 10,
+      feasibilityScore: 90,
+      riskScore: 5,
+      infrastructureCostScore: 0,
+    });
+    const critical = makeRec('change_channel', {
+      severity: 'critical',
+      priority: 'low',
+      benefitScore: 50,
+      effortScore: 10,
+      feasibilityScore: 90,
+      riskScore: 5,
+      infrastructureCostScore: 0,
+    });
+    expect(computeRecommendationScore(critical)).toBeGreaterThan(computeRecommendationScore(base));
+  });
+
+  it('should boost score for high priority', () => {
+    const low = makeRec('move_ap', {
+      severity: 'warning',
+      priority: 'low',
+      benefitScore: 60,
+      effortScore: 30,
+      feasibilityScore: 80,
+      riskScore: 10,
+      infrastructureCostScore: 0,
+    });
+    const high = makeRec('move_ap', {
+      severity: 'warning',
+      priority: 'high',
+      benefitScore: 60,
+      effortScore: 30,
+      feasibilityScore: 80,
+      riskScore: 10,
+      infrastructureCostScore: 0,
+    });
+    expect(computeRecommendationScore(high)).toBeGreaterThan(computeRecommendationScore(low));
+  });
 });
 
 describe('deriveConstraintsFromRejection', () => {

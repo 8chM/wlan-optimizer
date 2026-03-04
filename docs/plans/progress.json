@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-04",
-  "currentPhase": "phase-26-complete",
+  "currentPhase": "phase-26b-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -630,6 +630,21 @@
         "Block 8: isConfigType erweitert um disable_ap",
         "Block 9: Mixing-Page Apply/Preview mit band-spezifischen Parameter-Namen + disable_ap Handling",
         "Block 10: Verifikation OK — svelte-check 0 Errors, Build Success, 729 Tests PASS"
+      ]
+    },
+    "26b": {
+      "name": "Recommendation Engine — Fachliche Ueberarbeitung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-04",
+      "auditResult": "PASSED - 6 Bloecke implementiert, Build 0 Errors, svelte-check 0 Errors, 733 Tests PASS (4 neue)",
+      "deliverables": [
+        "Block 1: bandSuitability Fallback 50→70, PriorityZone Coverage-Penalty, Informational benefitScore=0, severity/priority Boost",
+        "Block 2: targetBand Nutzung in add_ap/move_ap, mustHaveCoverage in constraint_conflict",
+        "Block 3: selectTemplateAp (bester AP statt aps[0]), Wall Validation fuer preferred candidates",
+        "Block 4: Dominanz-basierte Dedup (3x Impact Override)",
+        "Block 5: 2 neue i18n-Keys EN+DE, 2 tote Typen entfernt (config_only_improvement, best_effort_improvement)",
+        "Block 6: 4 neue Tests, Verifikation OK"
       ]
     }
   },

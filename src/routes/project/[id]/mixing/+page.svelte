@@ -1,17 +1,19 @@
 <!--
-  Mixing Console page - AP parameter adjustment with forecast heatmap.
+  Optimierung page - Combined recommendations wizard + manual mixing console.
 
   Integrates:
-  - MixingConsole in the left sidebar (320px) with AP slider groups
-  - FloorplanEditor with Forecast Heatmap overlay in the center
-  - ChangeList and AssistSteps below the sliders
-  - mixingStore for state management
+  - Tab 1 (Empfehlungen): Score header + recommendation wizard steps
+  - Tab 2 (Manuell): MixingConsole + ChangeList + AssistSteps (existing)
+  - FloorplanEditor with base heatmap + optional forecast overlay
+  - EditorHeatmap for base stats (always visible)
 -->
 <script lang="ts">
   import { FloorplanEditor } from '$lib/canvas';
   import BackgroundImage from '$lib/canvas/BackgroundImage.svelte';
   import WallDrawingTool from '$lib/canvas/WallDrawingTool.svelte';
   import AccessPointMarker from '$lib/canvas/AccessPointMarker.svelte';
+  import CandidateLocationMarker from '$lib/canvas/CandidateLocationMarker.svelte';
+  import ConstraintZoneRect from '$lib/canvas/ConstraintZoneRect.svelte';
   import GridOverlay from '$lib/canvas/GridOverlay.svelte';
   import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
   import HeatmapOverlay from '$lib/canvas/HeatmapOverlay.svelte';
@@ -23,17 +25,27 @@
   import type { SavedMeasurement } from '$lib/canvas/SavedMeasurements.svelte';
   import TextAnnotation from '$lib/canvas/TextAnnotation.svelte';
   import type { AnnotationData } from '$lib/canvas/TextAnnotation.svelte';
+  import EditorHeatmap from '$lib/components/editor/EditorHeatmap.svelte';
   import MixingConsole from '$lib/components/mixing/MixingConsole.svelte';
   import ChangeList from '$lib/components/mixing/ChangeList.svelte';
   import AssistSteps from '$lib/components/mixing/AssistSteps.svelte';
   import ForecastHeatmap from '$lib/components/mixing/ForecastHeatmap.svelte';
   import HeatmapComparison from '$lib/components/comparison/HeatmapComparison.svelte';
+  import OptimierungTabs from '$lib/components/optimierung/OptimierungTabs.svelte';
+  import OptimierungHeader from '$lib/components/optimierung/OptimierungHeader.svelte';
+  import RecommendationWizard from '$lib/components/optimierung/RecommendationWizard.svelte';
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
   import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { mixingStore } from '$lib/stores/mixingStore.svelte';
   import { comparisonStore } from '$lib/stores/comparisonStore.svelte';
+  import { recommendationStore } from '$lib/stores/recommendationStore.svelte';
+  import { optimierungStore } from '$lib/stores/optimierungStore.svelte';
+  import { convertApsToConfig, convertWallsToData } from '$lib/heatmap/convert';
+  import { createRFConfig } from '$lib/heatmap/rf-engine';
+  import type { CandidateLocation, ConstraintZone, APCapabilities, Recommendation, RejectionReason } from '$lib/recommendations/types';
   import { safeInvoke } from '$lib/api/invoke';
+  import { updateAccessPoint } from '$lib/api/accessPoint';
   import { t } from '$lib/i18n';
   import { registerShortcuts } from '$lib/utils/keyboard';
   import type { Position } from '$lib/models/types';
@@ -73,6 +85,34 @@
   let accessPoints = $derived(floor?.access_points ?? []);
   let floorRotation = $derived(floor?.background_image_rotation ?? 0);
 
+  // Candidates and constraint zones from recommendation context
+  let candidates = $derived(recommendationStore.context.candidates);
+  let constraintZones = $derived(recommendationStore.context.constraintZones);
+
+  // Preview state
+  let previewRec = $state<Recommendation | null>(null);
+
+  // APs with preview overrides applied (for visual marker rendering)
+  let displayAccessPoints = $derived.by(() => {
+    const aps = floor?.access_points ?? [];
+    const change = previewRec?.suggestedChange;
+    if (!change?.apId) return aps;
+
+    return aps.map(ap => {
+      if (ap.id !== change.apId) return ap;
+      const updated = { ...ap };
+      if (change.parameter === 'position') {
+        const m = String(change.suggestedValue).match(/\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*\)?/);
+        if (m) { updated.x = parseFloat(m[1]!); updated.y = parseFloat(m[2]!); }
+      } else if (change.parameter === 'orientationDeg') {
+        updated.orientation_deg = Number(change.suggestedValue);
+      } else if (change.parameter === 'mounting') {
+        updated.mounting = String(change.suggestedValue);
+      }
+      return updated;
+    });
+  });
+
   // Forecast heatmap state
   let forecastCanvas = $state<HTMLCanvasElement | null>(null);
   let forecastStats = $state<{ minRSSI: number; maxRSSI: number; avgRSSI: number; calculationTimeMs: number } | null>(null);
@@ -108,6 +148,42 @@
 
   // Changes as an array for components
   let changesArray = $derived(mixingStore.getChangeSummary());
+
+  // Use forecast canvas when available, otherwise base heatmap
+  let displayCanvas = $derived(mixingStore.forecastMode && forecastCanvas ? forecastCanvas : editorHeatmapStore.canvas);
+  let heatmapVisible = $derived(displayCanvas !== null);
+
+  // ─── Enable base heatmap on mount ─────────────────────────────
+
+  $effect(() => {
+    editorHeatmapStore.setVisible(true);
+    return () => {
+      editorHeatmapStore.setVisible(false);
+    };
+  });
+
+  // ─── Load candidates/zones/capabilities from localStorage ─────
+
+  $effect(() => {
+    if (!floorId) return;
+    try {
+      const stored = localStorage.getItem(`wlan-opt:candidates:${floorId}`);
+      const candidates: CandidateLocation[] = stored ? JSON.parse(stored) : [];
+      recommendationStore.setCandidates(candidates);
+    } catch { /* ignore */ }
+    try {
+      const stored = localStorage.getItem(`wlan-opt:zones:${floorId}`);
+      const zones: ConstraintZone[] = stored ? JSON.parse(stored) : [];
+      recommendationStore.setConstraintZones(zones);
+    } catch { /* ignore */ }
+    try {
+      const stored = localStorage.getItem(`wlan-opt:capabilities:${floorId}`);
+      if (stored) {
+        const arr: APCapabilities[] = JSON.parse(stored);
+        recommendationStore.setAPCapabilities(arr);
+      }
+    } catch { /* ignore */ }
+  });
 
   // ─── Load background offset from localStorage ─────────────────
 
@@ -184,7 +260,6 @@
   // ─── Load existing plan on mount, cleanup on unmount ────────────
 
   $effect(() => {
-    // Try to load the latest plan for this project
     if (projectId) {
       mixingStore.listPlans(projectId).then((plans) => {
         if (plans.length > 0) {
@@ -195,13 +270,176 @@
     }
 
     return () => {
-      // Persist changes before reset so they survive navigation
       comparisonStore.reset();
       mixingStore.reset();
     };
   });
 
-  // ─── Handlers ─────────────────────────────────────────────────
+  // ─── Recommendation Analysis ────────────────────────────────────
+
+  function runOptimierungAnalysis(): void {
+    const stats = editorHeatmapStore.stats;
+    const aps = floor?.access_points ?? [];
+    const walls = floor?.walls ?? [];
+    if (!stats || aps.length === 0) return;
+
+    const band = editorHeatmapStore.band;
+    const apConfigs = convertApsToConfig(aps, band);
+    const wallData = convertWallsToData(walls, band);
+    const rfConfig = createRFConfig(band, {
+      pathLossExponent: editorHeatmapStore.calibratedN,
+      receiverGain: editorHeatmapStore.receiverGainDbi,
+      backSectorPenalty: editorHeatmapStore.backSectorPenalty,
+      sideSectorPenalty: editorHeatmapStore.sideSectorPenalty,
+    });
+
+    recommendationStore.analyze(apConfigs, aps, wallData, floorBounds, band, stats, rfConfig);
+  }
+
+  function handleProfileChange(profile: import('$lib/recommendations/types').ExpertProfile): void {
+    recommendationStore.setProfile(profile);
+    // Re-run analysis if we have prior results
+    if (recommendationStore.result) {
+      runOptimierungAnalysis();
+    }
+  }
+
+  // ─── Apply Recommendation to AP ─────────────────────────────────
+
+  /** Persists a suggestedChange to the actual AP data and refreshes the floor. */
+  async function applyRecommendationToAP(change: NonNullable<Recommendation['suggestedChange']>): Promise<void> {
+    const { apId, parameter, suggestedValue } = change;
+    if (!apId) return;
+
+    const updates: Record<string, number | string> = {};
+
+    if (parameter === 'position') {
+      const m = String(suggestedValue).match(/\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*\)?/);
+      if (m) {
+        updates.x = parseFloat(m[1]!);
+        updates.y = parseFloat(m[2]!);
+      }
+    } else if (parameter === 'orientationDeg') {
+      updates.orientation_deg = Number(suggestedValue);
+    } else if (parameter === 'mounting') {
+      updates.mounting = String(suggestedValue);
+    } else if (parameter === 'txPowerDbm') {
+      // Legacy parameter name — map to band-specific
+      const band = editorHeatmapStore.band;
+      if (band === '2.4ghz') updates.tx_power_24ghz_dbm = Number(suggestedValue);
+      else if (band === '6ghz') updates.tx_power_5ghz_dbm = Number(suggestedValue);
+      else updates.tx_power_5ghz_dbm = Number(suggestedValue);
+    } else if (parameter === 'tx_power_24ghz') {
+      updates.tx_power_24ghz_dbm = Number(suggestedValue);
+    } else if (parameter === 'tx_power_5ghz') {
+      updates.tx_power_5ghz_dbm = Number(suggestedValue);
+    } else if (parameter === 'tx_power_6ghz') {
+      updates.tx_power_5ghz_dbm = Number(suggestedValue); // 6 GHz uses same field
+    } else if (parameter === 'channel') {
+      // Legacy parameter name — map to band-specific
+      const band = editorHeatmapStore.band;
+      if (band === '2.4ghz') updates.channel_24ghz = Number(suggestedValue);
+      else updates.channel_5ghz = Number(suggestedValue);
+    } else if (parameter === 'channel_24ghz') {
+      updates.channel_24ghz = Number(suggestedValue);
+    } else if (parameter === 'channel_5ghz') {
+      updates.channel_5ghz = Number(suggestedValue);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await updateAccessPoint(apId, updates);
+      await projectStore.refreshFloorData();
+    }
+  }
+
+  // ─── Recommendation Step Handlers ───────────────────────────────
+
+  async function handleStepApply(rec: Recommendation): Promise<void> {
+    if (rec.type === 'disable_ap' && rec.affectedApIds[0]) {
+      await updateAccessPoint(rec.affectedApIds[0], { enabled: false });
+      await projectStore.refreshFloorData();
+    } else if (rec.suggestedChange?.apId) {
+      await applyRecommendationToAP(rec.suggestedChange);
+    }
+    optimierungStore.setStepState(rec.id, 'applied');
+  }
+
+  function handleStepSkip(rec: Recommendation): void {
+    optimierungStore.setStepState(rec.id, 'skipped');
+  }
+
+  function handleStepReject(rec: Recommendation, reason: RejectionReason): void {
+    recommendationStore.rejectAndRecompute(rec.id, reason);
+    optimierungStore.resetSteps();
+  }
+
+  function handleStepSelect(rec: Recommendation): void {
+    if (recommendationStore.selectedRecommendationId === rec.id) {
+      recommendationStore.selectRecommendation(null);
+    } else {
+      recommendationStore.selectRecommendation(rec.id);
+    }
+  }
+
+  // ─── Preview Handlers ──────────────────────────────────────────
+
+  function handleStepPreview(rec: Recommendation): void {
+    if (!rec.suggestedChange?.apId) return;
+    previewRec = rec;
+    const { apId, parameter, currentValue, suggestedValue } = rec.suggestedChange;
+    const id = apId!;
+
+    if (parameter === 'position') {
+      // Parse "(x, y)" coordinate string → two separate overrides
+      const match = String(suggestedValue).match(/\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*\)?/);
+      if (match) {
+        const oldMatch = String(currentValue).match(/\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*\)?/);
+        mixingStore.applyChange(id, 'position_x', oldMatch?.[1] ?? null, match[1]!);
+        mixingStore.applyChange(id, 'position_y', oldMatch?.[2] ?? null, match[2]!);
+      }
+    } else if (parameter === 'txPowerDbm') {
+      // Legacy parameter name — map to band-specific
+      const band = editorHeatmapStore.band;
+      const paramKey = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
+      mixingStore.applyChange(id, paramKey, String(currentValue ?? ''), String(suggestedValue));
+    } else if (parameter === 'tx_power_24ghz' || parameter === 'tx_power_5ghz' || parameter === 'tx_power_6ghz') {
+      // Band-specific TX power — use parameter name directly
+      mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
+    } else if (parameter === 'channel') {
+      // Legacy parameter name
+      const band = editorHeatmapStore.band;
+      const paramKey = band === '2.4ghz' ? 'channel_24ghz' : 'channel_5ghz';
+      mixingStore.applyChange(id, paramKey, String(currentValue ?? ''), String(suggestedValue));
+    } else if (parameter === 'channel_24ghz' || parameter === 'channel_5ghz') {
+      // Band-specific channel — use parameter name directly
+      mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
+    } else {
+      // orientationDeg, mounting → use parameter name directly as override key
+      mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
+    }
+  }
+
+  async function handlePreviewApply(): Promise<void> {
+    if (!previewRec) return;
+    if (previewRec.suggestedChange?.apId) {
+      await applyRecommendationToAP(previewRec.suggestedChange);
+    }
+    optimierungStore.setStepState(previewRec.id, 'applied');
+    // Clear forecast — base heatmap now reflects the change
+    mixingStore.resetAll();
+    forecastCanvas = null;
+    forecastStats = null;
+    previewRec = null;
+  }
+
+  function handlePreviewCancel(): void {
+    mixingStore.resetAll();
+    forecastCanvas = null;
+    forecastStats = null;
+    previewRec = null;
+  }
+
+  // ─── Mixing Console Handlers ────────────────────────────────────
 
   async function handleGeneratePlan(): Promise<void> {
     if (!projectId || !floorId) return;
@@ -224,15 +462,11 @@
 
   async function handleApplyChanges(): Promise<void> {
     if (!mixingStore.currentPlan) return;
-
-    // Mark all pending steps as applied individually
     for (const step of mixingStore.steps) {
       if (!step.applied) {
         await mixingStore.markStepApplied(step.id);
       }
     }
-
-    // Then update the overall plan status
     await mixingStore.updatePlanStatus(mixingStore.currentPlan.id, 'applied');
   }
 
@@ -252,12 +486,13 @@
     forecastStats = stats;
   }
 
+  // ─── Canvas Handlers ────────────────────────────────────────────
+
   function handleCanvasMouseMove(canvasX: number, canvasY: number): void {
     mousePosition = { x: canvasX, y: canvasY };
     canvasStore.setMousePosition(canvasX / scalePxPerMeter, canvasY / scalePxPerMeter);
   }
 
-  // Reset measure on tool change
   $effect(() => {
     if (canvasStore.activeTool !== 'measure') {
       measureStart = null;
@@ -302,7 +537,6 @@
     return cleanup;
   });
 
-  // Track modifier keys for panning
   function handleKeyDown(event: KeyboardEvent): void {
     if (event.key === 'Shift') canvasStore.setShiftHeld(true);
     if (event.key === ' ' || event.code === 'Space') {
@@ -331,10 +565,22 @@
 </script>
 
 <svelte:head>
-  <title>{t('nav.mixing')} - {t('app.title')}</title>
+  <title>{t('nav.optimize')} - {t('app.title')}</title>
 </svelte:head>
 
 <svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
+
+<!-- Headless base heatmap renderer (always active) -->
+{#if floor}
+  <EditorHeatmap
+    accessPoints={floor.access_points ?? []}
+    walls={floor.walls ?? []}
+    bounds={floorBounds}
+    {scalePxPerMeter}
+    outputWidth={containerWidth}
+    outputHeight={containerHeight}
+  />
+{/if}
 
 <!-- Headless forecast heatmap renderer -->
 {#if floor}
@@ -344,6 +590,7 @@
     bounds={floorBounds}
     changes={changesArray}
     forecastActive={mixingStore.forecastMode}
+    band={editorHeatmapStore.band}
     outputWidth={containerWidth}
     outputHeight={containerHeight}
     {scalePxPerMeter}
@@ -353,39 +600,62 @@
 {/if}
 
 <div class="mixing-page">
-  <!-- Left sidebar with mixing console -->
+  <!-- Left sidebar with tabs -->
   <aside class="mixing-sidebar">
-    <MixingConsole
-      {accessPoints}
-      changes={changesArray}
-      isGenerating={mixingStore.isGenerating}
-      hasChanges={mixingStore.hasChanges}
-      planStatus={mixingStore.currentPlan?.status ?? null}
-      error={mixingStore.error}
-      onGeneratePlan={handleGeneratePlan}
-      onChange={handleChange}
-      onResetAp={handleResetAp}
-      onResetAll={handleResetAll}
-      onApplyChanges={handleApplyChanges}
+    <OptimierungHeader
+      result={recommendationStore.result}
+      loading={recommendationStore.loading}
+      profile={recommendationStore.profile}
+      onAnalyze={runOptimierungAnalysis}
+      onProfileChange={handleProfileChange}
     />
 
-    <!-- Change List -->
-    {#if mixingStore.hasChanges}
-      <div class="section-divider"></div>
-      <ChangeList
-        changes={changesArray}
-        {accessPoints}
-      />
-    {/if}
+    <OptimierungTabs />
 
-    <!-- Assist Steps (from plan) -->
-    {#if mixingStore.steps.length > 0}
-      <div class="section-divider"></div>
-      <AssistSteps
-        steps={mixingStore.steps}
-        {accessPoints}
-        onToggleStep={handleToggleStep}
+    <!-- Tab content -->
+    {#if optimierungStore.activeTab === 'empfehlungen'}
+      <RecommendationWizard
+        result={recommendationStore.result}
+        stepStates={optimierungStore.stepStates}
+        onApply={handleStepApply}
+        onSkip={handleStepSkip}
+        onReject={handleStepReject}
+        onSelect={handleStepSelect}
+        onPreview={handleStepPreview}
+        previewActive={previewRec !== null}
       />
+    {:else}
+      <!-- Manual tab: existing Mixing Console -->
+      <MixingConsole
+        {accessPoints}
+        changes={changesArray}
+        isGenerating={mixingStore.isGenerating}
+        hasChanges={mixingStore.hasChanges}
+        planStatus={mixingStore.currentPlan?.status ?? null}
+        error={mixingStore.error}
+        onGeneratePlan={handleGeneratePlan}
+        onChange={handleChange}
+        onResetAp={handleResetAp}
+        onResetAll={handleResetAll}
+        onApplyChanges={handleApplyChanges}
+      />
+
+      {#if mixingStore.hasChanges}
+        <div class="section-divider"></div>
+        <ChangeList
+          changes={changesArray}
+          {accessPoints}
+        />
+      {/if}
+
+      {#if mixingStore.steps.length > 0}
+        <div class="section-divider"></div>
+        <AssistSteps
+          steps={mixingStore.steps}
+          {accessPoints}
+          onToggleStep={handleToggleStep}
+        />
+      {/if}
     {/if}
   </aside>
 
@@ -434,23 +704,24 @@
         {/snippet}
 
         {#snippet heatmap()}
-          <!-- Forecast heatmap overlay -->
+          <!-- Show forecast canvas when mixing has changes, otherwise base heatmap -->
           <HeatmapOverlay
-            heatmapCanvas={forecastCanvas}
+            heatmapCanvas={displayCanvas}
             bounds={floorBounds}
             {scalePxPerMeter}
-            visible={mixingStore.forecastMode && forecastCanvas !== null}
+            visible={heatmapVisible}
             opacity={editorHeatmapStore.opacity}
           />
         {/snippet}
 
         {#snippet ui()}
-          <!-- Walls (read-only in mixing mode) -->
+          <!-- Walls (read-only) -->
           {#if floor.walls}
             {#each floor.walls as wall (wall.id)}
               <WallDrawingTool
                 {wall}
                 selected={false}
+                interactive={false}
                 {scalePxPerMeter}
               />
             {/each}
@@ -466,19 +737,39 @@
             />
           {/each}
 
-          <!-- Access points (read-only in mixing mode) -->
-          {#if floor.access_points}
-            {#each floor.access_points as ap (ap.id)}
-              <AccessPointMarker
-                accessPoint={ap}
-                selected={false}
-                {scalePxPerMeter}
-                draggable={false}
-              />
-            {/each}
-          {/if}
+          <!-- Access points (with preview overrides applied) -->
+          {#each displayAccessPoints as ap (ap.id)}
+            <AccessPointMarker
+              accessPoint={ap}
+              selected={false}
+              interactive={false}
+              {scalePxPerMeter}
+              draggable={false}
+            />
+          {/each}
 
-          <!-- Measure tool layer (distance ruler) -->
+          <!-- Candidate locations (read-only) -->
+          {#each candidates as cand (cand.id)}
+            <CandidateLocationMarker
+              candidate={cand}
+              selected={false}
+              {scalePxPerMeter}
+              draggable={false}
+              interactive={false}
+            />
+          {/each}
+
+          <!-- Constraint zones (read-only) -->
+          {#each constraintZones as zone (zone.id)}
+            <ConstraintZoneRect
+              {zone}
+              selected={false}
+              {scalePxPerMeter}
+              interactive={false}
+            />
+          {/each}
+
+          <!-- Measure tool layer -->
           {#if canvasStore.activeTool === 'measure' && measureStart}
             <MeasureLayer
               startPoint={measureStart}
@@ -488,7 +779,7 @@
             />
           {/if}
 
-          <!-- Saved/pinned measurements (read-only) -->
+          <!-- Saved measurements (read-only) -->
           {#if savedMeasurements.length > 0}
             <SavedMeasurements
               measurements={savedMeasurements}
@@ -501,7 +792,7 @@
             <CrosshairCursor x={mousePosition.x} y={mousePosition.y} />
           {/if}
 
-          <!-- Ruler overlay (always visible, rendered last so it's on top) -->
+          <!-- Ruler overlay -->
           <RulerOverlay
             widthPx={containerWidth}
             heightPx={containerHeight}
@@ -524,6 +815,15 @@
         offsetY={canvasStore.offsetY}
         onOffsetChange={(x, y) => canvasStore.setOffset(x, y)}
       />
+
+      <!-- Preview banner -->
+      {#if previewRec}
+        <div class="preview-banner">
+          <span class="preview-label">{t('opt.previewActive')}</span>
+          <button class="preview-btn apply" onclick={handlePreviewApply}>{t('opt.apply')}</button>
+          <button class="preview-btn cancel" onclick={handlePreviewCancel}>{t('opt.cancel')}</button>
+        </div>
+      {/if}
 
       <!-- Forecast stats overlay -->
       {#if forecastStats && mixingStore.forecastMode}
@@ -603,6 +903,63 @@
     height: 100%;
     color: #6a6a8a;
     font-size: 1rem;
+  }
+
+  /* ─── Preview Banner ────────────────────────────────────────── */
+
+  .preview-banner {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: rgba(99, 102, 241, 0.9);
+    border: 1px solid rgba(165, 180, 252, 0.4);
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+    z-index: 10;
+  }
+
+  .preview-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .preview-btn {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all 0.15s ease;
+  }
+
+  .preview-btn.apply {
+    background: rgba(34, 197, 94, 0.25);
+    border-color: rgba(34, 197, 94, 0.5);
+    color: #fff;
+  }
+
+  .preview-btn.apply:hover {
+    background: rgba(34, 197, 94, 0.4);
+  }
+
+  .preview-btn.cancel {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+  }
+
+  .preview-btn.cancel:hover {
+    background: rgba(255, 255, 255, 0.25);
   }
 
   /* ─── Forecast Badge ─────────────────────────────────────────── */

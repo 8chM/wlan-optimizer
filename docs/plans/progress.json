@@ -1,41 +1,137 @@
 {
   "project": "WLAN-Optimizer",
-  "lastUpdated": "2026-03-03",
-  "currentPhase": "phase-21-complete",
+  "lastUpdated": "2026-03-04",
+  "currentPhase": "phase-26-complete",
   "phases": {
-    "0": { "name": "Autonomie-Recherche", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
-    "1": { "name": "Projektsetup", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
-    "2": { "name": "Deep Dive & Lueckenanalyse", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
-    "3": { "name": "Recherche & Evaluation", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
-    "4": { "name": "Klaerung mit Benutzer", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
-    "5": { "name": "Architektur & Tech-Stack", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
-    "6": { "name": "Orchestrierungsstrategie", "status": "completed", "gate": "passed", "completedAt": "2026-02-27" },
-    "7": { "name": "Detailplanung", "status": "completed", "gate": "passed", "completedAt": "2026-02-27", "auditResult": "PASSED - Implementierungsplan + Orchestrierung vorhanden" },
+    "0": {
+      "name": "Autonomie-Recherche",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27"
+    },
+    "1": {
+      "name": "Projektsetup",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27"
+    },
+    "2": {
+      "name": "Deep Dive & Lueckenanalyse",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27"
+    },
+    "3": {
+      "name": "Recherche & Evaluation",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27"
+    },
+    "4": {
+      "name": "Klaerung mit Benutzer",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27"
+    },
+    "5": {
+      "name": "Architektur & Tech-Stack",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27"
+    },
+    "6": {
+      "name": "Orchestrierungsstrategie",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27"
+    },
+    "7": {
+      "name": "Detailplanung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-02-27",
+      "auditResult": "PASSED - Implementierungsplan + Orchestrierung vorhanden"
+    },
     "8": {
       "name": "Autonome Entwicklung",
       "status": "completed",
       "gate": "passed",
       "subtasks": {
-        "8a": { "name": "Scaffolding + PoC", "status": "completed", "auditResult": "PASSED" },
-        "8b": { "name": "Kernmodul Planung", "status": "completed", "auditResult": "PASSED" },
-        "8c": { "name": "Kernmodul Heatmap", "status": "completed", "auditResult": "PASSED - RF-Engine, Spatial Grid, Web Worker, 172 Tests" },
-        "8d": { "name": "Modul Messung", "status": "completed", "auditResult": "PASSED - Browser-Backend Messung jetzt voll funktional mit localStorage-Persistenz" },
-        "8e": { "name": "Modul Optimierung", "status": "completed", "auditResult": "PASSED - Browser-Backend Optimierung jetzt voll funktional mit regelbasierter Step-Generierung" },
-        "8f": { "name": "UI/UX & i18n", "status": "completed", "auditResult": "PASSED - Theme, Shortcuts, Toast, i18n, Onboarding" },
-        "8g": { "name": "Integration", "status": "completed", "auditResult": "PASSED - 39 IPC Commands, SQL-Injection-free, 576 Tests" }
+        "8a": {
+          "name": "Scaffolding + PoC",
+          "status": "completed",
+          "auditResult": "PASSED"
+        },
+        "8b": {
+          "name": "Kernmodul Planung",
+          "status": "completed",
+          "auditResult": "PASSED"
+        },
+        "8c": {
+          "name": "Kernmodul Heatmap",
+          "status": "completed",
+          "auditResult": "PASSED - RF-Engine, Spatial Grid, Web Worker, 172 Tests"
+        },
+        "8d": {
+          "name": "Modul Messung",
+          "status": "completed",
+          "auditResult": "PASSED - Browser-Backend Messung jetzt voll funktional mit localStorage-Persistenz"
+        },
+        "8e": {
+          "name": "Modul Optimierung",
+          "status": "completed",
+          "auditResult": "PASSED - Browser-Backend Optimierung jetzt voll funktional mit regelbasierter Step-Generierung"
+        },
+        "8f": {
+          "name": "UI/UX & i18n",
+          "status": "completed",
+          "auditResult": "PASSED - Theme, Shortcuts, Toast, i18n, Onboarding"
+        },
+        "8g": {
+          "name": "Integration",
+          "status": "completed",
+          "auditResult": "PASSED - 39 IPC Commands, SQL-Injection-free, 576 Tests"
+        }
       }
     },
-    "9": { "name": "Qualitaetskontrolle", "status": "completed", "gate": "passed", "auditResult": "PASSED" },
-    "10": { "name": "Produktverbesserungen", "status": "completed", "gate": "passed", "auditResult": "PASSED" },
-    "11": { "name": "Dokumentation & Uebergabe", "status": "completed", "gate": "passed", "auditResult": "PASSED" },
+    "9": {
+      "name": "Qualitaetskontrolle",
+      "status": "completed",
+      "gate": "passed",
+      "auditResult": "PASSED"
+    },
+    "10": {
+      "name": "Produktverbesserungen",
+      "status": "completed",
+      "gate": "passed",
+      "auditResult": "PASSED"
+    },
+    "11": {
+      "name": "Dokumentation & Uebergabe",
+      "status": "completed",
+      "gate": "passed",
+      "auditResult": "PASSED"
+    },
     "12": {
       "name": "Live Editor Experience",
       "status": "completed",
       "gate": "passed",
       "subtasks": {
-        "12a": { "name": "Undo/Redo System", "status": "completed", "auditResult": "PASSED" },
-        "12b": { "name": "Live Heatmap im Editor", "status": "completed", "auditResult": "PASSED" },
-        "12c": { "name": "Coverage Statistics", "status": "completed", "auditResult": "PASSED" }
+        "12a": {
+          "name": "Undo/Redo System",
+          "status": "completed",
+          "auditResult": "PASSED"
+        },
+        "12b": {
+          "name": "Live Heatmap im Editor",
+          "status": "completed",
+          "auditResult": "PASSED"
+        },
+        "12c": {
+          "name": "Coverage Statistics",
+          "status": "completed",
+          "auditResult": "PASSED"
+        }
       }
     },
     "13": {
@@ -43,8 +139,16 @@
       "status": "completed",
       "gate": "passed",
       "subtasks": {
-        "13a": { "name": "Channel Conflict Detection", "status": "completed", "auditResult": "PASSED" },
-        "13b": { "name": "Before/After Heatmap Comparison", "status": "completed", "auditResult": "PASSED" }
+        "13a": {
+          "name": "Channel Conflict Detection",
+          "status": "completed",
+          "auditResult": "PASSED"
+        },
+        "13b": {
+          "name": "Before/After Heatmap Comparison",
+          "status": "completed",
+          "auditResult": "PASSED"
+        }
       }
     },
     "14": {
@@ -52,8 +156,16 @@
       "status": "completed",
       "gate": "passed",
       "subtasks": {
-        "14a": { "name": "AP Placement Hints", "status": "completed", "auditResult": "PASSED - Hints werden jetzt vom Heatmap-Worker berechnet und im Editor angezeigt" },
-        "14b": { "name": "Code Quality", "status": "completed", "auditResult": "PASSED" }
+        "14a": {
+          "name": "AP Placement Hints",
+          "status": "completed",
+          "auditResult": "PASSED - Hints werden jetzt vom Heatmap-Worker berechnet und im Editor angezeigt"
+        },
+        "14b": {
+          "name": "Code Quality",
+          "status": "completed",
+          "auditResult": "PASSED"
+        }
       }
     },
     "15": {
@@ -63,14 +175,46 @@
       "completedAt": "2026-03-02",
       "auditResult": "PASSED - Alle UI-Features verdrahtet und funktional",
       "subtasks": {
-        "15-1": { "name": "PropertiesPanel", "status": "completed", "auditResult": "PASSED - Materials, Wall/AP Callbacks verdrahtet" },
-        "15-2": { "name": "AP-Einstellungen", "status": "completed", "auditResult": "PASSED - Mounting, Height, Channel, Width" },
-        "15-3": { "name": "Grid vor Grundriss", "status": "completed", "auditResult": "PASSED - GridOverlay nach BackgroundImage gerendert" },
-        "15-4": { "name": "Grundriss austauschen", "status": "completed", "auditResult": "PASSED - Upload/Replace Button vorhanden" },
-        "15-5": { "name": "Massstab setzen", "status": "completed", "auditResult": "PASSED - Scale-Setting-Modus mit 2-Punkt-Kalibrierung" },
-        "15-6": { "name": "Wand-Bearbeitung", "status": "completed", "auditResult": "PASSED - Draggable Endpoints im Select-Modus" },
-        "15-7": { "name": "Mess-Tool", "status": "completed", "auditResult": "PASSED - 2-Punkt-Messung mit Distanz-Anzeige" },
-        "15-8": { "name": "Ctrl+S Save-Handler", "status": "completed", "auditResult": "PASSED - projectStore.saveCurrentProject() aufgerufen" }
+        "15-1": {
+          "name": "PropertiesPanel",
+          "status": "completed",
+          "auditResult": "PASSED - Materials, Wall/AP Callbacks verdrahtet"
+        },
+        "15-2": {
+          "name": "AP-Einstellungen",
+          "status": "completed",
+          "auditResult": "PASSED - Mounting, Height, Channel, Width"
+        },
+        "15-3": {
+          "name": "Grid vor Grundriss",
+          "status": "completed",
+          "auditResult": "PASSED - GridOverlay nach BackgroundImage gerendert"
+        },
+        "15-4": {
+          "name": "Grundriss austauschen",
+          "status": "completed",
+          "auditResult": "PASSED - Upload/Replace Button vorhanden"
+        },
+        "15-5": {
+          "name": "Massstab setzen",
+          "status": "completed",
+          "auditResult": "PASSED - Scale-Setting-Modus mit 2-Punkt-Kalibrierung"
+        },
+        "15-6": {
+          "name": "Wand-Bearbeitung",
+          "status": "completed",
+          "auditResult": "PASSED - Draggable Endpoints im Select-Modus"
+        },
+        "15-7": {
+          "name": "Mess-Tool",
+          "status": "completed",
+          "auditResult": "PASSED - 2-Punkt-Messung mit Distanz-Anzeige"
+        },
+        "15-8": {
+          "name": "Ctrl+S Save-Handler",
+          "status": "completed",
+          "auditResult": "PASSED - projectStore.saveCurrentProject() aufgerufen"
+        }
       }
     },
     "16": {
@@ -80,18 +224,66 @@
       "completedAt": "2026-03-02",
       "auditResult": "PASSED - 11 von 12 Bloecken implementiert, Build 0 Errors, svelte-check 0 Errors",
       "subtasks": {
-        "16-1": { "name": "AP-Editing reparieren", "status": "completed", "auditResult": "PASSED - $effect nur bei AP-ID-Wechsel, dragDistance=3" },
-        "16-2": { "name": "Scale-Persistenz", "status": "completed", "auditResult": "PASSED - Bild-Dimensionen statt Viewport fuer pxPerMeter" },
-        "16-3": { "name": "Freie Rotation", "status": "completed", "auditResult": "PASSED - Trigonometrische Bounding Box statt 90°-Switch" },
-        "16-4": { "name": "Cursor/Crosshair pro Werkzeug", "status": "completed", "auditResult": "PASSED - Tool-abhaengiger Cursor" },
-        "16-5": { "name": "StatusBar Integration", "status": "completed", "auditResult": "PASSED - Bereits in Layout.svelte integriert" },
-        "16-6": { "name": "Laengenanzeige beim Zeichnen", "status": "completed", "auditResult": "PASSED - Live-Segment + Gesamtlaenge" },
-        "16-7": { "name": "Winkel-/Grid-Snapping", "status": "completed", "auditResult": "PASSED - Shift=Winkel, Grid-Snap, Endpoint-Snap" },
-        "16-8": { "name": "Tueren und Fenster", "status": "completed", "auditResult": "PASSED - 4 neue Materialien, Tool-Buttons, visuelles Rendering" },
-        "16-9": { "name": "Raum-Labels/Text-Annotationen", "status": "completed", "auditResult": "PASSED - TextAnnotation.svelte, localStorage-Persistenz" },
-        "16-10": { "name": "Erweiterte Messwerkzeuge", "status": "completed", "auditResult": "PASSED - Live-Preview, Tick-Marks, Winkelanzeige" },
-        "16-11": { "name": "Undo/Redo-Buttons", "status": "completed", "auditResult": "PASSED - Toolbar-Buttons mit canUndo/canRedo" },
-        "16-12": { "name": "Konstruktionslinien", "status": "deferred", "auditResult": "DEFERRED - Niedrige Prioritaet, Grid-Snapping reicht fuer MVP" }
+        "16-1": {
+          "name": "AP-Editing reparieren",
+          "status": "completed",
+          "auditResult": "PASSED - $effect nur bei AP-ID-Wechsel, dragDistance=3"
+        },
+        "16-2": {
+          "name": "Scale-Persistenz",
+          "status": "completed",
+          "auditResult": "PASSED - Bild-Dimensionen statt Viewport fuer pxPerMeter"
+        },
+        "16-3": {
+          "name": "Freie Rotation",
+          "status": "completed",
+          "auditResult": "PASSED - Trigonometrische Bounding Box statt 90°-Switch"
+        },
+        "16-4": {
+          "name": "Cursor/Crosshair pro Werkzeug",
+          "status": "completed",
+          "auditResult": "PASSED - Tool-abhaengiger Cursor"
+        },
+        "16-5": {
+          "name": "StatusBar Integration",
+          "status": "completed",
+          "auditResult": "PASSED - Bereits in Layout.svelte integriert"
+        },
+        "16-6": {
+          "name": "Laengenanzeige beim Zeichnen",
+          "status": "completed",
+          "auditResult": "PASSED - Live-Segment + Gesamtlaenge"
+        },
+        "16-7": {
+          "name": "Winkel-/Grid-Snapping",
+          "status": "completed",
+          "auditResult": "PASSED - Shift=Winkel, Grid-Snap, Endpoint-Snap"
+        },
+        "16-8": {
+          "name": "Tueren und Fenster",
+          "status": "completed",
+          "auditResult": "PASSED - 4 neue Materialien, Tool-Buttons, visuelles Rendering"
+        },
+        "16-9": {
+          "name": "Raum-Labels/Text-Annotationen",
+          "status": "completed",
+          "auditResult": "PASSED - TextAnnotation.svelte, localStorage-Persistenz"
+        },
+        "16-10": {
+          "name": "Erweiterte Messwerkzeuge",
+          "status": "completed",
+          "auditResult": "PASSED - Live-Preview, Tick-Marks, Winkelanzeige"
+        },
+        "16-11": {
+          "name": "Undo/Redo-Buttons",
+          "status": "completed",
+          "auditResult": "PASSED - Toolbar-Buttons mit canUndo/canRedo"
+        },
+        "16-12": {
+          "name": "Konstruktionslinien",
+          "status": "deferred",
+          "auditResult": "DEFERRED - Niedrige Prioritaet, Grid-Snapping reicht fuer MVP"
+        }
       }
     },
     "17": {
@@ -101,16 +293,56 @@
       "completedAt": "2026-03-02",
       "auditResult": "PASSED - 10 von 10 Bloecken implementiert, Build 0 Errors, svelte-check 0 Errors",
       "subtasks": {
-        "17-A": { "name": "Hintergrundbild Opacity-Slider", "status": "completed", "auditResult": "PASSED - Stufenloser Slider in Toolbar neben Toggle" },
-        "17-B": { "name": "Hintergrundbild verschiebbar", "status": "completed", "auditResult": "PASSED - Draggable im Select-Modus, localStorage-Persistenz" },
-        "17-C": { "name": "Adaptives Raster", "status": "completed", "auditResult": "PASSED - Nice-Values 0.1-50m, ~80px Zielabstand" },
-        "17-D": { "name": "Wandmasse auf Canvas", "status": "completed", "auditResult": "PASSED - Laengenlabels mit 1/stageScale, min 40px" },
-        "17-E": { "name": "Mehrfachauswahl + Bulk-Material", "status": "completed", "auditResult": "PASSED - MultiWallProperties, Bulk-Update/Delete" },
-        "17-F": { "name": "Tueren/Fenster auf Waende", "status": "completed", "auditResult": "PASSED - Segment-Split mit projectPointOnSegment" },
-        "17-G": { "name": "AP-Rotation", "status": "completed", "auditResult": "PASSED - orientation_deg + Slider 0-359" },
-        "17-H1": { "name": "Pfeiltasten", "status": "completed", "auditResult": "PASSED - 0.01m/0.1m Step fuer APs + Annotationen" },
-        "17-H2": { "name": "Ctrl+A Alles auswaehlen", "status": "completed", "auditResult": "PASSED - Walls + APs + Annotationen" },
-        "17-H3": { "name": "Rechtsklick-Kontextmenue", "status": "completed", "auditResult": "PASSED - ContextMenu.svelte mit Delete-Aktion" }
+        "17-A": {
+          "name": "Hintergrundbild Opacity-Slider",
+          "status": "completed",
+          "auditResult": "PASSED - Stufenloser Slider in Toolbar neben Toggle"
+        },
+        "17-B": {
+          "name": "Hintergrundbild verschiebbar",
+          "status": "completed",
+          "auditResult": "PASSED - Draggable im Select-Modus, localStorage-Persistenz"
+        },
+        "17-C": {
+          "name": "Adaptives Raster",
+          "status": "completed",
+          "auditResult": "PASSED - Nice-Values 0.1-50m, ~80px Zielabstand"
+        },
+        "17-D": {
+          "name": "Wandmasse auf Canvas",
+          "status": "completed",
+          "auditResult": "PASSED - Laengenlabels mit 1/stageScale, min 40px"
+        },
+        "17-E": {
+          "name": "Mehrfachauswahl + Bulk-Material",
+          "status": "completed",
+          "auditResult": "PASSED - MultiWallProperties, Bulk-Update/Delete"
+        },
+        "17-F": {
+          "name": "Tueren/Fenster auf Waende",
+          "status": "completed",
+          "auditResult": "PASSED - Segment-Split mit projectPointOnSegment"
+        },
+        "17-G": {
+          "name": "AP-Rotation",
+          "status": "completed",
+          "auditResult": "PASSED - orientation_deg + Slider 0-359"
+        },
+        "17-H1": {
+          "name": "Pfeiltasten",
+          "status": "completed",
+          "auditResult": "PASSED - 0.01m/0.1m Step fuer APs + Annotationen"
+        },
+        "17-H2": {
+          "name": "Ctrl+A Alles auswaehlen",
+          "status": "completed",
+          "auditResult": "PASSED - Walls + APs + Annotationen"
+        },
+        "17-H3": {
+          "name": "Rechtsklick-Kontextmenue",
+          "status": "completed",
+          "auditResult": "PASSED - ContextMenu.svelte mit Delete-Aktion"
+        }
       }
     },
     "18": {
@@ -120,13 +352,41 @@
       "completedAt": "2026-03-03",
       "auditResult": "PASSED - 7 Bloecke implementiert, Build 0 Errors, svelte-check 0 Errors",
       "subtasks": {
-        "18-1": { "name": "Per-Page Werkzeug-Konfiguration", "status": "completed", "auditResult": "PASSED - toolsets.ts, canvasStore pageContext, Toolbar filtert per Config" },
-        "18-2": { "name": "Canvas-Konsistenz (Ruler, Scrollbars, Cursor)", "status": "completed", "auditResult": "PASSED - RulerOverlay, CanvasScrollbars, CrosshairCursor auf Measure/Mixing" },
-        "18-3": { "name": "Keyboard-Shortcuts auf Viewer-Seiten", "status": "completed", "auditResult": "PASSED - registerShortcuts mit Subset, Space/Shift-Tracking" },
-        "18-4": { "name": "Messpunkt-Platzierung entkoppeln", "status": "completed", "auditResult": "PASSED - isPlacingMeasurementPoint Flag, Wizard steuert Platzierung" },
-        "18-5": { "name": "MeasureLayer auf Viewer-Seiten", "status": "completed", "auditResult": "PASSED - 2-Punkt-Distanzmessung auf Measure/Mixing" },
-        "18-6": { "name": "Read-Only Annotationen", "status": "completed", "auditResult": "PASSED - TextAnnotation draggable=false auf Measure/Mixing" },
-        "18-7": { "name": "Flexibles Tuer/Fenster 2-Klick", "status": "completed", "auditResult": "PASSED - 2-Klick-Workflow mit Preview, Fallback auf feste Breite" }
+        "18-1": {
+          "name": "Per-Page Werkzeug-Konfiguration",
+          "status": "completed",
+          "auditResult": "PASSED - toolsets.ts, canvasStore pageContext, Toolbar filtert per Config"
+        },
+        "18-2": {
+          "name": "Canvas-Konsistenz (Ruler, Scrollbars, Cursor)",
+          "status": "completed",
+          "auditResult": "PASSED - RulerOverlay, CanvasScrollbars, CrosshairCursor auf Measure/Mixing"
+        },
+        "18-3": {
+          "name": "Keyboard-Shortcuts auf Viewer-Seiten",
+          "status": "completed",
+          "auditResult": "PASSED - registerShortcuts mit Subset, Space/Shift-Tracking"
+        },
+        "18-4": {
+          "name": "Messpunkt-Platzierung entkoppeln",
+          "status": "completed",
+          "auditResult": "PASSED - isPlacingMeasurementPoint Flag, Wizard steuert Platzierung"
+        },
+        "18-5": {
+          "name": "MeasureLayer auf Viewer-Seiten",
+          "status": "completed",
+          "auditResult": "PASSED - 2-Punkt-Distanzmessung auf Measure/Mixing"
+        },
+        "18-6": {
+          "name": "Read-Only Annotationen",
+          "status": "completed",
+          "auditResult": "PASSED - TextAnnotation draggable=false auf Measure/Mixing"
+        },
+        "18-7": {
+          "name": "Flexibles Tuer/Fenster 2-Klick",
+          "status": "completed",
+          "auditResult": "PASSED - 2-Klick-Workflow mit Preview, Fallback auf feste Breite"
+        }
       }
     },
     "19": {
@@ -136,13 +396,41 @@
       "completedAt": "2026-03-03",
       "auditResult": "PASSED - 6 von 7 Bloecken implementiert (Block 7 optional deferred), Build 0 Errors, svelte-check 0 Errors",
       "subtasks": {
-        "19-1": { "name": "Browser CSV Export", "status": "completed", "auditResult": "PASSED - 28-Spalten-CSV identisch zum Rust-Backend" },
-        "19-2": { "name": "Canvas-Export PNG", "status": "completed", "auditResult": "PASSED - Konva Stage.toDataURL mit floating Export-Button" },
-        "19-3": { "name": "Copy/Paste/Duplicate", "status": "completed", "auditResult": "PASSED - clipboardStore, Ctrl+C/X/V/D, Offset-Paste, Undo-Support" },
-        "19-4": { "name": "Erweitertes Kontextmenue", "status": "completed", "auditResult": "PASSED - Copy/Cut/Duplicate/Delete/Paste/SelectAll mit Shortcuts" },
-        "19-5": { "name": "Zoom-Slider + Prozent-Eingabe", "status": "completed", "auditResult": "PASSED - Range-Slider 10-500%, editierbares Prozent-Feld" },
-        "19-6": { "name": "Persistente Messlinien", "status": "completed", "auditResult": "PASSED - SavedMeasurements.svelte, localStorage, Enter/Pin-Button, read-only auf Viewer-Seiten" },
-        "19-7": { "name": "Results-Heatmap", "status": "deferred", "auditResult": "DEFERRED - Optional, wuerde Measure-Seite Canvas duplizieren" }
+        "19-1": {
+          "name": "Browser CSV Export",
+          "status": "completed",
+          "auditResult": "PASSED - 28-Spalten-CSV identisch zum Rust-Backend"
+        },
+        "19-2": {
+          "name": "Canvas-Export PNG",
+          "status": "completed",
+          "auditResult": "PASSED - Konva Stage.toDataURL mit floating Export-Button"
+        },
+        "19-3": {
+          "name": "Copy/Paste/Duplicate",
+          "status": "completed",
+          "auditResult": "PASSED - clipboardStore, Ctrl+C/X/V/D, Offset-Paste, Undo-Support"
+        },
+        "19-4": {
+          "name": "Erweitertes Kontextmenue",
+          "status": "completed",
+          "auditResult": "PASSED - Copy/Cut/Duplicate/Delete/Paste/SelectAll mit Shortcuts"
+        },
+        "19-5": {
+          "name": "Zoom-Slider + Prozent-Eingabe",
+          "status": "completed",
+          "auditResult": "PASSED - Range-Slider 10-500%, editierbares Prozent-Feld"
+        },
+        "19-6": {
+          "name": "Persistente Messlinien",
+          "status": "completed",
+          "auditResult": "PASSED - SavedMeasurements.svelte, localStorage, Enter/Pin-Button, read-only auf Viewer-Seiten"
+        },
+        "19-7": {
+          "name": "Results-Heatmap",
+          "status": "deferred",
+          "auditResult": "DEFERRED - Optional, wuerde Measure-Seite Canvas duplizieren"
+        }
       }
     },
     "20": {
@@ -152,10 +440,26 @@
       "completedAt": "2026-03-03",
       "auditResult": "PASSED - 4 Bloecke implementiert, Build 0 Errors, svelte-check 0 Errors, 576 Tests PASS",
       "subtasks": {
-        "20-1": { "name": "Dynamische Heatmap-Bounds", "status": "completed", "auditResult": "PASSED - FloorBounds originX/originY, BoundingBox aus Waenden/APs, HeatmapOverlay positioniert" },
-        "20-2": { "name": "AP-Hoehe in RF-Berechnung", "status": "completed", "auditResult": "PASSED - APConfig heightM, 3D-Distanz sqrt(dx²+dy²+dz²), Receiver 1.2m" },
-        "20-3": { "name": "Tuer/Fenster-Material-UI", "status": "completed", "auditResult": "PASSED - MaterialPicker readonly bei door/window Tool, farbiger Hinweis" },
-        "20-4": { "name": "findMaterial-Fallback", "status": "completed", "auditResult": "PASSED - Doppelter Lookup localStorage dann MOCK_MATERIALS, Auto-Seed" }
+        "20-1": {
+          "name": "Dynamische Heatmap-Bounds",
+          "status": "completed",
+          "auditResult": "PASSED - FloorBounds originX/originY, BoundingBox aus Waenden/APs, HeatmapOverlay positioniert"
+        },
+        "20-2": {
+          "name": "AP-Hoehe in RF-Berechnung",
+          "status": "completed",
+          "auditResult": "PASSED - APConfig heightM, 3D-Distanz sqrt(dx²+dy²+dz²), Receiver 1.2m"
+        },
+        "20-3": {
+          "name": "Tuer/Fenster-Material-UI",
+          "status": "completed",
+          "auditResult": "PASSED - MaterialPicker readonly bei door/window Tool, farbiger Hinweis"
+        },
+        "20-4": {
+          "name": "findMaterial-Fallback",
+          "status": "completed",
+          "auditResult": "PASSED - Doppelter Lookup localStorage dann MOCK_MATERIALS, Auto-Seed"
+        }
       }
     },
     "21": {
@@ -165,14 +469,168 @@
       "completedAt": "2026-03-03",
       "auditResult": "PASSED - 7 Bloecke implementiert, 12 neue Dateien, 10 geaenderte Dateien, Build 0 Errors, svelte-check 0 Errors, 576 Tests PASS",
       "subtasks": {
-        "21-1": { "name": "Material-Dicke + i18n Wizard-Keys", "status": "completed", "auditResult": "PASSED - Dicke in WallProperties + MaterialPicker, 28 Wizard-i18n-Keys EN+DE" },
-        "21-2": { "name": "Tuer/Fenster UX-Verbesserungen", "status": "completed", "auditResult": "PASSED - hitStrokeWidth 25, Pointer-Cursor, Typ-Label mit Farbpunkt" },
-        "21-3": { "name": "Wizard-Infrastruktur + Route", "status": "completed", "auditResult": "PASSED - wizardStore, WizardStepper, ProjectWizard, 2 Routen" },
-        "21-4": { "name": "Step 1 + Step 2", "status": "completed", "auditResult": "PASSED - StepBasics (Name/Desc/AP-Modell), StepFloorplan (Drag-Drop Upload)" },
-        "21-5": { "name": "Step 3 Kalibrierung", "status": "completed", "auditResult": "PASSED - StepCalibration (Rotation + 2-Punkt-Skalierung + manuelle Masse)" },
-        "21-6": { "name": "Step 4-6", "status": "completed", "auditResult": "PASSED - StepWalls, StepAccessPoints (Editor-Link), StepFinish (Zusammenfassung)" },
-        "21-7": { "name": "Editor-Lockdown", "status": "completed", "auditResult": "PASSED - BackgroundImage locked Prop, Toolbar projectSettingsUrl, wizard-done localStorage" }
+        "21-1": {
+          "name": "Material-Dicke + i18n Wizard-Keys",
+          "status": "completed",
+          "auditResult": "PASSED - Dicke in WallProperties + MaterialPicker, 28 Wizard-i18n-Keys EN+DE"
+        },
+        "21-2": {
+          "name": "Tuer/Fenster UX-Verbesserungen",
+          "status": "completed",
+          "auditResult": "PASSED - hitStrokeWidth 25, Pointer-Cursor, Typ-Label mit Farbpunkt"
+        },
+        "21-3": {
+          "name": "Wizard-Infrastruktur + Route",
+          "status": "completed",
+          "auditResult": "PASSED - wizardStore, WizardStepper, ProjectWizard, 2 Routen"
+        },
+        "21-4": {
+          "name": "Step 1 + Step 2",
+          "status": "completed",
+          "auditResult": "PASSED - StepBasics (Name/Desc/AP-Modell), StepFloorplan (Drag-Drop Upload)"
+        },
+        "21-5": {
+          "name": "Step 3 Kalibrierung",
+          "status": "completed",
+          "auditResult": "PASSED - StepCalibration (Rotation + 2-Punkt-Skalierung + manuelle Masse)"
+        },
+        "21-6": {
+          "name": "Step 4-6",
+          "status": "completed",
+          "auditResult": "PASSED - StepWalls, StepAccessPoints (Editor-Link), StepFinish (Zusammenfassung)"
+        },
+        "21-7": {
+          "name": "Editor-Lockdown",
+          "status": "completed",
+          "auditResult": "PASSED - BackgroundImage locked Prop, Toolbar projectSettingsUrl, wizard-done localStorage"
+        }
       }
+    },
+    "22": {
+      "name": "Editor-Verfeinerungen: Inspector + AP-Vis + Modell-Parameter",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-03",
+      "auditResult": "PASSED - 4 Bloecke implementiert, Build 0 Errors, svelte-check 0 Errors, 665 Tests PASS",
+      "subtasks": {
+        "22-1": {
+          "name": "Point Inspector + Hit-Trace Polish",
+          "status": "completed",
+          "auditResult": "PASSED - Group-Liste statt Segment-Liste, Summary-Zeile, Farbcodierung nach Action, Group-basierte Marker"
+        },
+        "22-2": {
+          "name": "AP-Zones / Delta Heatmap Visualisierung",
+          "status": "completed",
+          "auditResult": "PASSED - Second-best Tracking im Worker, apIndexGrid + deltaGrid, 3 Overlay-Modi (Signal/AP-Zones/Delta), Main-Thread Rendering"
+        },
+        "22-3": {
+          "name": "Single-AP-Ansicht Polish",
+          "status": "completed",
+          "auditResult": "PASSED - AP-Buttons statt Dropdown, Banner 'Showing: AP only', Stats-Label 'Single AP'"
+        },
+        "22-4": {
+          "name": "Modell-Parameter konfigurierbar",
+          "status": "completed",
+          "auditResult": "PASSED - calibratedN, receiverGainDbi, backSectorPenalty, sideSectorPenalty im Store + Worker-Pipeline, Advanced-Bereich in UI"
+        }
+      }
+    },
+    "23": {
+      "name": "Recommendation Engine",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-04",
+      "auditResult": "PASSED - 4 Phasen implementiert, 6 neue Dateien + 5 geaenderte, Build 0 Errors, svelte-check 0 Errors, 691 Tests PASS (26 neu)",
+      "subtasks": {
+        "23-1": {
+          "name": "Worker-Grids erweitern (overlapCount, uplinkLimited, rssiBuffer)",
+          "status": "completed",
+          "auditResult": "PASSED - 4 neue Grids im Worker berechnet und transferiert"
+        },
+        "23-2": {
+          "name": "Analyse-Engine + Simulator + Generator",
+          "status": "completed",
+          "auditResult": "PASSED - analysis.ts, simulator.ts, generator.ts, recommendationStore, 11 Recommendation-Typen"
+        },
+        "23-3": {
+          "name": "UI-Integration (RecommendationPanel, i18n, Editor)",
+          "status": "completed",
+          "auditResult": "PASSED - Floating Panel mit Score/Sub-Scores/Profil/Empfehlungen, 30+ i18n-Keys EN+DE"
+        },
+        "23-4": {
+          "name": "Tests + Verifikation",
+          "status": "completed",
+          "auditResult": "PASSED - 26 neue Tests (analysis 14, simulator 6, generator 6), Build + svelte-check 0 Errors"
+        }
+      }
+    },
+    "24": {
+      "name": "Recommendation Engine Overhaul: Constraints & Feasibility",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-04",
+      "auditResult": "PASSED - Candidate Locations, Constraint Zones, AP Capabilities, Priority Zones, Config-first ordering, Feasibility scoring, Rejection workflow, 729 Tests, 0 Errors",
+      "deliverables": [
+        "src/lib/recommendations/candidates.ts (NEW)",
+        "src/lib/recommendations/constraints.ts (NEW)",
+        "src/lib/recommendations/types.ts (extended: 6 new types, 16 new recommendation fields)",
+        "src/lib/recommendations/generator.ts (overhauled: config-first, constraint-aware)",
+        "src/lib/stores/recommendationStore.svelte.ts (extended: context management, rejection workflow)",
+        "src/lib/components/editor/RecommendationPanel.svelte (extended: feasibility, rejection UI)",
+        "src/lib/recommendations/__tests__/candidates.test.ts (NEW: 19 tests)",
+        "src/lib/recommendations/__tests__/constraints.test.ts (NEW: 17 tests)",
+        "i18n: 24 new keys EN+DE"
+      ]
+    },
+    "25": {
+      "name": "Recommendation Engine UI-Integration",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-04",
+      "auditResult": "PASSED - All 6 blocks implemented, 729 Tests, 0 Errors, Build OK",
+      "deliverables": [
+        "Block 1: EditorTool 'candidate'|'zone' added, Toolsets+Toolbar extended, localStorage persistence, keyboard shortcuts (C/N)",
+        "Block 2: CandidateLocationMarker.svelte (NEW), ConstraintZoneRect.svelte (NEW), RecommendationMarkers.svelte (NEW)",
+        "Block 3: CandidateProperties.svelte (NEW), ConstraintZoneProperties.svelte (NEW), APCapabilitiesSection.svelte (NEW), PropertiesPanel extended",
+        "Block 4: RecommendationPanel enhanced (effort badges, preview/apply/reject, alternatives, send-to-mixing, previewing state)",
+        "Block 5: Preview/Apply/Undo workflow (recommendationStore preview state, preview banner, mapSuggestedChangeToApUpdate)",
+        "Block 6: Mixing Console integration (handleSendToMixing), zone drawing hint bar",
+        "Editor page: Canvas click handlers (candidate placement, 2-click zone drawing), canvas rendering, properties wiring, delete extension",
+        "i18n: ~55 new keys EN+DE (toolbar, candidate, zone, capabilities, rec effort/preview/alternatives, shortcuts)"
+      ]
+    },
+    "25b": {
+      "name": "Optimierung-Seite (Mixing + Empfehlungen zusammengelegt)",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-04",
+      "auditResult": "PASSED - All 5 blocks implemented, 729 Tests, 0 Errors, Build OK",
+      "deliverables": [
+        "Block 1: optimierungStore.svelte.ts (NEW), i18n opt.* keys (20 EN+DE), nav.optimize key, Sidebar nav reordered",
+        "Block 2: OptimierungTabs.svelte (NEW), OptimierungHeader.svelte (NEW), RecommendationStep.svelte (NEW), RecommendationWizard.svelte (NEW)",
+        "Block 3: Mixing page rebuilt with EditorHeatmap + tabs (Empfehlungen/Manuell), recommendation data flow, apply logic",
+        "Block 4: Editor cleaned up (RecommendationPanel, preview-banner, analysis auto-trigger, RecommendationMarkers removed)",
+        "Block 5: svelte-check 0 errors, build success, 729 tests pass"
+      ]
+    },
+    "26": {
+      "name": "Recommendation Engine Overhaul — Vollstaendige Ueberarbeitung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-04",
+      "auditResult": "PASSED - 10 Bloecke implementiert, Build 0 Errors, svelte-check 0 Errors, 729 Tests PASS",
+      "deliverables": [
+        "Block 1: disable_ap RecommendationType + EFFORT_LEVELS, secondBestCoverageCells in APMetrics, Score-Offset (+30) entfernt, 'other' Rejection fix",
+        "Block 2: Echte bandSuitabilityScore (uplinkLimitedGrid), PriorityZone-Gewichtung in findWeakZones, secondBestApIndexGrid genutzt",
+        "Block 3: Simulator Before-Grid Cache, isPhysicallyValidApPosition + pointToSegmentDistance",
+        "Block 4: Band-spezifische TX-Power/Channel Parameter (tx_power_24ghz etc.), Multi-Zone add_ap (top 3), RF-gewichteter Schwerpunkt, Physical Validation",
+        "Block 5: 4 neue Generatoren (disable_ap, band_limit_warning, constraint_conflict, preferred_candidate_location)",
+        "Block 6: Dominanz/Dedup-Logik (max 1 physische Empfehlung pro AP, Rest als Alternativen)",
+        "Block 7: 8 neue i18n-Keys EN+DE",
+        "Block 8: isConfigType erweitert um disable_ap",
+        "Block 9: Mixing-Page Apply/Preview mit band-spezifischen Parameter-Namen + disable_ap Handling",
+        "Block 10: Verifikation OK — svelte-check 0 Errors, Build Success, 729 Tests PASS"
+      ]
     }
   },
   "functionalAuditFixes": {
@@ -189,19 +647,89 @@
   },
   "blockers": [],
   "decisions": [
-    { "id": "D-01", "description": "Direkter AP-Zugriff statt Nuclias Connect", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-02", "description": "Mixing Console MVP: Forecast-Only + Assist-Mode Apply", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-03", "description": "Kein Paywall, gestuftes Onboarding", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-04", "description": "Tech-Stack: Svelte 5 + Tauri 2 + Rust + Konva.js + rusqlite + Vitest + Biome", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-05", "description": "macOS-First, Windows V1.1, Linux V1.2", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-06", "description": "Heatmap-Berechnung im Frontend (TypeScript + Web Worker)", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-07", "description": "10-12 Kernmaterialien + 3 Quick-Kategorien, user-editierbar", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-08", "description": "Multi-Floor in Datenstruktur, UI nur 1 Floor MVP", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-09", "description": "6 GHz in Datenstruktur, UI nur 2.4+5 GHz MVP", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-10", "description": "DAP-X2810 + Custom AP Profil", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-13", "description": "iPerf3 als Sidecar bundlen (BSD-3)", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-14", "description": "Regelbasierter Optimierungsalgorithmus MVP", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-17", "description": "3 Heatmap-Farbschemata (Viridis default)", "date": "2026-02-27", "status": "confirmed" },
-    { "id": "D-19", "description": "MVP unsigned, Code-Signing ab V1.0", "date": "2026-02-27", "status": "confirmed" }
+    {
+      "id": "D-01",
+      "description": "Direkter AP-Zugriff statt Nuclias Connect",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-02",
+      "description": "Mixing Console MVP: Forecast-Only + Assist-Mode Apply",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-03",
+      "description": "Kein Paywall, gestuftes Onboarding",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-04",
+      "description": "Tech-Stack: Svelte 5 + Tauri 2 + Rust + Konva.js + rusqlite + Vitest + Biome",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-05",
+      "description": "macOS-First, Windows V1.1, Linux V1.2",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-06",
+      "description": "Heatmap-Berechnung im Frontend (TypeScript + Web Worker)",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-07",
+      "description": "10-12 Kernmaterialien + 3 Quick-Kategorien, user-editierbar",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-08",
+      "description": "Multi-Floor in Datenstruktur, UI nur 1 Floor MVP",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-09",
+      "description": "6 GHz in Datenstruktur, UI nur 2.4+5 GHz MVP",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-10",
+      "description": "DAP-X2810 + Custom AP Profil",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-13",
+      "description": "iPerf3 als Sidecar bundlen (BSD-3)",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-14",
+      "description": "Regelbasierter Optimierungsalgorithmus MVP",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-17",
+      "description": "3 Heatmap-Farbschemata (Viridis default)",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    },
+    {
+      "id": "D-19",
+      "description": "MVP unsigned, Code-Signing ab V1.0",
+      "date": "2026-02-27",
+      "status": "confirmed"
+    }
   ]
 }

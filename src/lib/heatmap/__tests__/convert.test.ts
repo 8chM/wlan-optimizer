@@ -26,6 +26,7 @@ function makeMockAp(overrides: Partial<AccessPointResponse> = {}): AccessPointRe
     band_steering_enabled: false,
     ip_address: null,
     ssid: null,
+    orientation_deg: 0,
     enabled: true,
     ap_model: {
       id: 'model-1',
@@ -79,6 +80,8 @@ describe('convertApsToConfig', () => {
       txPowerDbm: 20,
       antennaGainDbi: 4.5,
       enabled: true,
+      mounting: 'ceiling',
+      orientationDeg: 0,
     });
   });
 

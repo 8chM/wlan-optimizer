@@ -38,6 +38,7 @@ export async function updateWall(
   updates: {
     materialId?: string;
     segments?: SegmentInput[];
+    thicknessCm?: number | null;
     attenuationOverride24ghz?: number | null;
     attenuationOverride5ghz?: number | null;
     attenuationOverride6ghz?: number | null;
@@ -48,6 +49,7 @@ export async function updateWall(
       wall_id: wallId,
       material_id: updates.materialId,
       segments: updates.segments,
+      thickness_cm: updates.thicknessCm,
       attenuation_override_24ghz: updates.attenuationOverride24ghz ?? undefined,
       attenuation_override_5ghz: updates.attenuationOverride5ghz ?? undefined,
       attenuation_override_6ghz: updates.attenuationOverride6ghz ?? undefined,

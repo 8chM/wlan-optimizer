@@ -114,6 +114,8 @@ function createTestWalls(): WallData[] {
     walls.push({
       segments: [{ x1, y1, x2, y2 }],
       attenuationDb: attenuation,
+      baseThicknessCm: 10,
+      actualThicknessCm: 10,
     });
   }
 

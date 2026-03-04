@@ -16,9 +16,10 @@ import type { HeatmapWorkerError, HeatmapWorkerRequest, HeatmapWorkerResult } fr
 
 import { RSSI_MAX, RSSI_MIN, getColorLUT, rssiToLutIndex } from './color-schemes';
 
-import { computeRSSI, createRFConfig } from './rf-engine';
+import { computeRSSI, computeUplinkRSSI, createRFConfig } from './rf-engine';
 import { buildSpatialGrid } from './spatial-grid';
 import { findPlacementHints } from './placement-hints';
+import { BAND_THRESHOLDS } from './coverage-stats';
 
 // ─── Bilinear Interpolation ────────────────────────────────────────
 
@@ -92,16 +93,24 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
     colorScheme,
     calibratedN,
     receiverGainDbi,
+    backSectorPenalty,
+    sideSectorPenalty,
+    apFilter,
   } = request;
 
   // Build RF configuration from band + optional overrides
   const rfConfig = createRFConfig(band, {
     pathLossExponent: calibratedN,
     receiverGain: receiverGainDbi,
+    backSectorPenalty,
+    sideSectorPenalty,
   });
 
-  // Filter enabled APs only
-  const activeAPs = aps.filter((ap) => ap.enabled);
+  // Filter enabled APs only, optionally restricted to a single AP
+  let activeAPs = aps.filter((ap) => ap.enabled);
+  if (apFilter) {
+    activeAPs = activeAPs.filter((ap) => ap.id === apFilter);
+  }
 
   // Grid origin offset (supports floor plans not at 0,0)
   const originX = bounds.originX ?? 0;
@@ -117,32 +126,60 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
   // Calculate RSSI grid
   const gridWidth = Math.max(1, Math.ceil(bounds.width / gridStep) + 1);
   const gridHeight = Math.max(1, Math.ceil(bounds.height / gridStep) + 1);
-  const rssiGrid = new Float32Array(gridWidth * gridHeight);
+  const totalGridCells = gridWidth * gridHeight;
+  const rssiGrid = new Float32Array(totalGridCells);
+  const bestApIndexGrid = new Uint8Array(totalGridCells);
+  const deltaGrid = new Float32Array(totalGridCells);
+  const secondBestApIndexGrid = new Uint8Array(totalGridCells);
+  const overlapCountGrid = new Uint8Array(totalGridCells);
+  const uplinkLimitedGrid = new Uint8Array(totalGridCells);
 
   let minRSSI = Number.POSITIVE_INFINITY;
   let maxRSSI = Number.NEGATIVE_INFINITY;
   let sumRSSI = 0;
 
-  // Coverage bins
-  let binExcellent = 0; // >= -50
-  let binGood = 0;      // >= -65
-  let binFair = 0;      // >= -75
-  let binPoor = 0;      // >= -85
-  let binNone = 0;      // < -85
+  // Coverage bins (band-specific thresholds)
+  const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
+  let binExcellent = 0;
+  let binGood = 0;
+  let binFair = 0;
+  let binPoor = 0;
+  let binNone = 0;
 
   for (let gy = 0; gy < gridHeight; gy++) {
     const pointY = originY + gy * gridStep;
 
     for (let gx = 0; gx < gridWidth; gx++) {
       const pointX = originX + gx * gridStep;
+      const cellIdx = gy * gridWidth + gx;
 
-      // Compute combined RSSI from all active APs (max-signal model)
+      // Compute combined RSSI from all active APs (max effective signal model)
+      // Track best and second-best for AP-zones and delta views
+      // Also track overlap count (APs >= fair threshold) and uplink-limited flag
       let bestRSSI = Number.NEGATIVE_INFINITY;
+      let bestApIdx = 0;
+      let secondBestRSSI = Number.NEGATIVE_INFINITY;
+      let secondBestApIdx = 0;
+      let overlapCount = 0;
+      let bestDownlink = Number.NEGATIVE_INFINITY;
+      let bestUplink = Number.NEGATIVE_INFINITY;
 
-      for (const ap of activeAPs) {
-        const rssi = computeRSSI(pointX, pointY, ap, rfConfig, spatialGrid, allSegments);
-        if (rssi > bestRSSI) {
-          bestRSSI = rssi;
+      for (let apIdx = 0; apIdx < activeAPs.length; apIdx++) {
+        const ap = activeAPs[apIdx]!;
+        const downlink = computeRSSI(pointX, pointY, ap, rfConfig, spatialGrid, allSegments);
+        const uplink = computeUplinkRSSI(pointX, pointY, ap, band, rfConfig, spatialGrid, allSegments);
+        const effective = Math.min(downlink, uplink);
+        if (effective >= thresholds.fair) overlapCount++;
+        if (effective > bestRSSI) {
+          secondBestRSSI = bestRSSI;
+          secondBestApIdx = bestApIdx;
+          bestRSSI = effective;
+          bestApIdx = apIdx;
+          bestDownlink = downlink;
+          bestUplink = uplink;
+        } else if (effective > secondBestRSSI) {
+          secondBestRSSI = effective;
+          secondBestApIdx = apIdx;
         }
       }
 
@@ -151,23 +188,29 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
         bestRSSI = RSSI_MIN;
       }
 
-      rssiGrid[gy * gridWidth + gx] = bestRSSI;
+      rssiGrid[cellIdx] = bestRSSI;
+      bestApIndexGrid[cellIdx] = bestApIdx;
+      secondBestApIndexGrid[cellIdx] = secondBestApIdx;
+      overlapCountGrid[cellIdx] = Math.min(overlapCount, 255);
+      uplinkLimitedGrid[cellIdx] = bestUplink < bestDownlink ? 1 : 0;
+      deltaGrid[cellIdx] = secondBestRSSI === Number.NEGATIVE_INFINITY
+        ? 99 // Only 1 AP or no APs — no handoff risk
+        : bestRSSI - secondBestRSSI;
 
       if (bestRSSI < minRSSI) minRSSI = bestRSSI;
       if (bestRSSI > maxRSSI) maxRSSI = bestRSSI;
       sumRSSI += bestRSSI;
 
-      // Classify into coverage bins
-      if (bestRSSI >= -50) binExcellent++;
-      else if (bestRSSI >= -65) binGood++;
-      else if (bestRSSI >= -75) binFair++;
-      else if (bestRSSI >= -85) binPoor++;
+      // Classify into coverage bins (band-specific thresholds)
+      if (bestRSSI >= thresholds.excellent) binExcellent++;
+      else if (bestRSSI >= thresholds.good) binGood++;
+      else if (bestRSSI >= thresholds.fair) binFair++;
+      else if (bestRSSI >= thresholds.poor) binPoor++;
       else binNone++;
     }
   }
 
-  const totalPoints = gridWidth * gridHeight;
-  const avgRSSI = totalPoints > 0 ? sumRSSI / totalPoints : RSSI_MIN;
+  const avgRSSI = totalGridCells > 0 ? sumRSSI / totalGridCells : RSSI_MIN;
 
   // Find weak coverage zones for AP placement suggestions
   const placementHints = findPlacementHints(rssiGrid, gridWidth, gridHeight, gridStep, {}, originX, originY);
@@ -202,9 +245,18 @@ function calculateHeatmap(request: HeatmapWorkerRequest): HeatmapWorkerResult {
         poor: binPoor,
         none: binNone,
       },
-      totalCells: totalPoints,
+      totalCells: totalGridCells,
       placementHints,
     },
+    apIndexBuffer: bestApIndexGrid.buffer,
+    deltaBuffer: deltaGrid.buffer,
+    apIds: activeAPs.map((ap) => ap.id),
+    gridWidth,
+    gridHeight,
+    rssiBuffer: rssiGrid.buffer,
+    secondBestApIndexBuffer: secondBestApIndexGrid.buffer,
+    overlapCountBuffer: overlapCountGrid.buffer,
+    uplinkLimitedBuffer: uplinkLimitedGrid.buffer,
   };
 }
 
@@ -226,8 +278,15 @@ self.onmessage = (event: MessageEvent<HeatmapWorkerRequest>) => {
   try {
     const result = calculateHeatmap(request);
 
-    // Transfer the ArrayBuffer to avoid copying
-    self.postMessage(result, { transfer: [result.buffer] });
+    // Transfer ArrayBuffers to avoid copying
+    const transferList: ArrayBuffer[] = [result.buffer];
+    if (result.apIndexBuffer) transferList.push(result.apIndexBuffer);
+    if (result.deltaBuffer) transferList.push(result.deltaBuffer);
+    if (result.rssiBuffer) transferList.push(result.rssiBuffer);
+    if (result.secondBestApIndexBuffer) transferList.push(result.secondBestApIndexBuffer);
+    if (result.overlapCountBuffer) transferList.push(result.overlapCountBuffer);
+    if (result.uplinkLimitedBuffer) transferList.push(result.uplinkLimitedBuffer);
+    self.postMessage(result, { transfer: transferList });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown calculation error';
     const error: HeatmapWorkerError = {

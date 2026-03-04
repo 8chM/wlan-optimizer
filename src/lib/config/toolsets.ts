@@ -8,7 +8,7 @@
 
 import type { EditorTool } from '$lib/stores/canvasStore.svelte';
 
-export type PageContext = 'editor' | 'measure' | 'mixing' | 'results';
+export type PageContext = 'editor' | 'measure' | 'mixing' | 'results' | 'wizard';
 
 export interface ToolbarConfig {
   /** Tools shown in the toolbar */
@@ -21,15 +21,18 @@ export interface ToolbarConfig {
   showScaleCalibration: boolean;
   /** Show background opacity slider */
   showBackgroundOpacity: boolean;
+  /** Show frequency band toggle (2.4 GHz / 5 GHz) */
+  showBandToggle: boolean;
 }
 
 export const TOOLSETS: Record<PageContext, ToolbarConfig> = {
   editor: {
-    allowedTools: ['select', 'pan', 'wall', 'room', 'door', 'window', 'ap', 'measure', 'text'],
+    allowedTools: ['select', 'pan', 'wall', 'room', 'door', 'window', 'ap', 'measure', 'text', 'candidate', 'zone'],
     showUndoRedo: true,
     showSnapToggle: true,
-    showScaleCalibration: true,
+    showScaleCalibration: false,
     showBackgroundOpacity: true,
+    showBandToggle: true,
   },
   measure: {
     allowedTools: ['select', 'pan', 'measure'],
@@ -37,6 +40,7 @@ export const TOOLSETS: Record<PageContext, ToolbarConfig> = {
     showSnapToggle: false,
     showScaleCalibration: false,
     showBackgroundOpacity: true,
+    showBandToggle: false,
   },
   mixing: {
     allowedTools: ['select', 'pan', 'measure'],
@@ -44,6 +48,7 @@ export const TOOLSETS: Record<PageContext, ToolbarConfig> = {
     showSnapToggle: false,
     showScaleCalibration: false,
     showBackgroundOpacity: true,
+    showBandToggle: true,
   },
   results: {
     allowedTools: [],
@@ -51,5 +56,14 @@ export const TOOLSETS: Record<PageContext, ToolbarConfig> = {
     showSnapToggle: false,
     showScaleCalibration: false,
     showBackgroundOpacity: false,
+    showBandToggle: false,
+  },
+  wizard: {
+    allowedTools: ['select', 'pan', 'wall', 'room', 'door', 'window', 'measure', 'text'],
+    showUndoRedo: true,
+    showSnapToggle: true,
+    showScaleCalibration: false,
+    showBackgroundOpacity: true,
+    showBandToggle: false,
   },
 };

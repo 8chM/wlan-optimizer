@@ -9,7 +9,7 @@ import { TOOLSETS, type PageContext, type ToolbarConfig } from '$lib/config/tool
 
 // ─── Types ──────────────────────────────────────────────────────
 
-export type EditorTool = 'select' | 'pan' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text' | 'room';
+export type EditorTool = 'select' | 'pan' | 'wall' | 'door' | 'window' | 'ap' | 'measure' | 'text' | 'room' | 'candidate' | 'zone';
 
 export interface CanvasState {
   readonly scale: number;
@@ -221,7 +221,7 @@ function createCanvasStore() {
       settingScale = false;
       mouseXMeters = null;
       mouseYMeters = null;
-      snapToGridEnabled = true;
+      snapToGridEnabled = false;
       shiftHeld = false;
       spaceHeld = false;
       backgroundVisible = true;

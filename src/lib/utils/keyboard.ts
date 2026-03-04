@@ -44,6 +44,8 @@ export const SHORTCUTS: KeyboardShortcut[] = [
   { key: 'v', action: 'selectTool', description_key: 'shortcuts.selectTool' },
   { key: 'h', action: 'panTool', description_key: 'shortcuts.panTool' },
   { key: 'r', action: 'roomTool', description_key: 'shortcuts.roomTool' },
+  { key: 'c', action: 'candidateTool', description_key: 'shortcuts.candidateTool' },
+  { key: 'n', action: 'zoneTool', description_key: 'shortcuts.zoneTool' },
   { key: 'g', action: 'gridToggle', description_key: 'shortcuts.gridToggle' },
   { key: 'j', action: 'heatmapToggle', description_key: 'shortcuts.heatmapToggle' },
   { key: '?', shift: true, action: 'shortcutHelp', description_key: 'shortcuts.showHelp' },

@@ -21,7 +21,7 @@ import {
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
 function makeWall(x1: number, y1: number, x2: number, y2: number, atten = 10): WallData {
-  return { segments: [{ x1, y1, x2, y2 }], attenuationDb: atten };
+  return { segments: [{ x1, y1, x2, y2 }], attenuationDb: atten, baseThicknessCm: 10, actualThicknessCm: 10 };
 }
 
 function buildGrid(
@@ -144,6 +144,8 @@ describe('buildSpatialGrid', () => {
           { x1: 1, y1: 0, x2: 1, y2: 1 },
         ],
         attenuationDb: 12,
+        baseThicknessCm: 10,
+        actualThicknessCm: 10,
       };
       const { allSegments } = buildGrid([wall]);
       expect(allSegments).toHaveLength(2);

@@ -10,6 +10,9 @@ import type { HeatmapStats } from '$lib/heatmap';
 
 // ─── Store ──────────────────────────────────────────────────────
 
+/** Heatmap overlay display mode */
+export type HeatmapOverlayMode = 'signal' | 'ap-zones' | 'delta';
+
 function createEditorHeatmapStore() {
   let visible = $state(false);
   let band = $state<FrequencyBand>('5ghz');
@@ -17,6 +20,18 @@ function createEditorHeatmapStore() {
   let opacity = $state(0.6);
   let canvas = $state<HTMLCanvasElement | null>(null);
   let stats = $state<HeatmapStats | null>(null);
+  /** Single-AP filter for debug mode (null = all APs) */
+  let apFilter = $state<string | null>(null);
+  /** Overlay display mode: signal (RSSI), AP zones, or delta */
+  let overlayMode = $state<HeatmapOverlayMode>('signal');
+  /** Path-Loss-Exponent override (undefined = use band default) */
+  let calibratedN = $state<number | undefined>(undefined);
+  /** Receiver gain override in dBi (undefined = use default -3) */
+  let receiverGainDbi = $state<number | undefined>(undefined);
+  /** Wall-mount back sector penalty in dB */
+  let backSectorPenalty = $state<number>(-15);
+  /** Wall-mount side sector penalty in dB */
+  let sideSectorPenalty = $state<number>(-5);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -26,6 +41,12 @@ function createEditorHeatmapStore() {
     get opacity() { return opacity; },
     get canvas() { return canvas; },
     get stats() { return stats; },
+    get apFilter() { return apFilter; },
+    get overlayMode() { return overlayMode; },
+    get calibratedN() { return calibratedN; },
+    get receiverGainDbi() { return receiverGainDbi; },
+    get backSectorPenalty() { return backSectorPenalty; },
+    get sideSectorPenalty() { return sideSectorPenalty; },
 
     // ── Actions ─────────────────────────────────────────────
 
@@ -57,6 +78,38 @@ function createEditorHeatmapStore() {
       stats = s;
     },
 
+    setApFilter(id: string | null): void {
+      apFilter = id;
+    },
+
+    setOverlayMode(mode: HeatmapOverlayMode): void {
+      overlayMode = mode;
+    },
+
+    setCalibratedN(n: number | undefined): void {
+      calibratedN = n;
+    },
+
+    setReceiverGainDbi(g: number | undefined): void {
+      receiverGainDbi = g;
+    },
+
+    setBackSectorPenalty(p: number): void {
+      backSectorPenalty = p;
+    },
+
+    setSideSectorPenalty(p: number): void {
+      sideSectorPenalty = p;
+    },
+
+    /** Reset advanced model parameters to defaults */
+    resetAdvanced(): void {
+      calibratedN = undefined;
+      receiverGainDbi = undefined;
+      backSectorPenalty = -15;
+      sideSectorPenalty = -5;
+    },
+
     reset(): void {
       visible = false;
       band = '5ghz';
@@ -64,6 +117,12 @@ function createEditorHeatmapStore() {
       opacity = 0.6;
       canvas = null;
       stats = null;
+      apFilter = null;
+      overlayMode = 'signal';
+      calibratedN = undefined;
+      receiverGainDbi = undefined;
+      backSectorPenalty = -15;
+      sideSectorPenalty = -5;
     },
   };
 }

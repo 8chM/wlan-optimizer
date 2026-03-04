@@ -148,6 +148,7 @@ export interface CommandMap {
         wall_id: string;
         material_id?: string;
         segments?: SegmentInput[];
+        thickness_cm?: number | null;
         attenuation_override_24ghz?: number;
         attenuation_override_5ghz?: number;
         attenuation_override_6ghz?: number;
@@ -508,6 +509,7 @@ export interface WallResponse {
   material_id: string;
   segments: WallSegmentResponse[];
   material: MaterialResponse;
+  thickness_cm: number | null;
   attenuation_override_24ghz: number | null;
   attenuation_override_5ghz: number | null;
   attenuation_override_6ghz: number | null;

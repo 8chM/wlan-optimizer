@@ -87,41 +87,29 @@
     };
   });
 
-  // Calculate offset to keep the image properly positioned after rotation.
-  // Supports arbitrary angles via trigonometric bounding box calculation.
-  // Konva rotates around the (x, y) point by default, so we use offset
-  // to rotate around the image center and then reposition.
+  // Rotate around the image center using Konva's offset mechanism.
+  // offsetX/offsetY set the rotation pivot to the image center.
+  // x/y position the pivot so the rotated bounding box starts at (0,0).
   let offsetConfig = $derived.by(() => {
     if (!imageElement) return { x: 0, y: 0, offsetX: 0, offsetY: 0 };
 
     const w = imageElement.width || imageElement.naturalWidth;
     const h = imageElement.height || imageElement.naturalHeight;
-    const r = ((rotation % 360) + 360) % 360;
-
-    if (r === 0) return { x: 0, y: 0, offsetX: 0, offsetY: 0 };
-
-    // Rotate around the image center, then shift so bounding box starts at (0,0)
     const cx = w / 2;
     const cy = h / 2;
+
+    // Bounding box of the rotated image
+    const r = ((rotation % 360) + 360) % 360;
     const rad = (r * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
+    const absCos = Math.abs(Math.cos(rad));
+    const absSin = Math.abs(Math.sin(rad));
+    const bbW = w * absCos + h * absSin;
+    const bbH = w * absSin + h * absCos;
 
-    // Compute all four corners after rotation around center
-    const corners = [
-      { x: -cx, y: -cy },
-      { x: w - cx, y: -cy },
-      { x: w - cx, y: h - cy },
-      { x: -cx, y: h - cy },
-    ].map((c) => ({
-      x: c.x * cos - c.y * sin + cx,
-      y: c.x * sin + c.y * cos + cy,
-    }));
-
-    const minX = Math.min(...corners.map((c) => c.x));
-    const minY = Math.min(...corners.map((c) => c.y));
-
-    return { x: -minX, y: -minY, offsetX: 0, offsetY: 0 };
+    // Place the rotation pivot (= image center) at the BB center.
+    // Konva draws top-left at (x - offsetX, y - offsetY) before rotation,
+    // then rotates around (x, y). Result: BB starts at (0,0).
+    return { x: bbW / 2, y: bbH / 2, offsetX: cx, offsetY: cy };
   });
 </script>
 

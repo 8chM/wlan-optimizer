@@ -2,11 +2,13 @@
   ProjectWizard.svelte - Main wizard container with step routing and navigation.
 
   Manages the step flow, renders the current step component,
-  and provides prev/next/skip navigation buttons.
+  and provides prev/next/skip/cancel navigation buttons.
 -->
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
   import { wizardStore } from '$lib/stores/wizardStore.svelte';
+  import { projectStore } from '$lib/stores/projectStore.svelte';
   import WizardStepper from './WizardStepper.svelte';
   import StepBasics from './steps/StepBasics.svelte';
   import StepFloorplan from './steps/StepFloorplan.svelte';
@@ -15,8 +17,32 @@
   import StepAccessPoints from './steps/StepAccessPoints.svelte';
   import StepFinish from './steps/StepFinish.svelte';
 
+  let showCancelConfirm = $state(false);
+
   function handleStepClick(step: number): void {
     wizardStore.setStep(step);
+  }
+
+  async function handleCancel(): Promise<void> {
+    if (!showCancelConfirm) {
+      showCancelConfirm = true;
+      return;
+    }
+    // Delete the project if it was newly created (not edit mode)
+    const pid = wizardStore.projectId;
+    if (pid && !wizardStore.isEditMode) {
+      try {
+        await projectStore.deleteProject(pid);
+      } catch {
+        // ignore deletion errors
+      }
+    }
+    wizardStore.reset();
+    goto('/');
+  }
+
+  function dismissCancel(): void {
+    showCancelConfirm = false;
   }
 </script>
 
@@ -46,14 +72,29 @@
   <!-- Navigation buttons (not shown on step 6 / finish) -->
   {#if wizardStore.currentStep < 5}
     <div class="wizard-nav">
-      {#if wizardStore.currentStep > 0}
-        <button class="nav-btn nav-prev" onclick={() => wizardStore.prevStep()}>
-          <span class="nav-icon">&larr;</span>
-          {t('wizard.prev')}
+      <div class="nav-left">
+        <button class="nav-btn nav-cancel" onclick={handleCancel}>
+          {#if showCancelConfirm}
+            {t('wizard.cancelConfirm').length > 40 ? t('wizard.cancel') + '?' : t('wizard.cancelConfirm')}
+          {:else}
+            {t('wizard.cancel')}
+          {/if}
         </button>
-      {:else}
-        <div></div>
-      {/if}
+        {#if showCancelConfirm}
+          <button class="nav-btn nav-dismiss" onclick={dismissCancel}>
+            &times;
+          </button>
+        {/if}
+      </div>
+
+      <div class="nav-center">
+        {#if wizardStore.currentStep > 0}
+          <button class="nav-btn nav-prev" onclick={() => wizardStore.prevStep()}>
+            <span class="nav-icon">&larr;</span>
+            {t('wizard.prev')}
+          </button>
+        {/if}
+      </div>
 
       <div class="nav-right">
         {#if wizardStore.canSkipCurrentStep()}
@@ -84,28 +125,66 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 24px;
+    padding: 10px 20px;
     background: var(--bg-primary, #ffffff);
     border-top: 1px solid var(--border, #e0e0e0);
   }
 
+  .nav-left,
+  .nav-center,
   .nav-right {
     display: flex;
-    gap: 8px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .nav-left {
+    flex: 1;
+    justify-content: flex-start;
+  }
+
+  .nav-center {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .nav-right {
+    flex: 1;
+    justify-content: flex-end;
   }
 
   .nav-btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 20px;
+    padding: 8px 16px;
     border-radius: 8px;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
     border: 1px solid transparent;
     font-family: inherit;
+  }
+
+  .nav-cancel {
+    background: transparent;
+    color: var(--text-muted, #6a6a8a);
+    border-color: transparent;
+    font-size: 0.78rem;
+  }
+
+  .nav-cancel:hover {
+    color: #f44336;
+    background: rgba(244, 67, 54, 0.06);
+  }
+
+  .nav-dismiss {
+    background: transparent;
+    color: var(--text-muted, #6a6a8a);
+    border: none;
+    padding: 4px 8px;
+    font-size: 1rem;
   }
 
   .nav-prev {

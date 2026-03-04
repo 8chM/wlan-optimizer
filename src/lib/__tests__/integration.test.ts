@@ -79,7 +79,7 @@ function makeWall(
   x2: number, y2: number,
   attenuationDb = 10,
 ): WallData {
-  return { segments: [{ x1, y1, x2, y2 }], attenuationDb };
+  return { segments: [{ x1, y1, x2, y2 }], attenuationDb, baseThicknessCm: 10, actualThicknessCm: 10 };
 }
 
 function buildGrid(
@@ -171,13 +171,13 @@ describe('Heatmap + RF Engine Integration', () => {
     });
 
     it('RSSI at 10 m without walls matches the expected formula value', () => {
-      // PL(10m) = 40.05 + 10*3.5*log10(10) = 40.05 + 35 = 75.05 dB
-      // RSSI = 23 + 3.2 - 3 - 75.05 = -51.85 dBm
+      // PL(10m) = 40.05 + 10*3.0*log10(10) = 40.05 + 30 = 70.05 dB (n=3.0 for 2.4 GHz)
+      // RSSI = 23 + 3.2 - 3 - 70.05 = -46.85 dBm
       const ap = makeAP(0, 0, 23, 3.2);
       const config = createRFConfig('2.4ghz');
       const { grid, allSegments } = buildGrid([]);
       const rssi = computeRSSI(10, 0, ap, config, grid, allSegments);
-      expect(rssi).toBeCloseTo(-51.85, 1);
+      expect(rssi).toBeCloseTo(-46.85, 1);
     });
 
     it('all RSSI values are within the valid dBm range for residential Wi-Fi', () => {
@@ -281,11 +281,12 @@ describe('Heatmap + RF Engine Integration', () => {
       const rssiDefault = computeRSSI(10, 5, ap, configDefault, grid, allSegments);
       const rssiCalibrated = computeRSSI(10, 5, ap, configCalibrated, grid, allSegments);
 
-      // n=2.8 produces less path loss than default n=3.5
+      // n=2.8 produces less path loss than default n=3.0
       expect(rssiCalibrated).toBeGreaterThan(rssiDefault);
-      // Difference: 10*(3.5-2.8)*log10(5) = 7 * 0.699 ≈ 4.89 dB
+      // Difference: 10*(3.0-2.8)*log10(5) = 2 * 0.699 ≈ 1.40 dB
+      const defaultN = configDefault.pathLossExponent;
       const dist = Math.sqrt((10 - 5) ** 2 + (5 - 5) ** 2);
-      const expected = 10 * (DEFAULT_PATH_LOSS_EXPONENT - 2.8) * Math.log10(dist);
+      const expected = 10 * (defaultN - 2.8) * Math.log10(dist);
       expect(rssiCalibrated - rssiDefault).toBeCloseTo(expected, 1);
     });
   });
@@ -417,11 +418,10 @@ describe('Spatial Grid + RF Engine Integration', () => {
 
       const rssi = computeRSSI(15, 5, ap, config, grid, allSegments);
 
-      // Expected: dist=13, PL=40.05+10*3.5*log10(13)=40.05+38.97=79.02
+      // Expected: dist=13, n=3.0, PL=40.05+10*3.0*log10(13)=40.05+33.39=73.44
       // Wall losses = 5+8+12 = 25 dB
-      // RSSI = 23+3.2-3-79.02-25 = -80.82
       const d = Math.sqrt((15 - 2) ** 2 + (5 - 5) ** 2);
-      const pl = REFERENCE_LOSS['2.4ghz'] + 10 * DEFAULT_PATH_LOSS_EXPONENT * Math.log10(d);
+      const pl = REFERENCE_LOSS['2.4ghz'] + 10 * config.pathLossExponent * Math.log10(d);
       const expectedRSSI = 23 + 3.2 + DEFAULT_RECEIVER_GAIN_DBI - pl - 25;
       expect(rssi).toBeCloseTo(expectedRSSI, 1);
     });

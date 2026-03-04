@@ -22,6 +22,8 @@
     scalePxPerMeter: number;
     /** Whether the AP is draggable */
     draggable?: boolean;
+    /** Whether the AP marker responds to clicks/events (set false for read-only views) */
+    interactive?: boolean;
     /** Callback when AP is clicked/selected */
     onSelect?: (apId: string) => void;
     /** Callback when AP position changes (after drag) */
@@ -35,6 +37,7 @@
     selected = false,
     scalePxPerMeter = 50,
     draggable = true,
+    interactive = true,
     onSelect,
     onPositionChange,
     onDelete,
@@ -55,6 +58,8 @@
     { radius: 15, opacity: 0.4 },
   ];
 
+  let isCeilingMount = $derived(accessPoint.mounting === 'ceiling');
+
   function handleClick(event: KonvaMouseEvent): void {
     event.cancelBubble = true;
     onSelect?.(accessPoint.id);
@@ -74,8 +79,8 @@
   }
 
   /**
-   * Creates points for a WiFi wave arc.
-   * Uses a semicircle approximation with line segments.
+   * Creates points for a WiFi wave arc (wall-mounted AP).
+   * Draws a quarter-circle arc pointing upward.
    */
   function createArcPoints(radius: number): number[] {
     const points: number[] = [];
@@ -92,26 +97,72 @@
     }
     return points;
   }
+
+  /**
+   * Creates points for a ceiling-mounted AP ring (left half-arc).
+   * Two half-arcs with gaps at top and bottom form a broken circle.
+   */
+  function createCeilingArcLeft(radius: number): number[] {
+    const points: number[] = [];
+    const segments = 12;
+    // Left semicircle: from ~110° to ~250° (bottom-left to top-left)
+    const gapRad = Math.PI * 0.12; // gap size at poles
+    const startAngle = Math.PI * 0.5 + gapRad;
+    const endAngle = Math.PI * 1.5 - gapRad;
+
+    for (let i = 0; i <= segments; i++) {
+      const angle = startAngle + (endAngle - startAngle) * (i / segments);
+      points.push(
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius,
+      );
+    }
+    return points;
+  }
+
+  /**
+   * Creates points for a ceiling-mounted AP ring (right half-arc).
+   */
+  function createCeilingArcRight(radius: number): number[] {
+    const points: number[] = [];
+    const segments = 12;
+    // Right semicircle: from ~-70° to ~70° (top-right to bottom-right)
+    const gapRad = Math.PI * 0.12;
+    const startAngle = -Math.PI * 0.5 + gapRad;
+    const endAngle = Math.PI * 0.5 - gapRad;
+
+    for (let i = 0; i <= segments; i++) {
+      const angle = startAngle + (endAngle - startAngle) * (i / segments);
+      points.push(
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius,
+      );
+    }
+    return points;
+  }
 </script>
 
 <Group
   x={posX}
   y={posY}
   rotation={accessPoint.orientation_deg ?? 0}
-  draggable={draggable && enabled}
+  draggable={interactive && draggable && enabled}
   dragDistance={3}
   opacity={enabled ? 1 : 0.4}
-  onclick={handleClick}
-  ondragend={handleDragEnd}
-  oncontextmenu={handleContextMenu}
+  listening={interactive}
+  onclick={interactive ? handleClick : undefined}
+  ondragend={interactive ? handleDragEnd : undefined}
+  oncontextmenu={interactive ? handleContextMenu : undefined}
 >
   <!-- Invisible hit area so the Group is clickable (children have listening={false}) -->
-  <Circle
-    x={0}
-    y={0}
-    radius={ICON_SIZE + 8}
-    fill="transparent"
-  />
+  {#if interactive}
+    <Circle
+      x={0}
+      y={0}
+      radius={ICON_SIZE + 8}
+      fill="transparent"
+    />
+  {/if}
 
   <!-- Selection highlight ring -->
   {#if selected}
@@ -136,17 +187,38 @@
     listening={false}
   />
 
-  <!-- WiFi wave arcs -->
-  {#each arcs as arc, i (i)}
-    <Line
-      points={createArcPoints(arc.radius)}
-      stroke={enabled ? '#4a6cf7' : '#9a9ab0'}
-      strokeWidth={2}
-      opacity={arc.opacity}
-      lineCap="round"
-      listening={false}
-    />
-  {/each}
+  <!-- WiFi wave arcs (wall mount) or broken rings (ceiling mount) -->
+  {#if isCeilingMount}
+    {#each arcs as arc, i (i)}
+      <Line
+        points={createCeilingArcLeft(arc.radius)}
+        stroke={enabled ? '#4a6cf7' : '#9a9ab0'}
+        strokeWidth={2}
+        opacity={arc.opacity}
+        lineCap="round"
+        listening={false}
+      />
+      <Line
+        points={createCeilingArcRight(arc.radius)}
+        stroke={enabled ? '#4a6cf7' : '#9a9ab0'}
+        strokeWidth={2}
+        opacity={arc.opacity}
+        lineCap="round"
+        listening={false}
+      />
+    {/each}
+  {:else}
+    {#each arcs as arc, i (i)}
+      <Line
+        points={createArcPoints(arc.radius)}
+        stroke={enabled ? '#4a6cf7' : '#9a9ab0'}
+        strokeWidth={2}
+        opacity={arc.opacity}
+        lineCap="round"
+        listening={false}
+      />
+    {/each}
+  {/if}
 
   <!-- Label background -->
   <Rect

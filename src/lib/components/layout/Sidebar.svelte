@@ -32,8 +32,8 @@
     projectId
       ? [
           { id: 'editor', label: 'nav.editor', icon: '\u270E', href: `/project/${projectId}/editor` },
+          { id: 'mixing', label: 'nav.optimize', icon: '\u2699\uFE0F', href: `/project/${projectId}/mixing` },
           { id: 'measure', label: 'nav.measure', icon: '\uD83D\uDCCA', href: `/project/${projectId}/measure` },
-          { id: 'mixing', label: 'nav.mixing', icon: '\uD83C\uDF9B', href: `/project/${projectId}/mixing` },
           { id: 'results', label: 'nav.results', icon: '\uD83D\uDCC8', href: `/project/${projectId}/results` },
         ]
       : []

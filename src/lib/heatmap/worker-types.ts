@@ -45,6 +45,10 @@ export interface APConfig {
   antennaGainDbi: number;
   /** Whether this AP is active */
   enabled: boolean;
+  /** Mounting type: 'ceiling' or 'wall' */
+  mounting?: string;
+  /** Orientation angle in degrees (0 = right, 90 = down) for wall-mounted APs */
+  orientationDeg?: number;
 }
 
 /** Wall data needed for RF calculation */
@@ -52,6 +56,12 @@ export interface WallData {
   segments: LineSegment[];
   /** Attenuation for the selected band in dB */
   attenuationDb: number;
+  /** Material default thickness in cm */
+  baseThicknessCm: number;
+  /** Actual wall thickness in cm (per-wall override or material default) */
+  actualThicknessCm: number;
+  /** Human-readable material label for debug output (e.g. "Brick", "Door", "Window") */
+  materialLabel?: string;
 }
 
 /** Request message sent to the heatmap worker */
@@ -75,6 +85,12 @@ export interface HeatmapWorkerRequest {
   calibratedN?: number;
   /** Receiver gain in dBi (default: -3 for smartphone) */
   receiverGainDbi?: number;
+  /** Wall-mount back sector penalty in dB (default: -15) */
+  backSectorPenalty?: number;
+  /** Wall-mount side sector penalty in dB (default: -5) */
+  sideSectorPenalty?: number;
+  /** Optional: only calculate for this single AP (debug single-AP view) */
+  apFilter?: string;
 }
 
 // ─── Worker Output Types ───────────────────────────────────────────
@@ -109,6 +125,24 @@ export interface HeatmapWorkerResult {
     /** AP placement hints for weak coverage zones */
     placementHints?: PlacementHint[];
   };
+  /** Best-AP index per grid cell (Uint8Array, gridWidth * gridHeight) */
+  apIndexBuffer?: ArrayBuffer;
+  /** Delta between best and second-best RSSI per grid cell (Float32Array) */
+  deltaBuffer?: ArrayBuffer;
+  /** AP IDs in order matching apIndexBuffer indices */
+  apIds?: string[];
+  /** RF grid width (cells, not output pixels) */
+  gridWidth?: number;
+  /** RF grid height (cells, not output pixels) */
+  gridHeight?: number;
+  /** Raw RSSI grid (Float32Array, gridWidth * gridHeight) for analysis */
+  rssiBuffer?: ArrayBuffer;
+  /** Second-best AP index per cell (Uint8Array) */
+  secondBestApIndexBuffer?: ArrayBuffer;
+  /** Number of APs above fair threshold per cell (Uint8Array) */
+  overlapCountBuffer?: ArrayBuffer;
+  /** 1 if uplink-limited at best AP, 0 otherwise (Uint8Array) */
+  uplinkLimitedBuffer?: ArrayBuffer;
 }
 
 /** Progress update during calculation */

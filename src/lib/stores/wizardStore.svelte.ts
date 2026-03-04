@@ -13,6 +13,9 @@ export interface WizardStepData {
   scaleConfirmed: boolean;
   wallsDrawn: boolean;
   apsPlaced: boolean;
+  calibrationPoints: Array<{ x: number; y: number }>;
+  confirmedDistanceM: number;
+  imageRotation: number;
 }
 
 export interface WizardState {
@@ -45,6 +48,9 @@ function createWizardStore() {
     scaleConfirmed: false,
     wallsDrawn: false,
     apsPlaced: false,
+    calibrationPoints: [],
+    confirmedDistanceM: 0,
+    imageRotation: 0,
   });
 
   return {
@@ -127,6 +133,9 @@ function createWizardStore() {
         scaleConfirmed: false,
         wallsDrawn: false,
         apsPlaced: false,
+        calibrationPoints: [],
+        confirmedDistanceM: 0,
+        imageRotation: 0,
       };
     },
 
@@ -144,6 +153,9 @@ function createWizardStore() {
         scaleConfirmed: data.scaleConfirmed ?? false,
         wallsDrawn: data.wallsDrawn ?? false,
         apsPlaced: data.apsPlaced ?? false,
+        calibrationPoints: data.calibrationPoints ?? [],
+        confirmedDistanceM: data.confirmedDistanceM ?? 0,
+        imageRotation: data.imageRotation ?? 0,
       };
     },
 
@@ -160,6 +172,9 @@ function createWizardStore() {
         scaleConfirmed: false,
         wallsDrawn: false,
         apsPlaced: false,
+        calibrationPoints: [],
+        confirmedDistanceM: 0,
+        imageRotation: 0,
       };
     },
   };

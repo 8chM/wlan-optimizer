@@ -4,6 +4,8 @@
  * Provides signal quality distribution bins and coverage percentage.
  */
 
+import type { FrequencyBand } from './color-schemes';
+
 // ─── Types ──────────────────────────────────────────────────────
 
 /** Signal quality thresholds in dBm */
@@ -14,6 +16,21 @@ export const COVERAGE_THRESHOLDS = {
   poor: -85,       // >= -85 dBm
   // none: < -85 dBm
 } as const;
+
+/** Coverage threshold set */
+export interface CoverageThresholds {
+  excellent: number;
+  good: number;
+  fair: number;
+  poor: number;
+}
+
+/** Band-specific quality thresholds (5/6 GHz stricter due to higher attenuation) */
+export const BAND_THRESHOLDS: Record<FrequencyBand, CoverageThresholds> = {
+  '2.4ghz': { excellent: -50, good: -65, fair: -75, poor: -85 },
+  '5ghz':   { excellent: -45, good: -60, fair: -70, poor: -80 },
+  '6ghz':   { excellent: -45, good: -60, fair: -70, poor: -80 },
+};
 
 /** Coverage bin counts */
 export interface CoverageBins {

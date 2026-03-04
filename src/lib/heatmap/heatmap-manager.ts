@@ -56,6 +56,24 @@ export interface HeatmapStats {
   totalCells?: number;
   /** AP placement hints for weak coverage zones */
   placementHints?: PlacementHint[];
+  /** Best-AP index per grid cell (for AP-zones overlay) */
+  apIndexGrid?: Uint8Array;
+  /** Delta between best and second-best RSSI (for delta overlay) */
+  deltaGrid?: Float32Array;
+  /** AP IDs in order matching apIndexGrid indices */
+  apIds?: string[];
+  /** RF grid width (cells) */
+  gridWidth?: number;
+  /** RF grid height (cells) */
+  gridHeight?: number;
+  /** Raw RSSI grid for analysis (Float32Array) */
+  rssiGrid?: Float32Array;
+  /** Second-best AP index grid (Uint8Array) */
+  secondBestApIndexGrid?: Uint8Array;
+  /** Overlap count per cell — APs above fair threshold (Uint8Array) */
+  overlapCountGrid?: Uint8Array;
+  /** Uplink-limited flag per cell (Uint8Array, 1=limited) */
+  uplinkLimitedGrid?: Uint8Array;
 }
 
 /** Parameters required for a heatmap calculation */
@@ -78,6 +96,12 @@ export interface HeatmapParams {
   calibratedN?: number;
   /** Receiver gain in dBi (overrides default if set) */
   receiverGainDbi?: number;
+  /** Wall-mount back sector penalty in dB (default: -15) */
+  backSectorPenalty?: number;
+  /** Wall-mount side sector penalty in dB (default: -5) */
+  sideSectorPenalty?: number;
+  /** Optional: only calculate for a single AP (debug mode) */
+  apFilter?: string;
 }
 
 /** Callback options for HeatmapManager */
@@ -279,6 +303,9 @@ export class HeatmapManager {
       colorScheme: params.colorScheme,
       calibratedN: params.calibratedN,
       receiverGainDbi: params.receiverGainDbi,
+      backSectorPenalty: params.backSectorPenalty,
+      sideSectorPenalty: params.sideSectorPenalty,
+      apFilter: params.apFilter,
     };
 
     this.worker.postMessage(request);
@@ -328,6 +355,15 @@ export class HeatmapManager {
           coverageBins: response.stats.coverageBins,
           totalCells: response.stats.totalCells,
           placementHints: response.stats.placementHints,
+          apIndexGrid: response.apIndexBuffer ? new Uint8Array(response.apIndexBuffer) : undefined,
+          deltaGrid: response.deltaBuffer ? new Float32Array(response.deltaBuffer) : undefined,
+          apIds: response.apIds,
+          gridWidth: response.gridWidth,
+          gridHeight: response.gridHeight,
+          rssiGrid: response.rssiBuffer ? new Float32Array(response.rssiBuffer) : undefined,
+          secondBestApIndexGrid: response.secondBestApIndexBuffer ? new Uint8Array(response.secondBestApIndexBuffer) : undefined,
+          overlapCountGrid: response.overlapCountBuffer ? new Uint8Array(response.overlapCountBuffer) : undefined,
+          uplinkLimitedGrid: response.uplinkLimitedBuffer ? new Uint8Array(response.uplinkLimitedBuffer) : undefined,
         };
 
         this.options.onResult(canvas, stats);

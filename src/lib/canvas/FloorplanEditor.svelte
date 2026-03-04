@@ -48,6 +48,10 @@ interface FloorplanEditorProps {
   onCanvasDblClick?: (canvasX: number, canvasY: number) => void;
   /** Callback when mouse moves on canvas */
   onCanvasMouseMove?: (canvasX: number, canvasY: number) => void;
+  /** Callback when pointer is pressed on canvas (left button, not panning) */
+  onCanvasPointerDown?: (canvasX: number, canvasY: number) => void;
+  /** Callback when pointer is released on canvas (not panning) */
+  onCanvasPointerUp?: (canvasX: number, canvasY: number) => void;
 }
 
 let {
@@ -64,6 +68,8 @@ let {
   onCanvasClick,
   onCanvasDblClick,
   onCanvasMouseMove,
+  onCanvasPointerDown,
+  onCanvasPointerUp,
 }: FloorplanEditorProps = $props();
 
 // We obtain the stage reference from the first event that fires
@@ -203,6 +209,12 @@ function handleStageMouseDown(event: KonvaMouseEvent): void {
     isPanning = true;
     panStartPointer = { x: evt.clientX, y: evt.clientY };
     panStartOffset = { x: canvasStore.offsetX, y: canvasStore.offsetY };
+  } else if (evt.button === 0 && onCanvasPointerDown) {
+    const stage = stageNode;
+    if (stage) {
+      const pos = pointerToCanvas(stage);
+      if (pos) onCanvasPointerDown(pos.x, pos.y);
+    }
   }
 }
 
@@ -210,6 +222,13 @@ function handleStageMouseUp(event: KonvaMouseEvent): void {
   if (isPanning) {
     isPanning = false;
     event.evt.preventDefault();
+  } else if (onCanvasPointerUp) {
+    captureStageRef(event);
+    const stage = stageNode;
+    if (stage) {
+      const pos = pointerToCanvas(stage);
+      if (pos) onCanvasPointerUp(pos.x, pos.y);
+    }
   }
 }
 
@@ -217,8 +236,9 @@ function handleStageClick(event: KonvaMouseEvent): void {
   captureStageRef(event);
   // Suppress click after a pan gesture or middle-button click
   if (event.evt.button === 1) return;
-  // Only handle clicks on the stage itself (not on child shapes)
-  if (event.target !== event.target.getStage()) return;
+  // Interactive shapes set cancelBubble = true in their onclick handlers,
+  // so this event only reaches here for clicks on empty space or
+  // non-listening shapes (e.g. walls/APs in drawing mode).
   const stage = stageNode;
   if (!stage) return;
   const pos = pointerToCanvas(stage);

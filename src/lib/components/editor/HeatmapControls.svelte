@@ -34,6 +34,8 @@
       avgRSSI: number;
       calculationTimeMs: number;
     } | null;
+    /** Label of the currently filtered AP (null = all APs) */
+    apFilterLabel?: string | null;
     /** Callback when frequency band changes */
     onBandChange?: (band: FrequencyBand) => void;
     /** Callback when color scheme changes */
@@ -50,6 +52,7 @@
     opacity,
     visible,
     stats = null,
+    apFilterLabel = null,
     onBandChange,
     onColorSchemeChange,
     onOpacityChange,
@@ -174,6 +177,11 @@
   {#if stats}
     <div class="stats-section">
       <span class="group-label">{t('heatmap.stats')}</span>
+      {#if apFilterLabel}
+        <div class="single-ap-indicator">
+          {t('heatmap.singleAp')}: {apFilterLabel}
+        </div>
+      {/if}
       <div class="stats-grid">
         <span class="stat-label">{t('heatmap.minRSSI')}</span>
         <span class="stat-value">{stats.minRSSI.toFixed(0)} dBm</span>
@@ -379,6 +387,17 @@
     margin-bottom: 10px;
     padding-top: 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .single-ap-indicator {
+    font-size: 0.65rem;
+    color: #c0c0d0;
+    background: rgba(74, 108, 247, 0.1);
+    border-radius: 3px;
+    padding: 2px 6px;
+    margin-top: 4px;
+    margin-bottom: 2px;
+    font-weight: 500;
   }
 
   .stats-grid {

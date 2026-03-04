@@ -2,11 +2,11 @@
   MaterialPicker.svelte - Material selection panel for wall drawing.
 
   Features:
-  - Quick-category buttons (Light/Medium/Heavy/Blocking) with color coding
-  - Expandable detail materials under each category
-  - Shows attenuation values (dB @ 2.4/5 GHz)
-  - Selected material is applied when drawing walls
-  - Loads materials from the backend on mount
+  - All materials always visible, grouped by category (light/medium/heavy)
+  - Category headers are clickable (select quick-category material)
+  - Each material shows name, thickness (cm), and attenuation (dB)
+  - Selected material is highlighted
+  - Fixed material display for door/window tools
 -->
 <script lang="ts">
   import { t } from '$lib/i18n';
@@ -38,7 +38,6 @@
     : ''
   );
 
-  let expandedCategory = $state<string | null>(null);
   let materials = $state<MaterialResponse[]>([]);
   let loadingError = $state<string | null>(null);
 
@@ -65,16 +64,28 @@
     };
   });
 
-  let quickCategories = $derived(materials.filter((m) => m.is_quick_category));
+  const CATEGORY_ORDER = ['light', 'medium', 'heavy'] as const;
 
   function categoryColor(cat: string): string {
     switch (cat) {
       case 'light': return '#4caf50';
       case 'medium': return '#ff9800';
       case 'heavy': return '#f44336';
-      case 'blocking': return '#1a1a2e';
       default: return '#808080';
     }
+  }
+
+  function categoryLabel(cat: string): string {
+    switch (cat) {
+      case 'light': return t('material.categoryLight');
+      case 'medium': return t('material.categoryMedium');
+      case 'heavy': return t('material.categoryHeavy');
+      default: return cat;
+    }
+  }
+
+  function quickCategoryForCategory(category: string): MaterialResponse | undefined {
+    return materials.find((m) => m.is_quick_category && m.category === category);
   }
 
   function detailMaterialsForCategory(category: string): MaterialResponse[] {
@@ -82,17 +93,10 @@
   }
 
   function materialDisplayName(mat: MaterialResponse): string {
-    // Use locale-appropriate name; fallback to English
     return mat.name_en || mat.name_de;
   }
 
-  function handleQuickSelect(materialId: string, category: string): void {
-    onSelect?.(materialId);
-    // Toggle expansion of this category
-    expandedCategory = expandedCategory === category ? null : category;
-  }
-
-  function handleDetailSelect(materialId: string): void {
+  function handleSelect(materialId: string): void {
     onSelect?.(materialId);
   }
 </script>
@@ -111,41 +115,40 @@
   {:else if materials.length === 0}
     <p class="loading-text">{t('label.loading') ?? 'Loading...'}</p>
   {:else}
-    <!-- Quick category buttons -->
-    <div class="quick-categories">
-      {#each quickCategories as mat (mat.id)}
-        <button
-          class="quick-btn"
-          class:selected={selectedMaterialId === mat.id}
-          style="--cat-color: {categoryColor(mat.category)}"
-          onclick={() => handleQuickSelect(mat.id, mat.category)}
-          title="{materialDisplayName(mat)}: {mat.attenuation_24ghz_db}/{mat.attenuation_5ghz_db} dB"
-        >
-          <span class="quick-dot"></span>
-          <span class="quick-label">{materialDisplayName(mat)}{#if mat.default_thickness_cm} ({mat.default_thickness_cm}cm){/if}</span>
-          <span class="quick-db">{mat.attenuation_24ghz_db}/{mat.attenuation_5ghz_db}</span>
-        </button>
+    <div class="material-list">
+      {#each CATEGORY_ORDER as cat (cat)}
+        {@const qc = quickCategoryForCategory(cat)}
+        {@const details = detailMaterialsForCategory(cat)}
 
-        <!-- Expanded detail materials -->
-        {#if expandedCategory === mat.category}
-          <div class="detail-materials">
-            {#each detailMaterialsForCategory(mat.category) as detail (detail.id)}
-              <button
-                class="detail-btn"
-                class:selected={selectedMaterialId === detail.id}
-                onclick={() => handleDetailSelect(detail.id)}
-              >
-                <span class="detail-name">{materialDisplayName(detail)}</span>
-                <span class="detail-specs">
-                  {detail.attenuation_24ghz_db}/{detail.attenuation_5ghz_db} dB
-                  {#if detail.default_thickness_cm}
-                    | {detail.default_thickness_cm}cm
-                  {/if}
-                </span>
-              </button>
-            {/each}
-          </div>
+        <!-- Category header (clickable -> selects quick-category) -->
+        {#if qc}
+          <button
+            class="category-header"
+            class:selected={selectedMaterialId === qc.id}
+            style="--cat-color: {categoryColor(cat)}"
+            onclick={() => handleSelect(qc.id)}
+            title="{materialDisplayName(qc)} — {qc.default_thickness_cm} cm | {qc.attenuation_24ghz_db}/{qc.attenuation_5ghz_db}/{qc.attenuation_6ghz_db} dB"
+          >
+            <span class="cat-dot"></span>
+            <span class="cat-label">{categoryLabel(cat)}</span>
+            <span class="cat-specs">{qc.default_thickness_cm} cm | {qc.attenuation_24ghz_db}/{qc.attenuation_5ghz_db} dB</span>
+          </button>
         {/if}
+
+        <!-- Detail materials always visible -->
+        {#each details as mat (mat.id)}
+          <button
+            class="detail-btn"
+            class:selected={selectedMaterialId === mat.id}
+            style="--cat-color: {categoryColor(cat)}"
+            onclick={() => handleSelect(mat.id)}
+            title="{materialDisplayName(mat)} — {mat.default_thickness_cm} cm | {mat.attenuation_24ghz_db}/{mat.attenuation_5ghz_db}/{mat.attenuation_6ghz_db} dB"
+          >
+            <span class="detail-dot"></span>
+            <span class="detail-name">{materialDisplayName(mat)}</span>
+            <span class="detail-specs">{mat.default_thickness_cm} cm | {mat.attenuation_24ghz_db}/{mat.attenuation_5ghz_db}</span>
+          </button>
+        {/each}
       {/each}
     </div>
   {/if}
@@ -182,39 +185,47 @@
     color: #f44336;
   }
 
-  .quick-categories {
+  .material-list {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
+    max-height: 360px;
+    overflow-y: auto;
   }
 
-  .quick-btn {
+  /* Category header */
+  .category-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
     cursor: pointer;
-    color: #c0c0d0;
+    color: #d0d0e0;
     font-size: 0.8rem;
     text-align: left;
     width: 100%;
     transition: all 0.15s ease;
+    margin-top: 4px;
   }
 
-  .quick-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
+  .category-header:first-child {
+    margin-top: 0;
   }
 
-  .quick-btn.selected {
+  .category-header:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .category-header.selected {
     border-color: var(--cat-color);
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.12);
   }
 
-  .quick-dot {
+  .cat-dot {
     display: inline-block;
     width: 10px;
     height: 10px;
@@ -223,30 +234,27 @@
     flex-shrink: 0;
   }
 
-  .quick-label {
+  .cat-label {
     flex: 1;
-    font-weight: 500;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
   }
 
-  .quick-db {
-    font-size: 0.7rem;
+  .cat-specs {
+    font-size: 0.65rem;
     color: #808090;
     font-family: 'SF Mono', 'Fira Code', monospace;
+    white-space: nowrap;
   }
 
-  .detail-materials {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 4px 0 4px 18px;
-    margin-bottom: 2px;
-  }
-
+  /* Detail material button */
   .detail-btn {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 5px 8px;
+    gap: 6px;
+    padding: 5px 8px 5px 20px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid transparent;
     border-radius: 4px;
@@ -269,7 +277,18 @@
     color: #e0e0f0;
   }
 
+  .detail-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cat-color);
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
   .detail-name {
+    flex: 1;
     font-weight: 500;
   }
 
@@ -277,6 +296,7 @@
     font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 0.65rem;
     color: #6a6a8a;
+    white-space: nowrap;
   }
 
   .legend {

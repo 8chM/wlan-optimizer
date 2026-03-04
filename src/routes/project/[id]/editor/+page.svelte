@@ -8,7 +8,6 @@
 -->
 <script lang="ts">
 import { createAccessPoint, deleteAccessPoint, updateAccessPoint } from '$lib/api/accessPoint';
-import { importFloorImage, setFloorScale, setFloorRotation } from '$lib/api/floor';
 import { safeInvoke, type MaterialResponse, type SegmentInput } from '$lib/api/invoke';
 import { createWall, deleteWall, updateWall, type WallSegmentInput } from '$lib/api/wall';
 import { Line, Circle } from 'svelte-konva';
@@ -16,7 +15,6 @@ import { FloorplanEditor } from '$lib/canvas';
 import BackgroundImage from '$lib/canvas/BackgroundImage.svelte';
 import GridOverlay from '$lib/canvas/GridOverlay.svelte';
 import HeatmapOverlay from '$lib/canvas/HeatmapOverlay.svelte';
-import ScaleIndicator from '$lib/canvas/ScaleIndicator.svelte';
 import WallDrawingTool from '$lib/canvas/WallDrawingTool.svelte';
 import AccessPointMarker from '$lib/canvas/AccessPointMarker.svelte';
 import MeasureLayer from '$lib/canvas/MeasureLayer.svelte';
@@ -55,21 +53,23 @@ import { projectStore } from '$lib/stores/projectStore.svelte';
 import { undoStore, type EditorCommand } from '$lib/stores/undoStore.svelte';
 import { clipboardStore, type ClipboardWall, type ClipboardAp } from '$lib/stores/clipboardStore.svelte';
 import { registerShortcuts } from '$lib/utils/keyboard';
+import { projectPointOnSegment, findNearestWallSegment } from '$lib/editor/editorUtils';
+import PointInspectorOverlay from '$lib/components/editor/PointInspectorOverlay.svelte';
+import { inspectPoint, type PointDebugResult } from '$lib/heatmap/point-inspector';
+import { convertApsToConfig, convertWallsToData } from '$lib/heatmap/convert';
+import { createRFConfig } from '$lib/heatmap/rf-engine';
+import { recommendationStore } from '$lib/stores/recommendationStore.svelte';
+import CandidateLocationMarker from '$lib/canvas/CandidateLocationMarker.svelte';
+import ConstraintZoneRect from '$lib/canvas/ConstraintZoneRect.svelte';
+import type { CandidateLocation, ConstraintZone, APCapabilities } from '$lib/recommendations/types';
+import { DEFAULT_AP_CAPABILITIES } from '$lib/recommendations/types';
 
 let containerWidth = $state(800);
 let containerHeight = $state(600);
 let shortcutHelpOpen = $state(false);
 let mousePosition = $state<Position | null>(null);
 let floorImageDataUrl = $state<string | null>(null);
-let loadedImageWidth = $state(0);
-let loadedImageHeight = $state(0);
-let fileInput: HTMLInputElement | undefined = $state();
 let materials = $state<MaterialResponse[]>([]);
-let uploadError = $state<string | null>(null);
-let scalePoints = $state<Array<{ x: number; y: number }>>([]);
-let scaleDialogOpen = $state(false);
-let scaleDistanceInput = $state('');
-let scalePixelDistance = $state(0);
 let measureStart = $state<{ x: number; y: number } | null>(null);
 let measureEnd = $state<{ x: number; y: number } | null>(null);
 let savedMeasurements = $state<import('$lib/canvas/SavedMeasurements.svelte').SavedMeasurement[]>([]);
@@ -96,8 +96,16 @@ let doorWindowStart = $state<{
   y: number;
 } | null>(null);
 
-let settingScale = $derived(canvasStore.settingScale);
+// Point Inspector state (Alt+Click debug overlay)
+let pointInspectorResult = $state<PointDebugResult | null>(null);
+let altKeyHeld = $state(false);
+/** AP ID selected in Point Inspector for hit-trace visualization */
+let hitTraceApId = $state<string | null>(null);
 
+// ── Candidate / Zone / Capabilities state ──────────────────────
+let candidates = $state<CandidateLocation[]>([]);
+let constraintZones = $state<ConstraintZone[]>([]);
+let apCapabilities = $state<Map<string, APCapabilities>>(new Map());
 // Lock background image when wizard has been completed for this project
 let backgroundLocked = $state(false);
 
@@ -116,11 +124,12 @@ $effect(() => {
 // Cursor per tool (space held = grab for panning)
 let canvasCursor = $derived.by(() => {
   if (canvasStore.spaceHeld) return 'grab';
-  if (settingScale) return 'crosshair';
   switch (canvasStore.activeTool) {
     case 'pan': return 'grab';
     case 'select': return 'default';
     case 'ap': return 'cell';
+    case 'candidate': return 'cell';
+    case 'zone': return 'crosshair';
     case 'text': return 'text';
     default: return 'crosshair';
   }
@@ -164,7 +173,7 @@ let wallMaterialId = $derived.by(() => {
   const tool = canvasStore.activeTool;
   if (tool === 'door') return 'mat-wood-door';
   if (tool === 'window') return 'mat-window';
-  return canvasStore.selectedMaterialId ?? 'mat-drywall';
+  return canvasStore.selectedMaterialId ?? 'Q01';
 });
 
 // ── Snap targets from existing walls ──────────────────────────
@@ -221,6 +230,55 @@ let doorWindowPreview = $derived.by((): DoorWindowPreview | null => {
   };
 });
 
+// ── Hit-trace data for Point Inspector visualization ─────────
+interface HitTraceData {
+  apX: number; apY: number;
+  pointX: number; pointY: number;
+  groups: Array<{
+    x: number; y: number;
+    materialLabel: string;
+    color: string;
+    action: string;
+    appliedLossDb: number;
+    rawCount: number;
+  }>;
+}
+
+/** Map material label to color for hit-trace markers */
+function getMaterialHitColor(label: string): string {
+  const l = label.toLowerCase();
+  if (l.includes('door') || l.includes('tür') || l.includes('tuer')) return '#4caf50';
+  if (l.includes('window') || l.includes('fenster') || l.includes('glass')) return '#2196f3';
+  if (l.includes('drywall') || l.includes('gips') || l.includes('plasterboard')) return '#ffeb3b';
+  if (l.includes('brick') || l.includes('concrete') || l.includes('beton') || l.includes('ziegel')) return '#ff4444';
+  if (l.includes('wood') || l.includes('holz')) return '#ff9800';
+  return '#ff9800'; // orange fallback
+}
+
+let hitTraceData = $derived.by((): HitTraceData | null => {
+  if (!pointInspectorResult || !hitTraceApId) return null;
+  const apDebug = pointInspectorResult.perAp.find((a) => a.apId === hitTraceApId);
+  if (!apDebug) return null;
+  // Find AP position from floor data
+  const apResp = floor?.access_points?.find((ap) => ap.id === hitTraceApId);
+  if (!apResp) return null;
+  return {
+    apX: apResp.x * scalePxPerMeter,
+    apY: apResp.y * scalePxPerMeter,
+    pointX: pointInspectorResult.pointX * scalePxPerMeter,
+    pointY: pointInspectorResult.pointY * scalePxPerMeter,
+    groups: apDebug.hitGroups.map((g) => ({
+      x: g.representative.hitX * scalePxPerMeter,
+      y: g.representative.hitY * scalePxPerMeter,
+      materialLabel: g.representative.materialLabel,
+      color: getMaterialHitColor(g.representative.materialLabel),
+      action: g.action,
+      appliedLossDb: g.appliedLossDb,
+      rawCount: g.rawHits.length,
+    })),
+  };
+});
+
 // ── Selection-based properties panel ──────────────────────────
 let selectedWalls = $derived.by(() => {
   const ids = canvasStore.selectedIds;
@@ -240,7 +298,27 @@ let selectedAp = $derived.by(() => {
   return floor?.access_points?.find((ap) => ap.id === ids[0]) ?? null;
 });
 
-let showPropertiesPanel = $derived(selectedWalls.length > 0 || selectedWall !== null || selectedAp !== null);
+let selectedCandidate = $derived.by(() => {
+  const ids = canvasStore.selectedIds;
+  if (ids.length !== 1) return null;
+  return candidates.find(c => c.id === ids[0]) ?? null;
+});
+
+let selectedZone = $derived.by(() => {
+  const ids = canvasStore.selectedIds;
+  if (ids.length !== 1) return null;
+  return constraintZones.find(z => z.id === ids[0]) ?? null;
+});
+
+let selectedApCapabilities = $derived.by(() => {
+  if (!selectedAp) return null;
+  return apCapabilities.get(selectedAp.id) ?? null;
+});
+
+let showPropertiesPanel = $derived(
+  selectedWalls.length > 0 || selectedWall !== null || selectedAp !== null ||
+  selectedCandidate !== null || selectedZone !== null
+);
 
 // ── Coverage stats from heatmap ───────────────────────────────
 let coverageStats = $derived.by((): CoverageStats | null => {
@@ -268,6 +346,60 @@ $effect(() => {
     channelStore.analyze(aps);
   }
 });
+
+// ── Load candidates/zones/capabilities from localStorage ──────
+$effect(() => {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  try {
+    const stored = localStorage.getItem(`wlan-opt:candidates:${floorId}`);
+    candidates = stored ? JSON.parse(stored) : [];
+  } catch { candidates = []; }
+  try {
+    const stored = localStorage.getItem(`wlan-opt:zones:${floorId}`);
+    constraintZones = stored ? JSON.parse(stored) : [];
+  } catch { constraintZones = []; }
+  try {
+    const stored = localStorage.getItem(`wlan-opt:capabilities:${floorId}`);
+    if (stored) {
+      const arr: APCapabilities[] = JSON.parse(stored);
+      const map = new Map<string, APCapabilities>();
+      for (const c of arr) map.set(c.apId, c);
+      apCapabilities = map;
+    } else {
+      apCapabilities = new Map();
+    }
+  } catch { apCapabilities = new Map(); }
+});
+
+// Sync to recommendationStore when candidates/zones/capabilities change
+$effect(() => {
+  recommendationStore.setCandidates(candidates);
+});
+$effect(() => {
+  recommendationStore.setConstraintZones(constraintZones);
+});
+$effect(() => {
+  recommendationStore.setAPCapabilities([...apCapabilities.values()]);
+});
+
+function saveCandidates(): void {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  localStorage.setItem(`wlan-opt:candidates:${floorId}`, JSON.stringify(candidates));
+}
+
+function saveZones(): void {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  localStorage.setItem(`wlan-opt:zones:${floorId}`, JSON.stringify(constraintZones));
+}
+
+function saveCapabilities(): void {
+  const floorId = floor?.id;
+  if (!floorId) return;
+  localStorage.setItem(`wlan-opt:capabilities:${floorId}`, JSON.stringify([...apCapabilities.values()]));
+}
 
 // ── Load annotations from localStorage ────────────────────────
 $effect(() => {
@@ -375,13 +507,6 @@ async function loadFloorImage(floorId: string): Promise<void> {
     }
     if (dataUrl) {
       floorImageDataUrl = dataUrl;
-      // Probe image dimensions for correct scale calculation
-      const img = new Image();
-      img.onload = () => {
-        loadedImageWidth = img.naturalWidth;
-        loadedImageHeight = img.naturalHeight;
-      };
-      img.src = dataUrl;
     }
   } catch {
     // No image available
@@ -391,15 +516,6 @@ async function loadFloorImage(floorId: string): Promise<void> {
 // ── Load materials on mount ──────────────────────────────────
 $effect(() => {
   loadMaterials();
-});
-
-// ── Reset scale points when entering scale mode ──────────────
-$effect(() => {
-  if (settingScale) {
-    scalePoints = [];
-    scaleDialogOpen = false;
-    scaleDistanceInput = '';
-  }
 });
 
 async function loadMaterials(): Promise<void> {
@@ -423,6 +539,7 @@ async function handleWallUpdate(
   wallId: string,
   updates: {
     materialId?: string;
+    thicknessCm?: number | null;
     attenuationOverride24ghz?: number | null;
     attenuationOverride5ghz?: number | null;
   },
@@ -431,6 +548,7 @@ async function handleWallUpdate(
   const wall = floor?.walls?.find((w) => w.id === wallId);
   const oldValues = {
     materialId: wall?.material_id,
+    thicknessCm: wall?.thickness_cm,
     attenuationOverride24ghz: wall?.attenuation_override_24ghz,
     attenuationOverride5ghz: wall?.attenuation_override_5ghz,
   };
@@ -686,61 +804,6 @@ async function handleDeleteAp(apId: string): Promise<void> {
   }
 }
 
-// ── Scale setting ────────────────────────────────────────────
-
-function cancelScaleSetting(): void {
-  canvasStore.setSettingScale(false);
-  scalePoints = [];
-  scaleDialogOpen = false;
-  scaleDistanceInput = '';
-}
-
-/** Compute bounding box dimensions of a rotated rectangle. */
-function getRotatedBoundingBox(w: number, h: number, angleDeg: number): { w: number; h: number } {
-  const rad = ((angleDeg % 360 + 360) % 360) * Math.PI / 180;
-  const cos = Math.abs(Math.cos(rad));
-  const sin = Math.abs(Math.sin(rad));
-  return { w: w * cos + h * sin, h: w * sin + h * cos };
-}
-
-async function confirmScale(): Promise<void> {
-  const distance = parseFloat(scaleDistanceInput);
-  if (!floor || isNaN(distance) || distance <= 0 || scalePixelDistance <= 0) return;
-
-  const newPxPerMeter = scalePixelDistance / distance;
-  // Use rotated bounding box dimensions for accurate floor size calculation
-  let widthM: number;
-  let heightM: number;
-  if (loadedImageWidth > 0 && loadedImageHeight > 0) {
-    const { w, h } = getRotatedBoundingBox(loadedImageWidth, loadedImageHeight, floorRotation);
-    widthM = w / newPxPerMeter;
-    heightM = h / newPxPerMeter;
-  } else {
-    widthM = floor.width_meters ?? 10;
-    heightM = floor.height_meters ?? 10;
-  }
-
-  // Save scale reference line for persistent display (also persist to localStorage)
-  confirmedScalePoints = [...scalePoints];
-  confirmedScaleDistanceM = distance;
-  if (floor) {
-    localStorage.setItem(`wlan-opt:scale-ref:${floor.id}`, JSON.stringify({
-      points: confirmedScalePoints,
-      distanceM: distance,
-    }));
-  }
-
-  try {
-    await setFloorScale(floor.id, newPxPerMeter, widthM, heightM);
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
-  } catch (err) {
-    console.error('[Editor] Failed to set scale:', err);
-  }
-
-  cancelScaleSetting();
-}
-
 // ── Measure tool state ────────────────────────────────────────
 
 let measuredDistance = $derived.by((): number | null => {
@@ -779,6 +842,47 @@ function handleDeleteMeasurement(): void {
   saveMeasurementsToStorage();
 }
 
+// ── Candidate/Zone handlers ────────────────────────────────────
+
+function handleCandidateUpdate(id: string, updates: Partial<CandidateLocation>): void {
+  candidates = candidates.map(c => c.id === id ? { ...c, ...updates } : c);
+  saveCandidates();
+}
+
+function handleCandidateDelete(id: string): void {
+  candidates = candidates.filter(c => c.id !== id);
+  canvasStore.clearSelection();
+  saveCandidates();
+}
+
+function handleCandidatePositionChange(id: string, x: number, y: number): void {
+  candidates = candidates.map(c => c.id === id ? { ...c, x, y } : c);
+  saveCandidates();
+}
+
+function handleZoneUpdate(id: string, updates: Partial<ConstraintZone>): void {
+  constraintZones = constraintZones.map(z => z.id === id ? { ...z, ...updates } : z);
+  saveZones();
+}
+
+function handleZoneDelete(id: string): void {
+  constraintZones = constraintZones.filter(z => z.id !== id);
+  canvasStore.clearSelection();
+  saveZones();
+}
+
+function handleZonePositionChange(id: string, x: number, y: number): void {
+  constraintZones = constraintZones.map(z => z.id === id ? { ...z, x, y } : z);
+  saveZones();
+}
+
+function handleCapabilitiesChange(apId: string, caps: APCapabilities): void {
+  const newMap = new Map(apCapabilities);
+  newMap.set(apId, caps);
+  apCapabilities = newMap;
+  saveCapabilities();
+}
+
 // ── Reset measure on tool change ──────────────────────────────
 $effect(() => {
   if (canvasStore.activeTool !== 'measure') {
@@ -796,6 +900,18 @@ $effect(() => {
   }
   document.addEventListener('keydown', handleEnterPin);
   return () => document.removeEventListener('keydown', handleEnterPin);
+});
+
+// ── Alt key tracking for Point Inspector ────────────────────
+$effect(() => {
+  function handleKeyDown(e: KeyboardEvent): void { if (e.key === 'Alt') altKeyHeld = true; }
+  function handleKeyUp(e: KeyboardEvent): void { if (e.key === 'Alt') altKeyHeld = false; }
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+  return () => {
+    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keyup', handleKeyUp);
+  };
 });
 
 // ── Reset door/window start on tool change ──────────────────
@@ -826,10 +942,6 @@ $effect(() => {
       projectStore.saveCurrentProject();
     },
     deselect: () => {
-      if (settingScale) {
-        cancelScaleSetting();
-        return;
-      }
       if (doorWindowStart) {
         doorWindowStart = null;
         return;
@@ -869,6 +981,12 @@ $effect(() => {
     roomTool: () => {
       canvasStore.setTool('room');
     },
+    candidateTool: () => {
+      canvasStore.setTool('candidate');
+    },
+    zoneTool: () => {
+      canvasStore.setTool('zone');
+    },
     gridToggle: () => {
       canvasStore.toggleGrid();
     },
@@ -900,58 +1018,6 @@ $effect(() => {
 });
 
 // ── Door/Window insertion on existing walls ───────────────────
-
-function projectPointOnSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): { t: number; dist: number; projX: number; projY: number } {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq === 0) return { t: 0, dist: Math.sqrt((px - x1) ** 2 + (py - y1) ** 2), projX: x1, projY: y1 };
-  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-  const projX = x1 + t * dx;
-  const projY = y1 + t * dy;
-  const dist = Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
-  return { t, dist, projX, projY };
-}
-
-/** Find the nearest wall segment to a point (in meters). Returns null if none within maxDistM. */
-function findNearestWallSegment(clickXM: number, clickYM: number, maxDistM: number): {
-  wall: NonNullable<typeof floor>['walls'][number];
-  segIdx: number;
-  t: number;
-  projX: number;
-  projY: number;
-} | null {
-  const walls = floor?.walls ?? [];
-  const doorWindowMats = ['mat-wood-door', 'mat-metal-door', 'mat-glass-door', 'mat-window'];
-
-  let bestWall: (typeof walls)[number] | null = null;
-  let bestSegIdx = -1;
-  let bestT = 0;
-  let bestProjX = 0;
-  let bestProjY = 0;
-  let bestDist = Infinity;
-
-  for (const wall of walls) {
-    if (doorWindowMats.includes(wall.material_id)) continue;
-    const sorted = wall.segments.slice().sort((a, b) => a.segment_order - b.segment_order);
-    for (let i = 0; i < sorted.length; i++) {
-      const seg = sorted[i]!;
-      const proj = projectPointOnSegment(clickXM, clickYM, seg.x1, seg.y1, seg.x2, seg.y2);
-      if (proj.dist < bestDist && proj.dist < maxDistM) {
-        bestDist = proj.dist;
-        bestWall = wall;
-        bestSegIdx = i;
-        bestT = proj.t;
-        bestProjX = proj.projX;
-        bestProjY = proj.projY;
-      }
-    }
-  }
-
-  if (!bestWall) return null;
-  return { wall: bestWall, segIdx: bestSegIdx, t: bestT, projX: bestProjX, projY: bestProjY };
-}
 
 /** Execute the wall split to insert a door/window between tStart and tEnd on a wall segment. */
 function executeDoorWindowSplit(
@@ -1045,7 +1111,7 @@ function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'w
 
   // ── First click: set start point ──
   if (!doorWindowStart) {
-    const hit = findNearestWallSegment(clickXM, clickYM, maxDistM);
+    const hit = findNearestWallSegment(floor?.walls ?? [], clickXM, clickYM, maxDistM);
     if (!hit) return false;
 
     doorWindowStart = {
@@ -1080,7 +1146,7 @@ function tryInsertDoorWindow(canvasX: number, canvasY: number, tool: 'door' | 'w
   // Check if second click is on the same wall (close enough)
   if (proj.dist > maxDistM) {
     // Clicked too far from the wall - try a different wall as new start
-    const hit = findNearestWallSegment(clickXM, clickYM, maxDistM);
+    const hit = findNearestWallSegment(floor?.walls ?? [], clickXM, clickYM, maxDistM);
     if (hit) {
       doorWindowStart = {
         wallId: hit.wall.id,
@@ -1142,21 +1208,22 @@ function handleExportPng(): void {
 let wallDrawingLayer: WallDrawingLayer | undefined = $state();
 
 function handleCanvasClick(canvasX: number, canvasY: number): void {
-  const tool = canvasStore.activeTool;
-
-  // Scale-setting mode intercepts clicks
-  if (settingScale) {
-    if (scalePoints.length < 2) {
-      scalePoints = [...scalePoints, { x: canvasX, y: canvasY }];
-      if (scalePoints.length === 2) {
-        const dx = scalePoints[1]!.x - scalePoints[0]!.x;
-        const dy = scalePoints[1]!.y - scalePoints[0]!.y;
-        scalePixelDistance = Math.sqrt(dx * dx + dy * dy);
-        scaleDialogOpen = true;
-      }
-    }
+  // Alt+Click: Point Inspector debug overlay
+  if (altKeyHeld && floor && editorHeatmapStore.visible) {
+    const xMeters = canvasX / scalePxPerMeter;
+    const yMeters = canvasY / scalePxPerMeter;
+    const band = editorHeatmapStore.band;
+    const aps = convertApsToConfig(floor.access_points ?? [], band);
+    const walls = convertWallsToData(floor.walls ?? [], band);
+    pointInspectorResult = inspectPoint(
+      xMeters, yMeters, aps, walls, floorBounds, band,
+      editorHeatmapStore.calibratedN,
+      editorHeatmapStore.receiverGainDbi,
+    );
     return;
   }
+
+  const tool = canvasStore.activeTool;
 
   // Door/Window tool: try to insert on an existing wall first
   if ((tool === 'door' || tool === 'window') && floor?.walls) {
@@ -1178,6 +1245,50 @@ function handleCanvasClick(canvasX: number, canvasY: number): void {
     const xMeters = canvasX / scalePxPerMeter;
     const yMeters = canvasY / scalePxPerMeter;
     placeAccessPoint(xMeters, yMeters);
+    return;
+  }
+
+  if (tool === 'candidate' && floor) {
+    const xMeters = canvasX / scalePxPerMeter;
+    const yMeters = canvasY / scalePxPerMeter;
+    const newCandidate: CandidateLocation = {
+      id: `cand-${crypto.randomUUID().slice(0, 8)}`,
+      label: `${t('candidate.title')} ${candidates.length + 1}`,
+      x: xMeters,
+      y: yMeters,
+      hasLan: false,
+      hasPoe: false,
+      hasPower: true,
+      mountingOptions: ['ceiling'],
+      preferred: false,
+      forbidden: false,
+    };
+    candidates = [...candidates, newCandidate];
+    saveCandidates();
+    canvasStore.clearSelection();
+    canvasStore.selectItem(newCandidate.id, false);
+    return;
+  }
+
+  if (tool === 'zone' && floor) {
+    const xMeters = canvasX / scalePxPerMeter;
+    const yMeters = canvasY / scalePxPerMeter;
+    // 1-click placement: center a 2×2m zone on click position
+    const zoneSize = 2.0;
+    const half = zoneSize / 2;
+    const newZone: ConstraintZone = {
+      id: `zone-${crypto.randomUUID().slice(0, 8)}`,
+      type: 'preferred',
+      x: Math.max(0, xMeters - half),
+      y: Math.max(0, yMeters - half),
+      width: zoneSize,
+      height: zoneSize,
+      weight: 3,
+    };
+    constraintZones = [...constraintZones, newZone];
+    saveZones();
+    canvasStore.clearSelection();
+    canvasStore.selectItem(newZone.id, false);
     return;
   }
 
@@ -1576,6 +1687,15 @@ async function handleDeleteSelected(): Promise<void> {
       await handleDeleteAp(id);
       return;
     }
+    // Candidate or Zone: local-only, no undo needed
+    if (candidates.find(c => c.id === id)) {
+      handleCandidateDelete(id);
+      return;
+    }
+    if (constraintZones.find(z => z.id === id)) {
+      handleZoneDelete(id);
+      return;
+    }
   }
 
   // Multi-selection: capture all items for undo, then delete all at once
@@ -1789,84 +1909,6 @@ async function handleRoomCreated(wallIds: string[], areaM2: number, centroid: Po
   });
 }
 
-// ── Floor plan image upload ───────────────────────────────────
-
-function handleUploadClick(): void {
-  fileInput?.click();
-}
-
-async function handleRotateFloorplan(): Promise<void> {
-  if (!floor) return;
-  const newRotation = ((floorRotation + 90) % 360);
-  await applyRotation(newRotation);
-}
-
-async function handleSetRotation(degrees: number): Promise<void> {
-  if (!floor) return;
-  const clamped = ((degrees % 360) + 360) % 360;
-  await applyRotation(clamped);
-}
-
-/** Apply rotation and update floor dimensions to match rotated bounding box. */
-async function applyRotation(newRotation: number): Promise<void> {
-  if (!floor) return;
-  try {
-    await setFloorRotation(floor.id, newRotation);
-    // Update floor dimensions to match rotated bounding box
-    if (loadedImageWidth > 0 && loadedImageHeight > 0 && scalePxPerMeter > 0) {
-      const { w, h } = getRotatedBoundingBox(loadedImageWidth, loadedImageHeight, newRotation);
-      await setFloorScale(floor.id, scalePxPerMeter, w / scalePxPerMeter, h / scalePxPerMeter);
-    }
-    await projectStore.refreshFloorData();
-    projectStore.markDirty();
-  } catch (err) {
-    console.error('[Editor] Failed to apply rotation:', err);
-  }
-}
-
-async function handleFileSelected(event: Event): Promise<void> {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (!file || !floor) return;
-
-  const format = file.type.replace('image/', '');
-  uploadError = null;
-
-  try {
-    // Read file as ArrayBuffer
-    const buffer = await file.arrayBuffer();
-    const bytes = Array.from(new Uint8Array(buffer));
-
-    // Send to backend
-    await importFloorImage(floor.id, bytes, format);
-
-    // Create data URL for display
-    const dataUrl = URL.createObjectURL(file);
-    if (floorImageDataUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(floorImageDataUrl);
-    }
-    floorImageDataUrl = dataUrl;
-
-    // Also store in localStorage for browser-mode persistence
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        localStorage.setItem(`wlan-opt:floor-image:${floor!.id}`, reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-
-    projectStore.markDirty();
-  } catch (err) {
-    console.error('[Editor] Failed to import floor image:', err);
-    uploadError = err instanceof Error ? err.message : t('editor.uploadFailed');
-    // Auto-clear error after 5 seconds
-    setTimeout(() => { uploadError = null; }, 5000);
-  }
-
-  // Reset input so same file can be re-selected
-  target.value = '';
-}
 </script>
 
 <svelte:head>
@@ -1874,15 +1916,6 @@ async function handleFileSelected(event: Event): Promise<void> {
 </svelte:head>
 
 <svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
-
-<!-- Hidden file input for floor plan upload -->
-<input
-  bind:this={fileInput}
-  type="file"
-  accept="image/png,image/jpeg,image/webp"
-  onchange={handleFileSelected}
-  style="display: none"
-/>
 
 <!-- Headless live heatmap renderer -->
 {#if floor}
@@ -1945,12 +1978,6 @@ async function handleFileSelected(event: Event): Promise<void> {
           viewportWidth={containerWidth}
           viewportHeight={containerHeight}
           visible={canvasStore.gridVisible}
-        />
-        <ScaleIndicator
-          {scalePxPerMeter}
-          stageScale={canvasStore.scale}
-          {settingScale}
-          {scalePoints}
         />
       {/snippet}
 
@@ -2032,6 +2059,39 @@ async function handleFileSelected(event: Event): Promise<void> {
           />
         {/each}
 
+        <!-- Candidate location markers -->
+        {#each candidates as cand (cand.id)}
+          <CandidateLocationMarker
+            candidate={cand}
+            selected={canvasStore.isSelected(cand.id)}
+            {scalePxPerMeter}
+            draggable={canvasStore.activeTool === 'select'}
+            interactive={canvasStore.activeTool === 'select'}
+            onSelect={(id) => handleItemSelect(id)}
+            onPositionChange={handleCandidatePositionChange}
+            onDelete={handleCandidateDelete}
+          />
+        {/each}
+
+        <!-- Constraint zone rectangles -->
+        {#each constraintZones as zone (zone.id)}
+          <ConstraintZoneRect
+            {zone}
+            selected={canvasStore.isSelected(zone.id)}
+            {scalePxPerMeter}
+            interactive={canvasStore.activeTool === 'select'}
+            onSelect={(id) => handleItemSelect(id)}
+            onPositionChange={handleZonePositionChange}
+            onResize={(id, x, y, w, h) => {
+              constraintZones = constraintZones.map(z => z.id === id ? { ...z, x, y, width: w, height: h } : z);
+              saveZones();
+            }}
+            onDelete={handleZoneDelete}
+          />
+        {/each}
+
+        <!-- (Zone uses 1-click placement, no start marker needed) -->
+
         <!-- Placement hint markers (visible when heatmap is active) -->
         {#if editorHeatmapStore.visible && placementHints.length > 0}
           <PlacementHintMarker
@@ -2105,6 +2165,69 @@ async function handleFileSelected(event: Event): Promise<void> {
           {/if}
         {/if}
 
+        <!-- Hit-trace visualization (Point Inspector ray from AP to point) -->
+        {#if hitTraceData}
+          <Line
+            points={[hitTraceData.apX, hitTraceData.apY, hitTraceData.pointX, hitTraceData.pointY]}
+            stroke="rgba(255, 255, 100, 0.5)"
+            strokeWidth={2}
+            dash={[6, 3]}
+            listening={false}
+          />
+          {#each hitTraceData.groups as group}
+            {#if group.action === 'same_barrier_merged'}
+              <Circle
+                x={group.x}
+                y={group.y}
+                radius={8}
+                fill="transparent"
+                stroke="#ffeb3b"
+                strokeWidth={1.5}
+                listening={false}
+              />
+            {:else if group.action === 'opening_replaced_wall'}
+              <Circle
+                x={group.x}
+                y={group.y}
+                radius={8}
+                fill="transparent"
+                stroke="#4caf50"
+                strokeWidth={1.5}
+                listening={false}
+              />
+            {/if}
+            <Circle
+              x={group.x}
+              y={group.y}
+              radius={5}
+              fill={group.color}
+              stroke="#ffffff"
+              strokeWidth={1.5}
+              listening={false}
+            />
+          {/each}
+          <!-- AP end marker -->
+          <Circle
+            x={hitTraceData.apX}
+            y={hitTraceData.apY}
+            radius={5}
+            fill="#4caf50"
+            stroke="#ffffff"
+            strokeWidth={2}
+            listening={false}
+          />
+          <!-- Point end marker -->
+          <Circle
+            x={hitTraceData.pointX}
+            y={hitTraceData.pointY}
+            radius={5}
+            fill="#2196f3"
+            stroke="#ffffff"
+            strokeWidth={2}
+            listening={false}
+          />
+        {/if}
+
         <!-- Crosshair cursor (always visible when mouse is on canvas, except pan/select) -->
         {#if mousePosition && canvasStore.activeTool !== 'pan' && canvasStore.activeTool !== 'select'}
           <CrosshairCursor x={mousePosition.x} y={mousePosition.y} />
@@ -2134,17 +2257,8 @@ async function handleFileSelected(event: Event): Promise<void> {
       onOffsetChange={(x, y) => canvasStore.setOffset(x, y)}
     />
 
-    <!-- Floor plan upload/replace button -->
-    {#if !floorImageDataUrl}
-      <button class="upload-btn" onclick={handleUploadClick}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        {t('editor.uploadFloorplan')}
-      </button>
-    {:else}
+    <!-- Export PNG button -->
+    {#if floorImageDataUrl}
       <div class="floorplan-actions">
         <button class="replace-btn" onclick={handleExportPng} title={t('editor.exportPng')}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2154,78 +2268,6 @@ async function handleFileSelected(event: Event): Promise<void> {
           </svg>
           PNG
         </button>
-        <button class="replace-btn" onclick={handleUploadClick} title={t('editor.replaceFloorplan')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          {t('editor.replaceFloorplan')}
-        </button>
-        <button class="replace-btn" onclick={handleRotateFloorplan} title={t('editor.rotateFloorplan')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21.5 2v6h-6"/>
-            <path d="M21.34 15.57a10 10 0 1 1-.57-8.38L21.5 8"/>
-          </svg>
-          {t('editor.rotateFloorplan')}
-        </button>
-        <div class="rotation-input-group">
-          <button
-            class="rotation-step-btn"
-            onclick={() => handleSetRotation(((floorRotation - 1) % 360 + 360) % 360)}
-            title="-1°"
-          >&minus;</button>
-          <input
-            type="number"
-            class="rotation-input"
-            min="0"
-            max="359"
-            step="1"
-            value={floorRotation}
-            onchange={(e) => handleSetRotation(parseInt((e.target as HTMLInputElement).value, 10) || 0)}
-            title={t('editor.rotationDegrees')}
-          />
-          <span class="rotation-suffix">&deg;</span>
-          <button
-            class="rotation-step-btn"
-            onclick={() => handleSetRotation((floorRotation + 1) % 360)}
-            title="+1°"
-          >+</button>
-        </div>
-      </div>
-    {/if}
-
-    <!-- Upload error toast -->
-    {#if uploadError}
-      <div class="upload-error-toast" role="alert">
-        <span>{uploadError}</span>
-        <button class="toast-close" onclick={() => { uploadError = null; }}>&times;</button>
-      </div>
-    {/if}
-
-    <!-- Scale setting dialog -->
-    {#if scaleDialogOpen}
-      <div class="scale-dialog-overlay">
-        <div class="scale-dialog">
-          <h3>{t('editor.setScale')}</h3>
-          <p class="scale-hint">{t('editor.enterDistance')}</p>
-          <div class="scale-input-row">
-            <input
-              type="number"
-              class="scale-input"
-              bind:value={scaleDistanceInput}
-              placeholder="0.00"
-              min="0.01"
-              step="0.01"
-              autofocus
-            />
-            <span class="scale-unit">m</span>
-          </div>
-          <div class="scale-actions">
-            <button class="btn-primary" onclick={confirmScale}>{t('editor.setScale')}</button>
-            <button class="btn-secondary" onclick={cancelScaleSetting}>{t('project.cancel')}</button>
-          </div>
-        </div>
       </div>
     {/if}
 
@@ -2268,21 +2310,20 @@ async function handleFileSelected(event: Event): Promise<void> {
       </div>
     {/if}
 
-    <!-- Scale setting hint -->
-    {#if settingScale && !scaleDialogOpen}
-      <div class="scale-hint-bar">
-        {t('editor.scaleHint')}
-        <button class="btn-cancel-small" onclick={cancelScaleSetting}>{t('project.cancel')}</button>
-      </div>
-    {/if}
-
     <!-- Door/Window 2-click hint -->
-    {#if (canvasStore.activeTool === 'door' || canvasStore.activeTool === 'window') && !settingScale}
+    {#if canvasStore.activeTool === 'door' || canvasStore.activeTool === 'window'}
       <div class="scale-hint-bar">
         {doorWindowStart ? t('editor.doorWindowHint2') : t('editor.doorWindowHint1')}
         {#if doorWindowStart}
           <button class="btn-cancel-small" onclick={() => { doorWindowStart = null; }}>{t('project.cancel')}</button>
         {/if}
+      </div>
+    {/if}
+
+    <!-- Zone placement hint -->
+    {#if canvasStore.activeTool === 'zone'}
+      <div class="scale-hint-bar">
+        {t('editor.zoneHint1')}
       </div>
     {/if}
 
@@ -2311,11 +2352,19 @@ async function handleFileSelected(event: Event): Promise<void> {
           {selectedAp}
           {selectedWalls}
           {materials}
+          {selectedCandidate}
+          {selectedZone}
+          apCapabilities={selectedApCapabilities}
           onWallUpdate={handleWallUpdate}
           onBulkWallUpdate={handleBulkWallUpdate}
           onDeleteWall={handleDeleteWall}
           onApUpdate={handleApUpdate}
           onDeleteAp={handleDeleteAp}
+          onCandidateUpdate={handleCandidateUpdate}
+          onDeleteCandidate={handleCandidateDelete}
+          onZoneUpdate={handleZoneUpdate}
+          onDeleteZone={handleZoneDelete}
+          onCapabilitiesChange={handleCapabilitiesChange}
         />
       </div>
     {/if}
@@ -2365,6 +2414,13 @@ async function handleFileSelected(event: Event): Promise<void> {
 </div>
 
 <ShortcutHelp bind:open={shortcutHelpOpen} />
+
+<!-- Point Inspector Debug Overlay (Alt+Click) -->
+<PointInspectorOverlay
+  result={pointInspectorResult}
+  onClose={() => { pointInspectorResult = null; hitTraceApId = null; }}
+  onSelectAp={(apId) => { hitTraceApId = apId; }}
+/>
 
 <style>
   .editor-container {
@@ -2444,32 +2500,6 @@ async function handleFileSelected(event: Event): Promise<void> {
     overflow-y: auto;
   }
 
-  .upload-btn {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    background: rgba(74, 108, 247, 0.15);
-    border: 2px dashed rgba(74, 108, 247, 0.4);
-    border-radius: 12px;
-    color: #4a6cf7;
-    font-size: 0.9rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    z-index: 10;
-  }
-
-  .upload-btn:hover {
-    background: rgba(74, 108, 247, 0.25);
-    border-color: rgba(74, 108, 247, 0.6);
-  }
-
   .floorplan-actions {
     position: absolute;
     bottom: 12px;
@@ -2499,71 +2529,6 @@ async function handleFileSelected(event: Event): Promise<void> {
     background: rgba(26, 26, 46, 0.95);
     color: #e0e0f0;
     border-color: rgba(74, 108, 247, 0.4);
-  }
-
-  .scale-dialog-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-
-  .scale-dialog {
-    background: var(--bg-primary, #1a1a2e);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 12px;
-    padding: 24px;
-    width: 280px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  }
-
-  .scale-dialog h3 {
-    margin: 0 0 8px;
-    font-size: 1rem;
-    color: var(--text-primary, #e0e0f0);
-  }
-
-  .scale-hint {
-    margin: 0 0 16px;
-    font-size: 0.8rem;
-    color: var(--text-secondary, #a0a0b0);
-  }
-
-  .scale-input-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-
-  .scale-input {
-    flex: 1;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
-    color: var(--text-primary, #e0e0f0);
-    font-size: 1rem;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-  }
-
-  .scale-input:focus {
-    outline: none;
-    border-color: rgba(74, 108, 247, 0.5);
-  }
-
-  .scale-unit {
-    font-size: 0.9rem;
-    color: var(--text-secondary, #a0a0b0);
-    font-weight: 600;
-  }
-
-  .scale-actions {
-    display: flex;
-    gap: 8px;
   }
 
   .btn-primary {
@@ -2670,39 +2635,6 @@ async function handleFileSelected(event: Event): Promise<void> {
     color: #e0e0f0;
   }
 
-  .upload-error-toast {
-    position: absolute;
-    bottom: 60px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 16px;
-    background: rgba(220, 38, 38, 0.9);
-    border: 1px solid rgba(220, 38, 38, 0.6);
-    border-radius: 6px;
-    color: #fff;
-    font-size: 0.8rem;
-    backdrop-filter: blur(8px);
-    z-index: 30;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .toast-close {
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 1rem;
-    cursor: pointer;
-    padding: 0 2px;
-    line-height: 1;
-  }
-
-  .toast-close:hover {
-    color: #fff;
-  }
-
   .text-annotation-input {
     position: absolute;
     z-index: 50;
@@ -2743,53 +2675,4 @@ async function handleFileSelected(event: Event): Promise<void> {
     font-size: 0.75rem;
   }
 
-  .rotation-input-group {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .rotation-input {
-    width: 48px;
-    padding: 4px 6px;
-    background: rgba(26, 26, 46, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
-    color: #e0e0f0;
-    font-size: 0.75rem;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    text-align: center;
-  }
-
-  .rotation-input:focus {
-    outline: none;
-    border-color: rgba(74, 108, 247, 0.5);
-  }
-
-  .rotation-suffix {
-    font-size: 0.75rem;
-    color: #a0a0b0;
-  }
-
-  .rotation-step-btn {
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(26, 26, 46, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 3px;
-    color: #e0e0f0;
-    font-size: 0.8rem;
-    cursor: pointer;
-    padding: 0;
-    font-family: inherit;
-    line-height: 1;
-  }
-
-  .rotation-step-btn:hover {
-    background: rgba(74, 108, 247, 0.3);
-    border-color: rgba(74, 108, 247, 0.5);
-  }
 </style>

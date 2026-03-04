@@ -100,8 +100,6 @@
   let draggingV = $state(false);
   let dragStartPos = $state(0);
   let dragStartNorm = $state(0);
-  let hovered = $state(false);
-  let visible = $derived(hovered || draggingH || draggingV);
 
   function normToOffsetX(norm: number): number {
     const maxOffset = viewportWidth * 0.5;
@@ -180,17 +178,12 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="scrollbar-container"
-  onmouseenter={() => hovered = true}
-  onmouseleave={() => hovered = false}
->
+<div class="scrollbar-container">
   <!-- Horizontal scrollbar -->
   {#if showH}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="scrollbar-track h-track"
-      class:visible
       style:width="{hTrackLen}px"
       style:height="{BAR_SIZE}px"
       style:left="{MARGIN}px"
@@ -215,7 +208,6 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="scrollbar-track v-track"
-      class:visible
       style:height="{vTrackLen}px"
       style:width="{BAR_SIZE}px"
       style:right="{MARGIN}px"
@@ -249,12 +241,6 @@
     background: transparent;
     border-radius: 4px;
     pointer-events: auto;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-
-  .scrollbar-track.visible {
-    opacity: 1;
   }
 
   .h-track {
@@ -267,17 +253,17 @@
 
   .scrollbar-thumb {
     position: absolute;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.35);
     border-radius: 4px;
     transition: background 0.15s ease;
     cursor: pointer;
   }
 
   .scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.55);
   }
 
   .scrollbar-thumb.dragging {
-    background: rgba(255, 255, 255, 0.45);
+    background: rgba(0, 0, 0, 0.65);
   }
 </style>

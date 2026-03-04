@@ -32,6 +32,8 @@
     opacity?: number;
     /** Major grid line interval (every N lines is darker) */
     majorInterval?: number;
+    /** Whether to use adaptive grid sizing (default: true). When false, gridSizeM is used directly. */
+    adaptive?: boolean;
   }
 
   let {
@@ -46,23 +48,30 @@
     color = '#000000',
     opacity = 0.15,
     majorInterval = 5,
+    adaptive = true,
   }: GridOverlayProps = $props();
 
-  // Adaptive grid: choose a "nice" spacing so lines are ~60-100px apart on screen
+  // Subdivision model: start with gridSizeM, subdivide by 2 while cells are >= 20px on screen
   let adaptiveConfig = $derived.by(() => {
-    const effectiveScale = scalePxPerMeter * stageScale;
-    const targetScreenPx = 80;
-    const metersPerLine = targetScreenPx / effectiveScale;
-    const niceValues = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
-    let spacingM = niceValues[0]!;
-    for (const v of niceValues) {
-      if (v >= metersPerLine) { spacingM = v; break; }
+    if (!adaptive) {
+      const majorEvery = 5;
+      return { spacingM: gridSizeM, spacingPx: gridSizeM * scalePxPerMeter, majorEvery };
     }
-    return { spacingM, spacingPx: spacingM * scalePxPerMeter, majorEvery: 5 };
+    const effectiveScale = scalePxPerMeter * stageScale;
+    const minScreenPx = 12;
+    let spacingM = gridSizeM;
+    while ((spacingM / 2) * effectiveScale >= minScreenPx) {
+      spacingM /= 2;
+    }
+    const majorEvery = Math.max(1, Math.round(gridSizeM / spacingM));
+    return { spacingM, spacingPx: spacingM * scalePxPerMeter, majorEvery };
   });
 
-  // Grid spacing in canvas pixels (now adaptive)
-  let gridSizePx = $derived(adaptiveConfig.spacingPx);
+  // Grid spacing in canvas pixels (adaptive or fixed)
+  let gridSizePx = $derived(adaptive ? adaptiveConfig.spacingPx : gridSizeM * scalePxPerMeter);
+
+  // Major line interval (adaptive or fixed)
+  let majorEvery = $derived(adaptive ? adaptiveConfig.majorEvery : majorInterval);
 
   // Compute visible area in canvas coordinates (inverse stage transform)
   let viewBounds = $derived.by(() => {
@@ -93,7 +102,7 @@
       lines.push({
         key: `v-${i}`,
         points: [x, top - gridSizePx, x, bottom + gridSizePx],
-        isMajor: i % adaptiveConfig.majorEvery === 0,
+        isMajor: i % majorEvery === 0,
       });
     }
     return lines;
@@ -113,7 +122,7 @@
       lines.push({
         key: `h-${i}`,
         points: [left - gridSizePx, y, right + gridSizePx, y],
-        isMajor: i % adaptiveConfig.majorEvery === 0,
+        isMajor: i % majorEvery === 0,
       });
     }
     return lines;
@@ -126,7 +135,7 @@
       <Line
         points={line.points}
         stroke={color}
-        strokeWidth={line.isMajor ? 1.5 : 0.5}
+        strokeWidth={(line.isMajor ? 1.5 : 0.5) / stageScale}
         opacity={line.isMajor ? opacity * 2.5 : opacity}
         listening={false}
       />
@@ -136,7 +145,7 @@
       <Line
         points={line.points}
         stroke={color}
-        strokeWidth={line.isMajor ? 1.5 : 0.5}
+        strokeWidth={(line.isMajor ? 1.5 : 0.5) / stageScale}
         opacity={line.isMajor ? opacity * 2.5 : opacity}
         listening={false}
       />

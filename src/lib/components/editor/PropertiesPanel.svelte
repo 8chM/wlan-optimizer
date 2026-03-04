@@ -9,9 +9,13 @@
 <script lang="ts">
   import { t } from '$lib/i18n';
   import type { WallResponse, AccessPointResponse, MaterialResponse } from '$lib/api/invoke';
+  import type { CandidateLocation, ConstraintZone, APCapabilities } from '$lib/recommendations/types';
   import WallProperties from './WallProperties.svelte';
   import APProperties from './APProperties.svelte';
   import MultiWallProperties from './MultiWallProperties.svelte';
+  import CandidateProperties from './CandidateProperties.svelte';
+  import ConstraintZoneProperties from './ConstraintZoneProperties.svelte';
+  import APCapabilitiesSection from './APCapabilitiesSection.svelte';
 
   interface PropertiesPanelProps {
     /** Currently selected wall (if any) */
@@ -22,9 +26,16 @@
     selectedWalls?: WallResponse[];
     /** Available materials for wall material selection */
     materials?: MaterialResponse[];
+    /** Currently selected candidate location (if any) */
+    selectedCandidate?: CandidateLocation | null;
+    /** Currently selected constraint zone (if any) */
+    selectedZone?: ConstraintZone | null;
+    /** AP capabilities for the selected AP */
+    apCapabilities?: APCapabilities | null;
     /** Callback when a wall is updated */
     onWallUpdate?: (wallId: string, updates: {
       materialId?: string;
+      thicknessCm?: number | null;
       attenuationOverride24ghz?: number | null;
       attenuationOverride5ghz?: number | null;
     }) => void;
@@ -47,6 +58,16 @@
     onDeleteWall?: (wallId: string) => void;
     /** Callback when an AP is deleted */
     onDeleteAp?: (apId: string) => void;
+    /** Callback when a candidate is updated */
+    onCandidateUpdate?: (id: string, updates: Partial<CandidateLocation>) => void;
+    /** Callback when a candidate is deleted */
+    onDeleteCandidate?: (id: string) => void;
+    /** Callback when a zone is updated */
+    onZoneUpdate?: (id: string, updates: Partial<ConstraintZone>) => void;
+    /** Callback when a zone is deleted */
+    onDeleteZone?: (id: string) => void;
+    /** Callback when AP capabilities change */
+    onCapabilitiesChange?: (apId: string, caps: APCapabilities) => void;
   }
 
   let {
@@ -54,14 +75,22 @@
     selectedAp = null,
     selectedWalls = [],
     materials = [],
+    selectedCandidate = null,
+    selectedZone = null,
+    apCapabilities = null,
     onWallUpdate,
     onApUpdate,
     onBulkWallUpdate,
     onDeleteWall,
     onDeleteAp,
+    onCandidateUpdate,
+    onDeleteCandidate,
+    onZoneUpdate,
+    onDeleteZone,
+    onCapabilitiesChange,
   }: PropertiesPanelProps = $props();
 
-  let hasSelection = $derived(selectedWall !== null || selectedAp !== null || selectedWalls.length > 1);
+  let hasSelection = $derived(selectedWall !== null || selectedAp !== null || selectedWalls.length > 1 || selectedCandidate !== null || selectedZone !== null);
 </script>
 
 <div class="properties-panel">
@@ -84,6 +113,23 @@
       accessPoint={selectedAp}
       onUpdate={onApUpdate}
       onDelete={onDeleteAp}
+    />
+    <APCapabilitiesSection
+      apId={selectedAp.id}
+      capabilities={apCapabilities}
+      {onCapabilitiesChange}
+    />
+  {:else if selectedCandidate}
+    <CandidateProperties
+      candidate={selectedCandidate}
+      onUpdate={onCandidateUpdate}
+      onDelete={onDeleteCandidate}
+    />
+  {:else if selectedZone}
+    <ConstraintZoneProperties
+      zone={selectedZone}
+      onUpdate={onZoneUpdate}
+      onDelete={onDeleteZone}
     />
   {:else}
     <div class="empty-state">

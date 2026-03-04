@@ -34,6 +34,12 @@
     calibratedN?: number;
     /** Receiver gain in dBi (overrides default) */
     receiverGainDbi?: number;
+    /** Wall-mount back sector penalty in dB (default: -15) */
+    backSectorPenalty?: number;
+    /** Wall-mount side sector penalty in dB (default: -5) */
+    sideSectorPenalty?: number;
+    /** Optional: only calculate for a single AP (debug mode) */
+    apFilter?: string;
     /** Callback with the rendered canvas */
     onCanvas?: (canvas: HTMLCanvasElement | null) => void;
     /** Callback with heatmap statistics */
@@ -50,6 +56,9 @@
     outputHeight = 600,
     calibratedN = undefined,
     receiverGainDbi = undefined,
+    backSectorPenalty = undefined,
+    sideSectorPenalty = undefined,
+    apFilter = undefined,
     onCanvas,
     onStats,
   }: HeatmapRendererProps = $props();
@@ -95,6 +104,9 @@
       outputHeight,
       calibratedN,
       receiverGainDbi,
+      backSectorPenalty,
+      sideSectorPenalty,
+      apFilter,
     };
 
     // Progressive render: coarse immediately, then refine

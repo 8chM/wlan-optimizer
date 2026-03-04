@@ -7,6 +7,8 @@
 <script lang="ts">
 import { t } from '$lib/i18n';
 import { themeStore } from '$lib/stores/themeStore.svelte';
+import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
+import type { FrequencyBand } from '$lib/heatmap';
 import type { EditorTool } from '$lib/stores/canvasStore.svelte';
 import type { ToolbarConfig } from '$lib/config/toolsets';
 import type { Snippet } from 'svelte';
@@ -78,6 +80,8 @@ const allTools: Array<{ id: EditorTool; label: string; icon: string; shortcut: s
   { id: 'ap', label: 'toolbar.ap', icon: '\u25C9', shortcut: 'A' },
   { id: 'measure', label: 'toolbar.measure', icon: '\u229E', shortcut: 'M' },
   { id: 'text', label: 'toolbar.text', icon: 'T', shortcut: 'T' },
+  { id: 'candidate', label: 'toolbar.candidate', icon: '\u2316', shortcut: 'C' },
+  { id: 'zone', label: 'toolbar.zone', icon: '\u25A3', shortcut: 'Z' },
 ];
 
 // Filter tools based on toolbarConfig (if provided), else show all when showEditorTools is true
@@ -93,7 +97,12 @@ let showUndoRedo = $derived(toolbarConfig ? toolbarConfig.showUndoRedo : true);
 let showSnap = $derived(toolbarConfig ? toolbarConfig.showSnapToggle : true);
 let showScale = $derived(toolbarConfig ? toolbarConfig.showScaleCalibration : true);
 let showBgOpacity = $derived(toolbarConfig ? toolbarConfig.showBackgroundOpacity : true);
+let showBandToggle = $derived(toolbarConfig ? toolbarConfig.showBandToggle : false);
 let hasTools = $derived(showEditorTools || (toolbarConfig !== null && visibleTools.length > 0));
+
+function selectBand(b: FrequencyBand): void {
+  editorHeatmapStore.setBand(b);
+}
 
 function selectTool(tool: EditorTool): void {
   onToolChange?.(tool);
@@ -284,6 +293,37 @@ let themeLabel = $derived(
           </button>
         {/if}
       </div>
+
+      {#if showBandToggle}
+        <div class="separator"></div>
+        <div class="tool-group band-group">
+          <button
+            class="tool-btn heatmap-btn"
+            class:active={editorHeatmapStore.visible}
+            onclick={() => editorHeatmapStore.toggleVisible()}
+            title={t('toolbar.heatmapTooltip')}
+          >
+            <span class="tool-icon">🌡</span>
+            <span class="tool-label">{t('toolbar.heatmap')}</span>
+          </button>
+          <button
+            class="tool-btn band-btn"
+            class:active={editorHeatmapStore.visible && editorHeatmapStore.band === '2.4ghz'}
+            onclick={() => { editorHeatmapStore.setVisible(true); selectBand('2.4ghz'); }}
+            title="2.4 GHz"
+          >
+            <span class="band-label">2.4G</span>
+          </button>
+          <button
+            class="tool-btn band-btn"
+            class:active={editorHeatmapStore.visible && editorHeatmapStore.band === '5ghz'}
+            onclick={() => { editorHeatmapStore.setVisible(true); selectBand('5ghz'); }}
+            title="5 GHz"
+          >
+            <span class="band-label">5G</span>
+          </button>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -504,6 +544,22 @@ let themeLabel = $derived(
   .zoom-display-btn:hover {
     background: var(--bg-tertiary, #f0f0f5);
     border-color: var(--border, #d0d0e0);
+  }
+
+  .band-group {
+    gap: 1px;
+  }
+
+  .band-btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .band-label {
+    font-size: 0.75rem;
+    font-weight: 600;
   }
 
   .settings-link {

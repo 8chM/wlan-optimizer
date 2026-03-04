@@ -45,6 +45,7 @@ export async function updateAccessPoint(
     enabled?: boolean;
     height_m?: number;
     mounting?: string;
+    orientation_deg?: number;
     tx_power_24ghz_dbm?: number;
     tx_power_5ghz_dbm?: number;
     channel_24ghz?: number;

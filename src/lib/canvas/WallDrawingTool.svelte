@@ -60,16 +60,17 @@
     : isWindow ? '#64B5F6'
     : getStrokeColor(materialCategory)
   );
-  // Wall thickness in pixels based on material category (realistic rendering)
-  let wallThicknessPx = $derived(
-    isDoor ? 0.1 * scalePxPerMeter     // ~10cm
-    : isWindow ? 0.08 * scalePxPerMeter // ~8cm
-    : materialCategory === 'light' ? 0.1 * scalePxPerMeter   // ~10cm (drywall)
-    : materialCategory === 'medium' ? 0.15 * scalePxPerMeter  // ~15cm (brick)
-    : materialCategory === 'heavy' ? 0.2 * scalePxPerMeter    // ~20cm (concrete)
-    : materialCategory === 'blocking' ? 0.25 * scalePxPerMeter // ~25cm (reinforced concrete)
-    : 0.12 * scalePxPerMeter
+  // Wall thickness in pixels: per-wall override > material default > category fallback
+  let effectiveThicknessCm = $derived(
+    wall.thickness_cm
+    ?? wall.material?.default_thickness_cm
+    ?? (isDoor ? 4 : isWindow ? 2.4
+      : materialCategory === 'light' ? 10
+      : materialCategory === 'medium' ? 17.5
+      : materialCategory === 'heavy' ? 20
+      : 12)
   );
+  let wallThicknessPx = $derived(effectiveThicknessCm * 0.01 * scalePxPerMeter);
   // Minimum visible thickness: 3px, capped at reasonable max
   let strokeWidth = $derived(selected ? Math.max(wallThicknessPx, 4) + 2 : Math.max(wallThicknessPx, 3));
   let strokeDash = $derived(isDoor ? [6, 4] : isWindow ? [2, 3] : []);
@@ -240,7 +241,7 @@
       dash={strokeDash}
       lineCap="butt"
       lineJoin="miter"
-      hitStrokeWidth={interactive ? ((isDoor || isWindow) ? 25 : 20) : 0}
+      hitStrokeWidth={interactive ? ((isDoor || isWindow) ? 30 : 20) : 0}
       listening={interactive}
       onclick={handleClick}
       onmouseenter={(e) => { if (interactive && (isDoor || isWindow)) e.target.getStage()?.container().style.setProperty('cursor', 'pointer'); }}

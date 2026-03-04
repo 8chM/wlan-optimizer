@@ -435,6 +435,7 @@ function dispatch(command: string, p: AnyParams): unknown {
         material_id: p.params.material_id,
         segments,
         material: findMaterial(p.params.material_id),
+        thickness_cm: null,
         attenuation_override_24ghz: null,
         attenuation_override_5ghz: null,
         attenuation_override_6ghz: null,
@@ -471,6 +472,8 @@ function dispatch(command: string, p: AnyParams): unknown {
           };
         });
       }
+      if (p.params.thickness_cm !== undefined)
+        wall.thickness_cm = p.params.thickness_cm;
       if (p.params.attenuation_override_24ghz !== undefined)
         wall.attenuation_override_24ghz = p.params.attenuation_override_24ghz;
       if (p.params.attenuation_override_5ghz !== undefined)
@@ -513,6 +516,7 @@ function dispatch(command: string, p: AnyParams): unknown {
           material_id: entry.material_id,
           segments,
           material: findMaterial(entry.material_id),
+          thickness_cm: null,
           attenuation_override_24ghz: entry.attenuation_override_24ghz ?? null,
           attenuation_override_5ghz: entry.attenuation_override_5ghz ?? null,
           attenuation_override_6ghz: entry.attenuation_override_6ghz ?? null,

@@ -1070,4 +1070,34 @@ describe('generateRecommendations', () => {
       expect(RECOMMENDATION_CATEGORIES[type as keyof typeof RECOMMENDATION_CATEGORIES]).toBeDefined();
     }
   });
+
+  // ─── Phase 26f Tests ───────────────────────────────────────────────
+
+  it('should classify add_ap and preferred_candidate_location as actionable_create', () => {
+    expect(RECOMMENDATION_CATEGORIES.add_ap).toBe('actionable_create');
+    expect(RECOMMENDATION_CATEGORIES.preferred_candidate_location).toBe('actionable_create');
+  });
+
+  it('should classify move_ap, rotate_ap, change_mounting, infrastructure_required as instructional', () => {
+    expect(RECOMMENDATION_CATEGORIES.move_ap).toBe('instructional');
+    expect(RECOMMENDATION_CATEGORIES.rotate_ap).toBe('instructional');
+    expect(RECOMMENDATION_CATEGORIES.change_mounting).toBe('instructional');
+    expect(RECOMMENDATION_CATEGORIES.infrastructure_required).toBe('instructional');
+  });
+
+  it('should classify config types as actionable_config', () => {
+    expect(RECOMMENDATION_CATEGORIES.change_channel).toBe('actionable_config');
+    expect(RECOMMENDATION_CATEGORIES.adjust_tx_power).toBe('actionable_config');
+    expect(RECOMMENDATION_CATEGORIES.disable_ap).toBe('actionable_config');
+    expect(RECOMMENDATION_CATEGORIES.roaming_tx_adjustment).toBe('actionable_config');
+  });
+
+  it('should not have actionable_physical category (replaced by actionable_create + instructional)', () => {
+    const categories = new Set(Object.values(RECOMMENDATION_CATEGORIES));
+    expect(categories.has('actionable_physical' as any)).toBe(false);
+    expect(categories.has('actionable_config')).toBe(true);
+    expect(categories.has('actionable_create')).toBe(true);
+    expect(categories.has('instructional')).toBe(true);
+    expect(categories.has('informational')).toBe(true);
+  });
 });

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-26e-complete",
+  "currentPhase": "phase-26f-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -718,6 +718,20 @@
         "Block 5: 8 neue i18n-Keys EN+DE (opt.staleHint, rec.detailScoreChange/StickyRatio/GapCells/HandoffCells/AvgRssi, rec.blockedRoamingTxTitle/Reason)",
         "Block 6: Tests erweitert (B2+B3 blocked_recommendation pruefen, RECOMMENDATION_CATEGORIES Vollstaendigkeit), constraint_conflict Score-Test angepasst",
         "Block 7: Verifikation OK — 763 Tests, 0 Errors, Build OK, svelte-check 0 Errors"
+      ]
+    },
+    "26f": {
+      "name": "UI-Semantik-Fix (Kategorien + Stale korrekt)",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "auditResult": "PASSED - 4 Kategorien statt 3, Button-Rendering nach Kategorie, Stale-Logik praezisiert, 766 Tests, 0 Errors, Build OK",
+      "deliverables": [
+        "RecommendationCategory erweitert: actionable_config, actionable_create, instructional, informational (statt 3 Kategorien)",
+        "add_ap + preferred_candidate_location → actionable_create, move_ap/rotate_ap/change_mounting/infrastructure_required → instructional",
+        "RecommendationStep.svelte: isApplyable (config+create), isInformational, 3 Button-Varianten (Apply/Instruction/Acknowledge)",
+        "Stale-Logik: nur bei actionable_config oder actionable_create (nicht bei instructional)",
+        "4 neue Unit-Tests (Kategorie-Klassifikation, actionable_physical nicht mehr vorhanden)"
       ]
     }
   },

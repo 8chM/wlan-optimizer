@@ -340,23 +340,29 @@ export const EFFORT_SCORES: Record<EffortLevel, number> = {
 };
 
 /** Central recommendation category classification */
-export type RecommendationCategory = 'actionable_config' | 'actionable_physical' | 'informational';
+export type RecommendationCategory =
+  | 'actionable_config'   // Config change: Apply writes to AP directly
+  | 'actionable_create'   // Creates a new AP on the floor plan
+  | 'instructional'       // Manual instruction: user must act physically
+  | 'informational';      // Info only: acknowledge
 
 /** Maps every recommendation type to its UI category */
 export const RECOMMENDATION_CATEGORIES: Record<RecommendationType, RecommendationCategory> = {
-  // Directly applicable: Preview + Apply writes a real change
+  // Config change: Preview + Apply writes a real parameter change
   change_channel: 'actionable_config',
   adjust_tx_power: 'actionable_config',
   disable_ap: 'actionable_config',
   roaming_tx_adjustment: 'actionable_config',
 
-  // Instruction only: possibly Preview, Apply = manual instruction
-  move_ap: 'actionable_physical',
-  rotate_ap: 'actionable_physical',
-  change_mounting: 'actionable_physical',
-  add_ap: 'actionable_physical',
-  preferred_candidate_location: 'actionable_physical',
-  infrastructure_required: 'actionable_physical',
+  // Creates a new AP: Apply adds an AP to the floor plan
+  add_ap: 'actionable_create',
+  preferred_candidate_location: 'actionable_create',
+
+  // Manual instruction: user must move/rotate/mount physically
+  move_ap: 'instructional',
+  rotate_ap: 'instructional',
+  change_mounting: 'instructional',
+  infrastructure_required: 'instructional',
 
   // Information only: no Preview, just acknowledgement
   coverage_warning: 'informational',

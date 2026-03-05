@@ -68,7 +68,7 @@
   let isBlocked = $derived((rec.blockedByConstraints?.length ?? 0) > 0);
   let isDone = $derived(stepState === 'applied' || stepState === 'skipped');
   let category = $derived(RECOMMENDATION_CATEGORIES[rec.type] ?? 'informational');
-  let isConfigType = $derived(category === 'actionable_config');
+  let isApplyable = $derived(category === 'actionable_config' || category === 'actionable_create');
   let isInformational = $derived(category === 'informational');
 
   const ROAMING_DETAIL_TYPES = new Set(['roaming_tx_adjustment', 'sticky_client_risk', 'handoff_gap_warning']);
@@ -158,7 +158,7 @@
           <button class="action-btn acknowledge" onclick={(e) => { e.stopPropagation(); onSkip(rec); }}>
             {t('opt.acknowledge')}
           </button>
-        {:else if isConfigType}
+        {:else if isApplyable}
           <button class="action-btn apply" disabled={previewActive} onclick={(e) => { e.stopPropagation(); onApply(rec); }}>
             {t('opt.apply')}
           </button>

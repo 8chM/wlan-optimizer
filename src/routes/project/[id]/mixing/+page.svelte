@@ -380,7 +380,8 @@
       await applyRecommendationToAP(rec.suggestedChange);
     }
     optimierungStore.setStepState(rec.id, 'applied');
-    if (RECOMMENDATION_CATEGORIES[rec.type] !== 'informational') {
+    const cat = RECOMMENDATION_CATEGORIES[rec.type];
+    if (cat === 'actionable_config' || cat === 'actionable_create') {
       optimierungStore.setStale(true);
     }
   }

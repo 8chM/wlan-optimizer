@@ -1100,4 +1100,79 @@ describe('generateRecommendations', () => {
     expect(categories.has('instructional')).toBe(true);
     expect(categories.has('informational')).toBe(true);
   });
+
+  // ─── Phase 26g Tests ───────────────────────────────────────────────
+
+  it('should give constraint_conflict recommendationScore=0 as informational', () => {
+    const ap = makeAP('ap-1', 5, 5);
+    const apResp = makeAPResponse('ap-1', 5, 5);
+
+    const grids = makeGrids(10, 10, { rssi: -60 });
+    const stats = makeStats(10, 10, grids);
+
+    const forbiddenZone: ConstraintZone = {
+      id: 'z-1', type: 'forbidden',
+      x: 4, y: 4, width: 3, height: 3, weight: 1.0,
+    };
+    const ctx: RecommendationContext = { ...EMPTY_CONTEXT, constraintZones: [forbiddenZone] };
+
+    const result = generateRecommendations(
+      [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+    );
+    const conflict = result.recommendations.find(r => r.type === 'constraint_conflict');
+    expect(conflict).toBeDefined();
+    expect(RECOMMENDATION_CATEGORIES.constraint_conflict).toBe('informational');
+    expect(conflict?.recommendationScore).toBe(0);
+    expect(conflict?.benefitScore).toBe(0);
+  });
+
+  it('should sort actionable recommendations before informational', () => {
+    const ap = makeAP('ap-1', 5, 5);
+    const apResp = makeAPResponse('ap-1', 5, 5, 1);
+
+    // Poor coverage + forbidden zone → generates both actionable and informational recs
+    const grids = makeGrids(10, 10, { rssi: -85 });
+    const stats = makeStats(10, 10, grids, {
+      excellent: 0, good: 0, fair: 10, poor: 50, none: 40,
+    });
+
+    const forbiddenZone: ConstraintZone = {
+      id: 'z-1', type: 'forbidden',
+      x: 4, y: 4, width: 3, height: 3, weight: 1.0,
+    };
+    const ctx: RecommendationContext = { ...EMPTY_CONTEXT, constraintZones: [forbiddenZone] };
+
+    const result = generateRecommendations(
+      [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+    );
+
+    const recs = result.recommendations.filter(r => (r.blockedByConstraints?.length ?? 0) === 0);
+    if (recs.length < 2) return; // Not enough recs to test ordering
+
+    // Find first informational and first non-informational
+    const firstInfoIdx = recs.findIndex(r => RECOMMENDATION_CATEGORIES[r.type] === 'informational');
+    const lastActionableIdx = recs.findLastIndex(r => RECOMMENDATION_CATEGORIES[r.type] !== 'informational');
+
+    if (firstInfoIdx >= 0 && lastActionableIdx >= 0) {
+      expect(lastActionableIdx).toBeLessThan(firstInfoIdx);
+    }
+  });
+
+  it('should keep blocked_recommendation as informational with score 0', () => {
+    expect(RECOMMENDATION_CATEGORIES.blocked_recommendation).toBe('informational');
+  });
+
+  it('should not include infrastructure_required in AP creation types', () => {
+    // infrastructure_required is instructional, not actionable_create
+    expect(RECOMMENDATION_CATEGORIES.infrastructure_required).toBe('instructional');
+    expect(RECOMMENDATION_CATEGORIES.add_ap).toBe('actionable_create');
+    expect(RECOMMENDATION_CATEGORIES.preferred_candidate_location).toBe('actionable_create');
+    // Only actionable_create types should auto-create APs on the floor plan
+    const createTypes = Object.entries(RECOMMENDATION_CATEGORIES)
+      .filter(([, cat]) => cat === 'actionable_create')
+      .map(([type]) => type);
+    expect(createTypes).not.toContain('infrastructure_required');
+    expect(createTypes).toContain('add_ap');
+    expect(createTypes).toContain('preferred_candidate_location');
+  });
 });

@@ -358,7 +358,7 @@
 
   // ─── Recommendation Step Handlers ───────────────────────────────
 
-  const AP_CREATION_TYPES = new Set(['add_ap', 'preferred_candidate_location', 'infrastructure_required']);
+  const AP_CREATION_TYPES = new Set(['add_ap', 'preferred_candidate_location']);
 
   async function handleStepApply(rec: Recommendation): Promise<void> {
     if (rec.type === 'disable_ap' && rec.affectedApIds[0]) {
@@ -447,6 +447,10 @@
       await applyRecommendationToAP(previewRec.suggestedChange);
     }
     optimierungStore.setStepState(previewRec.id, 'applied');
+    const cat = RECOMMENDATION_CATEGORIES[previewRec.type];
+    if (cat === 'actionable_config' || cat === 'actionable_create') {
+      optimierungStore.setStale(true);
+    }
     // Clear forecast — base heatmap now reflects the change
     mixingStore.resetAll();
     forecastCanvas = null;

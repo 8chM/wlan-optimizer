@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-26f-complete",
+  "currentPhase": "phase-26g-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -732,6 +732,19 @@
         "RecommendationStep.svelte: isApplyable (config+create), isInformational, 3 Button-Varianten (Apply/Instruction/Acknowledge)",
         "Stale-Logik: nur bei actionable_config oder actionable_create (nicht bei instructional)",
         "4 neue Unit-Tests (Kategorie-Klassifikation, actionable_physical nicht mehr vorhanden)"
+      ]
+    },
+    "26g": {
+      "name": "constraint_conflict Konsistenz + Sortierlogik + Praxis-Absicherung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "auditResult": "PASSED - Kategorie-Tier-Sortierung, AP_CREATION_TYPES bereinigt, Preview-stale gefixt, 771 Tests (5 neu), 0 Errors, Build OK",
+      "deliverables": [
+        "Sortierung: Kategorie-Tier (actionable > instructional > informational) vor Score-Sortierung eingefuegt",
+        "AP_CREATION_TYPES: infrastructure_required entfernt (war instructional, nicht actionable_create)",
+        "handlePreviewApply: stale-Flag konsistent mit handleStepApply (nur bei actionable_config/create)",
+        "5 neue Tests: constraint_conflict Score=0, Sortierreihenfolge, blocked_recommendation, AP-creation-types, infrastructure_required"
       ]
     }
   },

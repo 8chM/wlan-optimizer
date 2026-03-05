@@ -195,16 +195,24 @@ export function generateRecommendations(
   // Check for blocked recommendations and annotate
   annotateBlockedRecommendations(recommendations, ctx);
 
-  // Sort by recommendationScore (factoring in feasibility), then priority, then severity
+  // Sort: blocked last → category tier → recommendationScore → priority → severity
   const priorityOrder = { high: 0, medium: 1, low: 2 };
   const severityOrder = { critical: 0, warning: 1, info: 2 };
+  const categoryTier: Record<string, number> = {
+    actionable_config: 0, actionable_create: 0, instructional: 1, informational: 2,
+  };
   recommendations.sort((a, b) => {
     // Blocked recommendations go last
     const aBlocked = (a.blockedByConstraints?.length ?? 0) > 0;
     const bBlocked = (b.blockedByConstraints?.length ?? 0) > 0;
     if (aBlocked !== bBlocked) return aBlocked ? 1 : -1;
 
-    // Sort by recommendation score (higher = better)
+    // Category tier: actionable before instructional before informational
+    const aTier = categoryTier[RECOMMENDATION_CATEGORIES[a.type]] ?? 2;
+    const bTier = categoryTier[RECOMMENDATION_CATEGORIES[b.type]] ?? 2;
+    if (aTier !== bTier) return aTier - bTier;
+
+    // Sort by recommendation score within tier (higher = better)
     const aScore = a.recommendationScore ?? 50;
     const bScore = b.recommendationScore ?? 50;
     if (Math.abs(aScore - bScore) > 5) return bScore - aScore;

@@ -7,9 +7,21 @@ import { generateRecommendations } from '../generator';
 import type { APConfig, WallData, FloorBounds } from '$lib/heatmap/worker-types';
 import type { HeatmapStats } from '$lib/heatmap/heatmap-manager';
 import type { AccessPointResponse } from '$lib/api/invoke';
-import type { RecommendationContext, CandidateLocation, ConstraintZone, PriorityZone } from '../types';
+import type { Recommendation, RecommendationContext, CandidateLocation, ConstraintZone, PriorityZone } from '../types';
 import { EMPTY_CONTEXT } from '../types';
 import { createRFConfig } from '$lib/heatmap/rf-engine';
+
+/** Recursively collects all recommendations including nested alternatives. */
+function collectAllRecommendations(recs: Recommendation[]): Recommendation[] {
+  const result: Recommendation[] = [];
+  for (const rec of recs) {
+    result.push(rec);
+    if (rec.alternativeRecommendations) {
+      result.push(...collectAllRecommendations(rec.alternativeRecommendations));
+    }
+  }
+  return result;
+}
 
 const BAND = '5ghz' as const;
 const RF_CONFIG = createRFConfig(BAND);
@@ -982,10 +994,49 @@ describe('generateRecommendations', () => {
       [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
     );
 
-    const allRecs = [
-      ...result.recommendations,
-      ...result.recommendations.flatMap(r => r.alternativeRecommendations ?? []),
-    ];
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const roamingTx = allRecs.find(r => r.type === 'roaming_tx_adjustment');
+    expect(roamingTx).toBeUndefined();
+  });
+
+  it('should not generate roaming_tx_adjustment when only dominant AP has TX power blocked', () => {
+    // Same sticky setup — AP-1 dominates 80%
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 15 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    const grids = makeGrids(10, 10, { rssi: -50, delta: 20 });
+    for (let i = 0; i < 80; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 80; i < 100; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 80; i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = 80; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    // Block TX power ONLY for dominant AP (ap-1), ap-2 stays allowed
+    const caps = new Map([
+      ['ap-1', {
+        apId: 'ap-1',
+        canMove: true, canRotate: true, canChangeMounting: true,
+        canChangeTxPower24: true, canChangeTxPower5: false,
+        canChangeChannel24: true, canChangeChannel5: true,
+      }],
+    ]);
+
+    const ctx: RecommendationContext = {
+      ...EMPTY_CONTEXT,
+      apCapabilities: caps,
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
     const roamingTx = allRecs.find(r => r.type === 'roaming_tx_adjustment');
     expect(roamingTx).toBeUndefined();
   });

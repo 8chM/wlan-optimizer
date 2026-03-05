@@ -30,10 +30,9 @@
     onPreview?: (rec: Recommendation) => void;
     onApply?: () => void;
     onCancelPreview?: () => void;
-    onSendToMixing?: (rec: Recommendation) => void;
   }
 
-  let { visible, hasHeatmap, onAnalyze, onPreview, onApply, onCancelPreview, onSendToMixing }: RecommendationPanelProps = $props();
+  let { visible, hasHeatmap, onAnalyze, onPreview, onApply, onCancelPreview }: RecommendationPanelProps = $props();
 
   /** Interpolate {param} placeholders in a translated string */
   function interpolate(text: string, params: Record<string, string | number>): string {
@@ -139,11 +138,6 @@
 
   function getEffortLevel(rec: Recommendation): EffortLevel {
     return EFFORT_LEVELS[rec.type] ?? 'config';
-  }
-
-  function isSendToMixingEligible(rec: Recommendation): boolean {
-    return RECOMMENDATION_CATEGORIES[rec.type] === 'actionable_config'
-      && !isBlocked(rec) && !!rec.suggestedChange?.apId;
   }
 
   function isRejectableType(rec: Recommendation): boolean {
@@ -372,16 +366,6 @@
                           </button>
                         {/if}
                       </div>
-                    {/if}
-
-                    <!-- Send to Mixing (actionable_config only) -->
-                    {#if isSendToMixingEligible(rec)}
-                      <button
-                        class="mixing-btn"
-                        onclick={(e: MouseEvent) => { e.stopPropagation(); onSendToMixing?.(rec); }}
-                      >
-                        {t('rec.sendToMixing')}
-                      </button>
                     {/if}
 
                     <!-- Alternatives section -->
@@ -894,28 +878,6 @@
   .analyze-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-
-  /* ── Send to Mixing button ───────────────────────── */
-
-  .mixing-btn {
-    width: 100%;
-    padding: 3px 6px;
-    background: rgba(139, 92, 246, 0.08);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    border-radius: 3px;
-    color: #a78bfa;
-    font-size: 0.55rem;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    text-align: center;
-    margin-top: 2px;
-  }
-
-  .mixing-btn:hover {
-    background: rgba(139, 92, 246, 0.15);
-    border-color: rgba(139, 92, 246, 0.4);
-    color: #c4b5fd;
   }
 
   /* ── Effort badge ──────────────────────────────────── */

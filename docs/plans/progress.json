@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-26h-complete",
+  "currentPhase": "phase-26h-fix-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -752,12 +752,14 @@
       "status": "completed",
       "gate": "passed",
       "completedAt": "2026-03-05",
-      "auditResult": "PASSED - isConfigType→isSendToMixingEligible, Rejection→isRejectableType, zentrale RECOMMENDATION_CATEGORIES, 771 Tests, 0 Errors, Build OK",
+      "auditResult": "PASSED - Send-to-Mixing komplett entfernt (obsolet im Redesign), isRejectableType zentral, 771 Tests, 0 Errors, Build OK",
       "deliverables": [
-        "isConfigType() ersetzt durch isSendToMixingEligible() — nutzt RECOMMENDATION_CATEGORIES statt hardcodierter Liste",
-        "Rejection-Button: hardcodierte 5-Typ-Liste ersetzt durch isRejectableType() (instructional + actionable_create)",
-        "Variante A: alle actionable_config mit suggestedChange duerfen 'Send to Mixing' (inkl. disable_ap + roaming_tx_adjustment)",
-        "Import RECOMMENDATION_CATEGORIES aus types.ts hinzugefuegt"
+        "Korrektur: Send-to-Mixing Workflow existiert im aktuellen Redesign nicht mehr",
+        "Entfernt: onSendToMixing Prop, isSendToMixingEligible(), Button-Template, .mixing-btn CSS",
+        "Entfernt: sendToMixing i18n-Keys (EN+DE)",
+        "Beibehalten: isRejectableType() nutzt zentrale RECOMMENDATION_CATEGORIES (instructional + actionable_create)",
+        "Beibehalten: hasPreviewSupport() — preview ist Change-basiert, nicht kategorie-basiert",
+        "Panel nicht importiert seit Phase 25b — aktive UI ist RecommendationWizard + RecommendationStep"
       ]
     }
   },

@@ -44,6 +44,7 @@
   import { convertApsToConfig, convertWallsToData } from '$lib/heatmap/convert';
   import { createRFConfig } from '$lib/heatmap/rf-engine';
   import type { CandidateLocation, ConstraintZone, APCapabilities, Recommendation, RejectionReason } from '$lib/recommendations/types';
+  import { RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
   import { safeInvoke } from '$lib/api/invoke';
   import { updateAccessPoint } from '$lib/api/accessPoint';
   import { addApCommand, updateApCommand } from '$lib/stores/commands/apCommands';
@@ -296,6 +297,7 @@
     });
 
     recommendationStore.analyze(apConfigs, aps, wallData, floorBounds, band, stats, rfConfig);
+    optimierungStore.setStale(false);
   }
 
   function handleProfileChange(profile: import('$lib/recommendations/types').ExpertProfile): void {
@@ -378,6 +380,9 @@
       await applyRecommendationToAP(rec.suggestedChange);
     }
     optimierungStore.setStepState(rec.id, 'applied');
+    if (RECOMMENDATION_CATEGORIES[rec.type] !== 'informational') {
+      optimierungStore.setStale(true);
+    }
   }
 
   function handleStepSkip(rec: Recommendation): void {
@@ -633,6 +638,7 @@
       <RecommendationWizard
         result={recommendationStore.result}
         stepStates={optimierungStore.stepStates}
+        stale={optimierungStore.stale}
         onApply={handleStepApply}
         onSkip={handleStepSkip}
         onReject={handleStepReject}

@@ -43,6 +43,8 @@ import type {
   AnalysisResult,
   APMetrics,
   Recommendation,
+  RecommendationType,
+  RecommendationCategory,
   ExpertProfile,
   ScoringWeights,
   WeakZone,
@@ -51,7 +53,7 @@ import type {
   CoverageBinPercents,
   SimulatedDelta,
 } from './types';
-import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES } from './types';
+import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES, RECOMMENDATION_CATEGORIES } from './types';
 
 let nextRecId = 0;
 function genId(): string {
@@ -225,11 +227,11 @@ export function generateRecommendations(
 // ─── Feasibility Enrichment ──────────────────────────────────────
 
 /** Informational types: not actionable, should not compete with actionable recommendations */
-const INFORMATIONAL_TYPES = new Set([
-  'coverage_warning', 'band_limit_warning', 'roaming_hint',
-  'overlap_warning', 'low_ap_value', 'blocked_recommendation',
-  'sticky_client_risk', 'handoff_gap_warning',
-]);
+const INFORMATIONAL_TYPES = new Set(
+  (Object.entries(RECOMMENDATION_CATEGORIES) as [RecommendationType, RecommendationCategory][])
+    .filter(([, cat]) => cat === 'informational')
+    .map(([type]) => type),
+);
 
 function enrichWithFeasibilityScores(rec: Recommendation, ctx: RecommendationContext): void {
   // Informational types get zero benefit/effort — sorted by severity/priority instead
@@ -1174,8 +1176,31 @@ function generateRoamingTxAdjustments(
     const dominantAp = aps.find(a => a.id === dominantId);
     if (!dominantAp) continue;
 
-    // Capability check: skip if TX power change is not allowed for this AP/band
-    if (!isActionAllowed(dominantId, 'adjust_tx_power', band, ctx)) continue;
+    // Capability check: emit blocked_recommendation if TX power change is not allowed
+    if (!isActionAllowed(dominantId, 'adjust_tx_power', band, ctx)) {
+      recs.push({
+        id: genId(),
+        type: 'blocked_recommendation',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.blockedRoamingTxTitle',
+        titleParams: { ap: apLabel(dominantId) },
+        reasonKey: 'rec.blockedRoamingTxReason',
+        reasonParams: {
+          ap: apLabel(dominantId),
+          otherAp: apLabel(otherId),
+          percent: Math.round(pair.stickyRatio * 100),
+        },
+        affectedApIds: [dominantId],
+        affectedBand: band,
+        evidence: { metrics: { stickyRatio: pair.stickyRatio } },
+        confidence: 0.5,
+        blockedByConstraints: [
+          `TX power change not allowed for ${apLabel(dominantId)} on ${band}`,
+        ],
+      });
+      continue;
+    }
 
     const reducedPower = dominantAp.txPowerDbm - 3;
     if (reducedPower < 10) continue; // Don't go below 10 dBm

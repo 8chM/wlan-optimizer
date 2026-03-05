@@ -12,13 +12,19 @@ export type StepState = 'pending' | 'applied' | 'skipped';
 function createOptimierungStore() {
   let activeTab = $state<OptimierungTab>('empfehlungen');
   let stepStates = $state<Map<string, StepState>>(new Map());
+  let stale = $state(false);
 
   return {
     get activeTab() { return activeTab; },
     get stepStates() { return stepStates; },
+    get stale() { return stale; },
 
     setTab(tab: OptimierungTab): void {
       activeTab = tab;
+    },
+
+    setStale(value: boolean): void {
+      stale = value;
     },
 
     setStepState(recId: string, state: StepState): void {
@@ -29,6 +35,7 @@ function createOptimierungStore() {
 
     resetSteps(): void {
       stepStates = new Map();
+      stale = false;
     },
 
     getProgress(): { completed: number; total: number } {

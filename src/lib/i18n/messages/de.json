@@ -545,7 +545,14 @@
     "stickyClientTitle": "Sticky-Client-Risiko: {ap1} \u2194 {ap2}",
     "stickyClientReason": "{percent}% der Flaeche zwischen {ap1} und {ap2} hat >15dB Signalunterschied \u2014 Clients roamen moeglicherweise nicht.",
     "handoffGapTitle": "Handoff-Luecke: {ap1} \u2194 {ap2}",
-    "handoffGapReason": "{cells} Zellen in der Uebergangszone zwischen {ap1} und {ap2} liegen unter {threshold}dBm \u2014 Funkluecke beim Roaming."
+    "handoffGapReason": "{cells} Zellen in der Uebergangszone zwischen {ap1} und {ap2} liegen unter {threshold}dBm \u2014 Funkluecke beim Roaming.",
+    "detailScoreChange": "Score-Auswirkung",
+    "detailStickyRatio": "Sticky-Anteil",
+    "detailGapCells": "Luecken-Zellen",
+    "detailHandoffCells": "Handoff-Zone Zellen",
+    "detailAvgRssi": "Mittl. RSSI in Zone",
+    "blockedRoamingTxTitle": "TX-Power-Anpassung blockiert: {ap}",
+    "blockedRoamingTxReason": "AP {ap} dominiert {percent}% der Uebergangszone mit {otherAp}, aber TX-Power-Aenderungen sind fuer diesen AP nicht erlaubt."
   },
   "candidate": {
     "title": "Kandidaten-Position",
@@ -610,7 +617,8 @@
     "preview": "Vorschau",
     "previewActive": "Vorschau aktiv",
     "cancel": "Abbrechen",
-    "acknowledge": "Zur Kenntnis"
+    "acknowledge": "Zur Kenntnis",
+    "staleHint": "Setup geaendert \u2014 klicke Neu analysieren, um Empfehlungen zu aktualisieren."
   },
   "capabilities": {
     "title": "Faehigkeiten",

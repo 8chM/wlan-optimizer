@@ -8,7 +8,7 @@ import type { APConfig, WallData, FloorBounds } from '$lib/heatmap/worker-types'
 import type { HeatmapStats } from '$lib/heatmap/heatmap-manager';
 import type { AccessPointResponse } from '$lib/api/invoke';
 import type { Recommendation, RecommendationContext, CandidateLocation, ConstraintZone, PriorityZone } from '../types';
-import { EMPTY_CONTEXT } from '../types';
+import { EMPTY_CONTEXT, RECOMMENDATION_CATEGORIES } from '../types';
 import { createRFConfig } from '$lib/heatmap/rf-engine';
 
 /** Recursively collects all recommendations including nested alternatives. */
@@ -759,8 +759,8 @@ describe('generateRecommendations', () => {
       r.type === 'constraint_conflict' && r.affectedApIds.includes('ap-1'),
     );
     expect(conflict).toBeDefined();
-    // constraint_conflict is NOT in INFORMATIONAL_TYPES, so it gets a real score
-    expect(conflict?.recommendationScore).toBeGreaterThan(0);
+    // constraint_conflict is informational — it gets score 0 but is still generated
+    expect(conflict?.recommendationScore).toBe(0);
   });
 
   it('should generate blocked_recommendation with zero score (informational)', () => {
@@ -997,6 +997,13 @@ describe('generateRecommendations', () => {
     const allRecs = collectAllRecommendations(result.recommendations);
     const roamingTx = allRecs.find(r => r.type === 'roaming_tx_adjustment');
     expect(roamingTx).toBeUndefined();
+
+    // Should generate blocked_recommendation instead
+    const blocked = allRecs.find(r =>
+      r.type === 'blocked_recommendation' && r.titleKey === 'rec.blockedRoamingTxTitle',
+    );
+    expect(blocked).toBeDefined();
+    expect(blocked?.blockedByConstraints?.length).toBeGreaterThan(0);
   });
 
   it('should not generate roaming_tx_adjustment when only dominant AP has TX power blocked', () => {
@@ -1039,5 +1046,28 @@ describe('generateRecommendations', () => {
     const allRecs = collectAllRecommendations(result.recommendations);
     const roamingTx = allRecs.find(r => r.type === 'roaming_tx_adjustment');
     expect(roamingTx).toBeUndefined();
+
+    // Should generate blocked_recommendation for dominant AP
+    const blocked = allRecs.find(r =>
+      r.type === 'blocked_recommendation' && r.titleKey === 'rec.blockedRoamingTxTitle',
+    );
+    expect(blocked).toBeDefined();
+    expect(blocked?.affectedApIds).toContain('ap-1');
+    expect(blocked?.blockedByConstraints?.length).toBeGreaterThan(0);
+  });
+
+  // ─── Phase 26e Tests ───────────────────────────────────────────────
+
+  it('should have a category for every recommendation type', () => {
+    const allTypes = [
+      'move_ap', 'rotate_ap', 'change_mounting', 'adjust_tx_power', 'change_channel',
+      'add_ap', 'disable_ap', 'roaming_hint', 'band_limit_warning', 'low_ap_value',
+      'coverage_warning', 'overlap_warning', 'constraint_conflict', 'infrastructure_required',
+      'preferred_candidate_location', 'blocked_recommendation', 'roaming_tx_adjustment',
+      'sticky_client_risk', 'handoff_gap_warning',
+    ];
+    for (const type of allTypes) {
+      expect(RECOMMENDATION_CATEGORIES[type as keyof typeof RECOMMENDATION_CATEGORIES]).toBeDefined();
+    }
   });
 });

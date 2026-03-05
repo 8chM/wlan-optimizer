@@ -339,6 +339,37 @@ export const EFFORT_SCORES: Record<EffortLevel, number> = {
   infrastructure: 90,
 };
 
+/** Central recommendation category classification */
+export type RecommendationCategory = 'actionable_config' | 'actionable_physical' | 'informational';
+
+/** Maps every recommendation type to its UI category */
+export const RECOMMENDATION_CATEGORIES: Record<RecommendationType, RecommendationCategory> = {
+  // Directly applicable: Preview + Apply writes a real change
+  change_channel: 'actionable_config',
+  adjust_tx_power: 'actionable_config',
+  disable_ap: 'actionable_config',
+  roaming_tx_adjustment: 'actionable_config',
+
+  // Instruction only: possibly Preview, Apply = manual instruction
+  move_ap: 'actionable_physical',
+  rotate_ap: 'actionable_physical',
+  change_mounting: 'actionable_physical',
+  add_ap: 'actionable_physical',
+  preferred_candidate_location: 'actionable_physical',
+  infrastructure_required: 'actionable_physical',
+
+  // Information only: no Preview, just acknowledgement
+  coverage_warning: 'informational',
+  overlap_warning: 'informational',
+  roaming_hint: 'informational',
+  band_limit_warning: 'informational',
+  low_ap_value: 'informational',
+  constraint_conflict: 'informational',
+  blocked_recommendation: 'informational',
+  sticky_client_risk: 'informational',
+  handoff_gap_warning: 'informational',
+};
+
 // ─── Per-AP Metrics ───────────────────────────────────────────────
 
 /** Per-AP analysis metrics */

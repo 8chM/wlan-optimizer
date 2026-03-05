@@ -545,7 +545,14 @@
     "stickyClientTitle": "Sticky-client risk: {ap1} \u2194 {ap2}",
     "stickyClientReason": "{percent}% of the area between {ap1} and {ap2} has >15dB signal difference \u2014 clients may not roam.",
     "handoffGapTitle": "Handoff dead zone: {ap1} \u2194 {ap2}",
-    "handoffGapReason": "{cells} cells in the handoff zone between {ap1} and {ap2} have signal below {threshold}dBm \u2014 coverage gap during roaming."
+    "handoffGapReason": "{cells} cells in the handoff zone between {ap1} and {ap2} have signal below {threshold}dBm \u2014 coverage gap during roaming.",
+    "detailScoreChange": "Score impact",
+    "detailStickyRatio": "Sticky ratio",
+    "detailGapCells": "Gap cells",
+    "detailHandoffCells": "Handoff zone cells",
+    "detailAvgRssi": "Avg. RSSI in zone",
+    "blockedRoamingTxTitle": "TX power adjustment blocked: {ap}",
+    "blockedRoamingTxReason": "AP {ap} dominates {percent}% of the handoff zone with {otherAp}, but TX power changes are not allowed for this AP."
   },
   "candidate": {
     "title": "Candidate Location",
@@ -610,7 +617,8 @@
     "preview": "Preview",
     "previewActive": "Preview active",
     "cancel": "Cancel",
-    "acknowledge": "Acknowledge"
+    "acknowledge": "Acknowledge",
+    "staleHint": "Setup changed \u2014 click Re-analyze to update recommendations."
   },
   "capabilities": {
     "title": "Capabilities",

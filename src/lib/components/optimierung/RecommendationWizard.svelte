@@ -12,6 +12,7 @@
   interface RecommendationWizardProps {
     result: AnalysisResult | null;
     stepStates: Map<string, StepState>;
+    stale?: boolean;
     onApply: (rec: Recommendation) => void;
     onSkip: (rec: Recommendation) => void;
     onReject: (rec: Recommendation, reason: RejectionReason) => void;
@@ -20,7 +21,7 @@
     previewActive?: boolean;
   }
 
-  let { result, stepStates, onApply, onSkip, onReject, onSelect, onPreview, previewActive = false }: RecommendationWizardProps = $props();
+  let { result, stepStates, stale = false, onApply, onSkip, onReject, onSelect, onPreview, previewActive = false }: RecommendationWizardProps = $props();
 
   function interpolate(text: string, params: Record<string, string | number>): string {
     let r = text;
@@ -72,6 +73,13 @@
       <div class="all-done">
         <span class="done-icon">&#x2713;</span>
         <span class="done-text">{t('opt.allDone')}</span>
+      </div>
+    {/if}
+
+    {#if stale}
+      <div class="stale-banner">
+        <span class="stale-icon">&#x26A0;</span>
+        <span class="stale-text">{t('opt.staleHint')}</span>
       </div>
     {/if}
 
@@ -184,5 +192,28 @@
   .step-list::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.08);
     border-radius: 2px;
+  }
+
+  .stale-banner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin: 0 8px 4px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 6px;
+  }
+
+  .stale-icon {
+    font-size: 0.85rem;
+    color: #f59e0b;
+    flex-shrink: 0;
+  }
+
+  .stale-text {
+    font-size: 0.7rem;
+    color: #f59e0b;
+    line-height: 1.3;
   }
 </style>

@@ -7,7 +7,7 @@
 <script lang="ts">
   import { t } from '$lib/i18n';
   import type { Recommendation, RejectionReason, EffortLevel } from '$lib/recommendations/types';
-  import { EFFORT_LEVELS } from '$lib/recommendations/types';
+  import { EFFORT_LEVELS, RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
   import type { StepState } from '$lib/stores/optimierungStore.svelte';
 
   interface RecommendationStepProps {
@@ -67,14 +67,12 @@
   let effortLevel = $derived<EffortLevel>(EFFORT_LEVELS[rec.type] ?? 'config');
   let isBlocked = $derived((rec.blockedByConstraints?.length ?? 0) > 0);
   let isDone = $derived(stepState === 'applied' || stepState === 'skipped');
-  let isConfigType = $derived(rec.type === 'change_channel' || rec.type === 'adjust_tx_power' || rec.type === 'disable_ap' || rec.type === 'roaming_tx_adjustment');
+  let category = $derived(RECOMMENDATION_CATEGORIES[rec.type] ?? 'informational');
+  let isConfigType = $derived(category === 'actionable_config');
+  let isInformational = $derived(category === 'informational');
 
-  const INFORMATIONAL_UI_TYPES = new Set([
-    'constraint_conflict', 'coverage_warning', 'band_limit_warning',
-    'roaming_hint', 'overlap_warning', 'low_ap_value', 'blocked_recommendation',
-    'sticky_client_risk', 'handoff_gap_warning',
-  ]);
-  let isInformational = $derived(INFORMATIONAL_UI_TYPES.has(rec.type));
+  const ROAMING_DETAIL_TYPES = new Set(['roaming_tx_adjustment', 'sticky_client_risk', 'handoff_gap_warning']);
+  let showRoamingDetails = $derived(ROAMING_DETAIL_TYPES.has(rec.type));
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -104,6 +102,43 @@
     </div>
 
     <p class="step-desc">{interpolate(t(rec.reasonKey), rec.reasonParams)}</p>
+
+    {#if showRoamingDetails}
+      <div class="roaming-details">
+        {#if rec.type === 'roaming_tx_adjustment' && rec.simulatedDelta}
+          <div class="detail-row">
+            <span class="detail-label">{t('rec.detailScoreChange')}</span>
+            <span class="detail-value">
+              {rec.simulatedDelta.scoreBefore.toFixed(0)} → {rec.simulatedDelta.scoreAfter.toFixed(0)}
+            </span>
+          </div>
+        {/if}
+        {#if rec.evidence?.metrics?.stickyRatio != null}
+          <div class="detail-row">
+            <span class="detail-label">{t('rec.detailStickyRatio')}</span>
+            <span class="detail-value">{Math.round((rec.evidence.metrics.stickyRatio as number) * 100)}%</span>
+          </div>
+        {/if}
+        {#if rec.evidence?.metrics?.gapCells != null}
+          <div class="detail-row">
+            <span class="detail-label">{t('rec.detailGapCells')}</span>
+            <span class="detail-value">{rec.evidence.metrics.gapCells}</span>
+          </div>
+        {/if}
+        {#if rec.evidence?.metrics?.handoffZoneCells != null}
+          <div class="detail-row">
+            <span class="detail-label">{t('rec.detailHandoffCells')}</span>
+            <span class="detail-value">{rec.evidence.metrics.handoffZoneCells}</span>
+          </div>
+        {/if}
+        {#if rec.evidence?.metrics?.avgRssiInZone != null}
+          <div class="detail-row">
+            <span class="detail-label">{t('rec.detailAvgRssi')}</span>
+            <span class="detail-value">{(rec.evidence.metrics.avgRssiInZone as number).toFixed(0)} dBm</span>
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     {#if isBlocked}
       <p class="blocked-reason">{rec.blockedByConstraints?.[0] ?? ''}</p>
@@ -371,5 +406,31 @@
   .reject-option:hover {
     background: rgba(239, 68, 68, 0.15);
     color: #ef4444;
+  }
+
+  .roaming-details {
+    margin: 4px 0 2px;
+    padding: 4px 6px;
+    background: rgba(99, 102, 241, 0.06);
+    border-radius: 4px;
+    border-left: 2px solid rgba(99, 102, 241, 0.3);
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1px 0;
+  }
+
+  .detail-label {
+    font-size: 0.62rem;
+    color: #808090;
+  }
+
+  .detail-value {
+    font-size: 0.62rem;
+    color: #c0c0d0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
   }
 </style>

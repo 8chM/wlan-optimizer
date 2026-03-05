@@ -30,7 +30,8 @@ export type RecommendationType =
   | 'blocked_recommendation'
   | 'roaming_tx_adjustment'
   | 'sticky_client_risk'
-  | 'handoff_gap_warning';
+  | 'handoff_gap_warning'
+  | 'adjust_channel_width';
 
 export type RecommendationSeverity = 'critical' | 'warning' | 'info';
 export type RecommendationPriority = 'high' | 'medium' | 'low';
@@ -329,6 +330,7 @@ export const EFFORT_LEVELS: Record<RecommendationType, EffortLevel> = {
   roaming_tx_adjustment: 'config',
   sticky_client_risk: 'config',
   handoff_gap_warning: 'config',
+  adjust_channel_width: 'config',
 };
 
 /** Effort score values for each level */
@@ -353,6 +355,7 @@ export const RECOMMENDATION_CATEGORIES: Record<RecommendationType, Recommendatio
   adjust_tx_power: 'actionable_config',
   disable_ap: 'actionable_config',
   roaming_tx_adjustment: 'actionable_config',
+  adjust_channel_width: 'actionable_config',
 
   // Creates a new AP: Apply adds an AP to the floor plan
   add_ap: 'actionable_create',

@@ -120,7 +120,12 @@
     "singleAp": "Single AP",
     "allAps": "All APs",
     "apFilter": "AP Filter",
-    "showingAp": "Showing: {ap} only"
+    "showingAp": "Showing: {ap} only",
+    "probe": "Signal Probe",
+    "probeHint": "Click on the map to probe signal strength.",
+    "probeResult": "Signal at ({x}, {y}) m",
+    "probeBestAp": "Best AP",
+    "probeNoData": "No heatmap data at this point."
   },
   "editor": {
     "wallDrawHint": "Click to place points. Double-click to finish. ESC to cancel.",
@@ -506,7 +511,9 @@
     "detailHandoffCells": "Handoff zone cells",
     "detailAvgRssi": "Avg. RSSI in zone",
     "blockedRoamingTxTitle": "TX power adjustment blocked: {ap}",
-    "blockedRoamingTxReason": "AP {ap} dominates {percent}% of the handoff zone with {otherAp}, but TX power changes are not allowed for this AP."
+    "blockedRoamingTxReason": "AP {ap} dominates {percent}% of the handoff zone with {otherAp}, but TX power changes are not allowed for this AP.",
+    "adjustChannelWidthTitle": "Reduce channel width to {width} MHz: {ap}",
+    "adjustChannelWidthReason": "AP uses {currentWidth} MHz with {nearbyCount} nearby APs — reducing to {suggestedWidth} MHz reduces co-channel interference and improves stability."
   },
   "candidate": {
     "title": "Candidate Location",

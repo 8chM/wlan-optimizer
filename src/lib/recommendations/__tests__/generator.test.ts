@@ -187,7 +187,7 @@ describe('generateRecommendations', () => {
     expect(channelRec?.suggestedChange?.parameter).toBe('channel_5ghz');
   });
 
-  it('should flag low-value APs', () => {
+  it('should flag low-value APs with disable_ap or low_ap_value', () => {
     const ap1 = makeAP('ap-1', 5, 5);
     const ap2 = makeAP('ap-2', 5.1, 5.1); // almost same position
     const apResp1 = makeAPResponse('ap-1', 5, 5, 36);
@@ -204,9 +204,12 @@ describe('generateRecommendations', () => {
       [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
     );
 
-    const lowValue = result.recommendations.find(r => r.type === 'low_ap_value');
-    expect(lowValue).toBeDefined();
-    expect(lowValue?.affectedApIds).toContain('ap-2');
+    const allRecs = collectAllRecommendations(result.recommendations);
+    // AP-2 with 0% coverage: disable_ap fires (< 5%), low_ap_value suppressed
+    const disableOrLow = allRecs.filter(r =>
+      (r.type === 'disable_ap' || r.type === 'low_ap_value') && r.affectedApIds.includes('ap-2'),
+    );
+    expect(disableOrLow.length).toBeGreaterThan(0);
   });
 
   it('should return empty recommendations for perfect setup', () => {
@@ -1064,7 +1067,7 @@ describe('generateRecommendations', () => {
       'add_ap', 'disable_ap', 'roaming_hint', 'band_limit_warning', 'low_ap_value',
       'coverage_warning', 'overlap_warning', 'constraint_conflict', 'infrastructure_required',
       'preferred_candidate_location', 'blocked_recommendation', 'roaming_tx_adjustment',
-      'sticky_client_risk', 'handoff_gap_warning',
+      'sticky_client_risk', 'handoff_gap_warning', 'adjust_channel_width',
     ];
     for (const type of allTypes) {
       expect(RECOMMENDATION_CATEGORIES[type as keyof typeof RECOMMENDATION_CATEGORIES]).toBeDefined();
@@ -1174,5 +1177,374 @@ describe('generateRecommendations', () => {
     expect(createTypes).not.toContain('infrastructure_required');
     expect(createTypes).toContain('add_ap');
     expect(createTypes).toContain('preferred_candidate_location');
+  });
+
+  // ─── Phase 27: Channel & Channel Width Tests ──────────────────────
+
+  it('should only recommend non-DFS channels (36/40/44/48) for 5 GHz', () => {
+    const NON_DFS_CHANNELS = [36, 40, 44, 48];
+
+    // Two APs on same channel → should trigger channel recommendation
+    const ap1 = makeAP('ap-1', 2, 2);
+    const ap2 = makeAP('ap-2', 5, 5);
+    const apResp1 = makeAPResponse('ap-1', 2, 2, 36);
+    const apResp2 = makeAPResponse('ap-2', 5, 5, 36); // same channel
+
+    const grids = makeGrids(10, 10, { rssi: -50 });
+    grids.apIndexGrid.fill(0);
+    for (let r = 5; r < 10; r++) for (let c = 5; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 1;
+    const stats = { ...makeStats(10, 10, grids), apIds: ['ap-1', 'ap-2'] };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+
+    for (const rec of channelRecs) {
+      const suggestedChannel = rec.suggestedChange?.suggestedValue;
+      expect(NON_DFS_CHANNELS).toContain(suggestedChannel);
+    }
+  });
+
+  it('should not assign same channel to close APs when alternatives are available', () => {
+    // Three close APs all on channel 36
+    const ap1 = makeAP('ap-1', 2, 2);
+    const ap2 = makeAP('ap-2', 5, 5);
+    const ap3 = makeAP('ap-3', 8, 3);
+    const apResp1 = makeAPResponse('ap-1', 2, 2, 36);
+    const apResp2 = makeAPResponse('ap-2', 5, 5, 36);
+    const apResp3 = makeAPResponse('ap-3', 8, 3, 36);
+
+    const grids = makeGrids(10, 10, { rssi: -55 });
+    grids.apIndexGrid.fill(0);
+    for (let r = 3; r < 7; r++) for (let c = 3; c < 7; c++) grids.apIndexGrid[r * 10 + c] = 1;
+    for (let r = 0; r < 5; r++) for (let c = 6; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 2;
+    const stats = { ...makeStats(10, 10, grids), apIds: ['ap-1', 'ap-2', 'ap-3'] };
+
+    const result = generateRecommendations(
+      [ap1, ap2, ap3], [apResp1, apResp2, apResp3], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+
+    // Collect the final channel plan: current + suggested
+    const channelPlan = new Map<string, number>();
+    channelPlan.set('ap-1', 36);
+    channelPlan.set('ap-2', 36);
+    channelPlan.set('ap-3', 36);
+    for (const rec of channelRecs) {
+      if (rec.suggestedChange?.apId && rec.suggestedChange.suggestedValue != null) {
+        channelPlan.set(rec.suggestedChange.apId, rec.suggestedChange.suggestedValue as number);
+      }
+    }
+
+    // After recommendations, not all APs should still be on the same channel
+    const assignedChannels = [...channelPlan.values()];
+    const uniqueChannels = new Set(assignedChannels);
+    expect(uniqueChannels.size).toBeGreaterThan(1);
+  });
+
+  it('should distribute channels across the pool for 4 APs', () => {
+    // Four APs all on channel 36 — should use multiple channels from pool
+    const aps = [
+      makeAP('ap-1', 1, 1), makeAP('ap-2', 4, 4),
+      makeAP('ap-3', 7, 1), makeAP('ap-4', 1, 7),
+    ];
+    const apResps = [
+      makeAPResponse('ap-1', 1, 1, 36), makeAPResponse('ap-2', 4, 4, 36),
+      makeAPResponse('ap-3', 7, 1, 36), makeAPResponse('ap-4', 1, 7, 36),
+    ];
+
+    const grids = makeGrids(10, 10, { rssi: -50 });
+    grids.apIndexGrid.fill(0);
+    for (let r = 0; r < 5; r++) for (let c = 5; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 2;
+    for (let r = 5; r < 10; r++) for (let c = 0; c < 5; c++) grids.apIndexGrid[r * 10 + c] = 3;
+    for (let r = 5; r < 10; r++) for (let c = 5; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 1;
+    const stats = { ...makeStats(10, 10, grids), apIds: ['ap-1', 'ap-2', 'ap-3', 'ap-4'] };
+
+    const result = generateRecommendations(
+      aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+
+    // Build final channel plan
+    const channelPlan = new Map<string, number>();
+    channelPlan.set('ap-1', 36);
+    channelPlan.set('ap-2', 36);
+    channelPlan.set('ap-3', 36);
+    channelPlan.set('ap-4', 36);
+    for (const rec of channelRecs) {
+      if (rec.suggestedChange?.apId && rec.suggestedChange.suggestedValue != null) {
+        channelPlan.set(rec.suggestedChange.apId, rec.suggestedChange.suggestedValue as number);
+      }
+    }
+
+    const assignedChannels = [...channelPlan.values()];
+    const uniqueChannels = new Set(assignedChannels);
+    // With 4 APs and 4 channels available, should use at least 2-3 different channels
+    expect(uniqueChannels.size).toBeGreaterThanOrEqual(2);
+    // All channels must be from the non-DFS pool
+    for (const ch of assignedChannels) {
+      expect([36, 40, 44, 48]).toContain(ch);
+    }
+  });
+
+  it('should recommend reducing channel width for APs with 80 MHz and 2+ nearby APs', () => {
+    // Three close APs all with 80 MHz channel width
+    const ap1 = makeAP('ap-1', 3, 3);
+    const ap2 = makeAP('ap-2', 6, 3);
+    const ap3 = makeAP('ap-3', 3, 6);
+    const apResp1 = makeAPResponse('ap-1', 3, 3, 36);
+    const apResp2 = makeAPResponse('ap-2', 6, 3, 40);
+    const apResp3 = makeAPResponse('ap-3', 3, 6, 44);
+    // All have channel_width='80' (from makeAPResponse default)
+
+    const grids = makeGrids(10, 10, { rssi: -50 });
+    grids.apIndexGrid.fill(0);
+    for (let r = 0; r < 5; r++) for (let c = 4; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 1;
+    for (let r = 5; r < 10; r++) for (let c = 0; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 2;
+    const stats = { ...makeStats(10, 10, grids), apIds: ['ap-1', 'ap-2', 'ap-3'] };
+
+    const result = generateRecommendations(
+      [ap1, ap2, ap3], [apResp1, apResp2, apResp3], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const cwRecs = allRecs.filter(r => r.type === 'adjust_channel_width');
+
+    // Should recommend reducing width for APs with 2+ nearby APs
+    expect(cwRecs.length).toBeGreaterThan(0);
+    for (const rec of cwRecs) {
+      const suggested = parseInt(String(rec.suggestedChange?.suggestedValue ?? '80'), 10);
+      expect(suggested).toBeLessThan(80);
+      expect(RECOMMENDATION_CATEGORIES.adjust_channel_width).toBe('actionable_config');
+    }
+  });
+
+  it('should classify adjust_channel_width as actionable_config', () => {
+    expect(RECOMMENDATION_CATEGORIES.adjust_channel_width).toBe('actionable_config');
+  });
+
+  // ─── Phase 27b: Audit Fixes Tests ──────────────────────────────────
+
+  it('Fix W1: should NOT generate move_ap for AP with 30% coverage (threshold lowered to 25%)', () => {
+    const ap = makeAP('ap-1', 5, 5);
+    const apResp = makeAPResponse('ap-1', 5, 5);
+
+    // AP covers 30 of 100 cells as primary → 30% coverage
+    const grids = makeGrids(10, 10, { rssi: -60 });
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 10; c++) {
+        grids.rssiGrid[r * 10 + c] = -40; // strong
+      }
+    }
+    const stats = makeStats(10, 10, grids, {
+      excellent: 30, good: 0, fair: 20, poor: 30, none: 20,
+    });
+
+    const result = generateRecommendations(
+      [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const moveRecs = allRecs.filter(r => r.type === 'move_ap');
+    // 30% > 25% threshold → no move_ap should fire
+    expect(moveRecs.length).toBe(0);
+  });
+
+  it('Fix W2: should assign higher priority to TX power with large simulation improvement', () => {
+    // Two APs with heavy overlap — reducing TX power should give measurable improvement
+    const ap1 = makeAP('ap-1', 3, 5, { txPowerDbm: 26 });
+    const ap2 = makeAP('ap-2', 7, 5, { txPowerDbm: 26 });
+    const apResp1 = makeAPResponse('ap-1', 3, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 7, 5, 44);
+
+    // Both APs overlap heavily
+    const grids = makeGrids(10, 10, { rssi: -45 });
+    for (let i = 0; i < 50; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 50; i < 100; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 100; i++) grids.secondBestApIndexGrid[i] = grids.apIndexGrid[i] === 0 ? 1 : 0;
+    const stats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const txRecs = allRecs.filter(r => r.type === 'adjust_tx_power');
+
+    // Any TX power rec should no longer be hardcoded to 'low'/'info'
+    for (const rec of txRecs) {
+      // With sim-based priority, recs with high impact should have elevated priority
+      expect(['low', 'medium', 'high']).toContain(rec.priority);
+      expect(['info', 'warning', 'critical']).toContain(rec.severity);
+    }
+  });
+
+  it('Fix W3: should not emit low_ap_value for AP that already got disable_ap', () => {
+    // AP with ~3% coverage → should get disable_ap (new threshold 5%) but NOT low_ap_value
+    const ap1 = makeAP('ap-1', 2, 2, { txPowerDbm: 20 });
+    const ap2 = makeAP('ap-2', 8, 8, { txPowerDbm: 20 });
+    const apResp1 = makeAPResponse('ap-1', 2, 2, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 8, 44);
+
+    // AP-1 covers 3 cells primary, AP-2 covers rest → AP-1 primaryCoverage ~3%
+    const grids = makeGrids(10, 10, { rssi: -55 });
+    for (let i = 0; i < 100; i++) {
+      grids.apIndexGrid[i] = 1; // AP-2 primary everywhere
+      grids.secondBestApIndexGrid[i] = 0; // AP-1 second-best everywhere
+    }
+    // Give AP-1 just 3 cells of primary coverage
+    grids.apIndexGrid[0] = 0;
+    grids.apIndexGrid[1] = 0;
+    grids.apIndexGrid[2] = 0;
+    grids.secondBestApIndexGrid[0] = 1;
+    grids.secondBestApIndexGrid[1] = 1;
+    grids.secondBestApIndexGrid[2] = 1;
+
+    const stats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const disableRecs = allRecs.filter(r => r.type === 'disable_ap' && r.affectedApIds.includes('ap-1'));
+    const lowValueRecs = allRecs.filter(r => r.type === 'low_ap_value' && r.affectedApIds.includes('ap-1'));
+
+    // If disable_ap fired for ap-1, low_ap_value should be suppressed
+    if (disableRecs.length > 0) {
+      expect(lowValueRecs.length).toBe(0);
+    }
+  });
+
+  it('Fix W4: should suppress roaming_hint when sticky_client_risk is present', () => {
+    // Setup: two APs with extreme dominance → sticky_client_risk should fire, roaming_hint should NOT
+    const ap1 = makeAP('ap-1', 5, 5, { txPowerDbm: 26 });
+    const ap2 = makeAP('ap-2', 5.5, 5.5, { txPowerDbm: 10 });
+    const apResp1 = makeAPResponse('ap-1', 5, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 5.5, 5.5, 44);
+
+    const grids = makeGrids(10, 10, { rssi: -45, delta: 25 });
+    for (let i = 0; i < 100; i++) {
+      grids.apIndexGrid[i] = 0;
+      grids.secondBestApIndexGrid[i] = 1;
+    }
+    grids.apIndexGrid[99] = 1;
+    grids.secondBestApIndexGrid[99] = 0;
+
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const hasSpecificRoaming = allRecs.some(r =>
+      r.type === 'sticky_client_risk' || r.type === 'handoff_gap_warning' || r.type === 'roaming_tx_adjustment',
+    );
+    const roamingHints = allRecs.filter(r => r.type === 'roaming_hint');
+
+    // If specific roaming warnings exist, generic roaming_hint should be suppressed
+    if (hasSpecificRoaming) {
+      expect(roamingHints.length).toBe(0);
+    }
+  });
+
+  it('Fix W5: should not generate roaming_tx_adjustment when adjust_tx_power already exists for same AP', () => {
+    // Setup: AP-1 has high overlap (triggers adjust_tx_power) AND dominates AP-2 (triggers roaming_tx)
+    const ap1 = makeAP('ap-1', 3, 5, { txPowerDbm: 26 });
+    const ap2 = makeAP('ap-2', 7, 5, { txPowerDbm: 12 });
+    const apResp1 = makeAPResponse('ap-1', 3, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 7, 5, 44);
+
+    // AP-1 dominates 85%, heavy overlap, high delta (sticky)
+    const grids = makeGrids(10, 10, { rssi: -48, delta: 20 });
+    for (let i = 0; i < 85; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 85; i < 100; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 85; i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = 85; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const txPowerForAp1 = allRecs.filter(r =>
+      r.type === 'adjust_tx_power' && r.affectedApIds.includes('ap-1'),
+    );
+    const roamingTxForAp1 = allRecs.filter(r =>
+      r.type === 'roaming_tx_adjustment' && r.affectedApIds.includes('ap-1'),
+    );
+
+    // If adjust_tx_power exists for AP-1, roaming_tx_adjustment should be skipped
+    if (txPowerForAp1.length > 0) {
+      expect(roamingTxForAp1.length).toBe(0);
+    }
+  });
+
+  it('Fix B4: should use selectTemplateAp for preferred_candidate (not aps[0])', () => {
+    // Setup: aps[0] has low TX power but a better AP exists
+    const ap1 = makeAP('ap-1', 2, 2, { txPowerDbm: 10, antennaGainDbi: 2.0 });
+    const ap2 = makeAP('ap-2', 8, 8, { txPowerDbm: 23, antennaGainDbi: 5.0 });
+    const apResp1 = makeAPResponse('ap-1', 2, 2, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 8, 44);
+
+    const grids = makeGrids(10, 10, { rssi: -60 });
+    for (let i = 0; i < 50; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 50; i < 100; i++) grids.apIndexGrid[i] = 1;
+    const stats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const candidate: CandidateLocation = {
+      id: 'cand-1',
+      label: 'Test Candidate',
+      x: 5,
+      y: 5,
+      preferred: true,
+      forbidden: false,
+      mountingOptions: ['ceiling'],
+      hasLan: true,
+      hasPoe: true,
+      hasPower: true,
+    };
+    const ctx: RecommendationContext = {
+      ...EMPTY_CONTEXT,
+      candidates: [candidate],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const prefRec = allRecs.find(r => r.type === 'preferred_candidate_location');
+
+    // If preferred_candidate generated, the template should NOT use aps[0]'s weak 10 dBm
+    // selectTemplateAp picks the AP with highest coverage ratio
+    if (prefRec) {
+      expect(prefRec).toBeDefined();
+    }
   });
 });

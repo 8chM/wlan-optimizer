@@ -120,7 +120,12 @@
     "singleAp": "Einzelner AP",
     "allAps": "Alle APs",
     "apFilter": "AP-Filter",
-    "showingAp": "Zeige: nur {ap}"
+    "showingAp": "Zeige: nur {ap}",
+    "probe": "Signal-Sonde",
+    "probeHint": "Klicke auf die Karte, um die Signalstaerke zu messen.",
+    "probeResult": "Signal bei ({x}, {y}) m",
+    "probeBestAp": "Bester AP",
+    "probeNoData": "Keine Heatmap-Daten an diesem Punkt."
   },
   "editor": {
     "wallDrawHint": "Klicke um Punkte zu setzen. Doppelklick zum Beenden. ESC zum Abbrechen.",
@@ -506,7 +511,9 @@
     "detailHandoffCells": "Handoff-Zone Zellen",
     "detailAvgRssi": "Mittl. RSSI in Zone",
     "blockedRoamingTxTitle": "TX-Power-Anpassung blockiert: {ap}",
-    "blockedRoamingTxReason": "AP {ap} dominiert {percent}% der Uebergangszone mit {otherAp}, aber TX-Power-Aenderungen sind fuer diesen AP nicht erlaubt."
+    "blockedRoamingTxReason": "AP {ap} dominiert {percent}% der Uebergangszone mit {otherAp}, aber TX-Power-Aenderungen sind fuer diesen AP nicht erlaubt.",
+    "adjustChannelWidthTitle": "Kanalbreite auf {width} MHz reduzieren: {ap}",
+    "adjustChannelWidthReason": "AP nutzt {currentWidth} MHz bei {nearbyCount} APs in Reichweite — Reduktion auf {suggestedWidth} MHz verringert Interferenz und verbessert Stabilitaet."
   },
   "candidate": {
     "title": "Kandidaten-Position",

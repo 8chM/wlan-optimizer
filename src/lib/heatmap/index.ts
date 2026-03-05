@@ -100,6 +100,12 @@ export {
   type HitCountsByCategory,
 } from './point-inspector';
 
+// Signal Probe - O(1) grid lookup for point inspection
+export {
+  probeSignalFromGrid,
+  type ProbeResult,
+} from './signal-probe';
+
 // Heatmap Manager - progressive rendering controller
 export {
   HeatmapManager,

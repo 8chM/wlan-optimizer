@@ -72,6 +72,16 @@ const EFFECTIVE_RANGE_M: Record<AnalysisBand, number> = {
 };
 
 /**
+ * Allowed channel pools per band.
+ * 5 GHz: UNII-1 only (no DFS, no UNII-3) — safest for home setups.
+ * 2.4 GHz: Non-overlapping channels only.
+ */
+export const ALLOWED_CHANNELS: Record<AnalysisBand, readonly number[]> = {
+  '2.4ghz': [1, 6, 11],
+  '5ghz': [36, 40, 44, 48],
+} as const;
+
+/**
  * Non-overlapping channel sets for 2.4 GHz.
  * Channels 1, 6, 11 don't overlap each other.
  * Adjacent overlap depends on channel distance.
@@ -245,9 +255,7 @@ export function getRecommendedChannels(
   accessPoints: AccessPointResponse[],
   band: AnalysisBand,
 ): number[] {
-  const candidateChannels = band === '2.4ghz'
-    ? [1, 6, 11]
-    : [36, 40, 44, 48, 149, 153, 157, 161];
+  const candidateChannels = [...ALLOWED_CHANNELS[band]];
 
   const ap = accessPoints.find((a) => a.id === apId);
   if (!ap) return candidateChannels.slice(0, 3);

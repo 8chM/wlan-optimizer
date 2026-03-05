@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   analyzeChannelConflicts,
   getRecommendedChannels,
+  ALLOWED_CHANNELS,
   type AnalysisBand,
 } from '../channel-analysis';
 import type { AccessPointResponse } from '$lib/api/invoke';
@@ -169,5 +170,26 @@ describe('getRecommendedChannels', () => {
     const aps = [makeMockAp()];
     const recommended = getRecommendedChannels('nonexistent', aps, '2.4ghz');
     expect(recommended.length).toBeGreaterThan(0);
+  });
+
+  it('should only recommend non-DFS channels for 5 GHz', () => {
+    const aps = [
+      makeMockAp({ id: 'ap-1', x: 5, y: 5, channel_5ghz: 36 }),
+      makeMockAp({ id: 'ap-2', x: 8, y: 5, channel_5ghz: 36 }),
+    ];
+    const recommended = getRecommendedChannels('ap-1', aps, '5ghz');
+
+    for (const ch of recommended) {
+      expect(ALLOWED_CHANNELS['5ghz']).toContain(ch);
+    }
+  });
+
+  it('should have correct ALLOWED_CHANNELS pools', () => {
+    expect(ALLOWED_CHANNELS['2.4ghz']).toEqual([1, 6, 11]);
+    expect(ALLOWED_CHANNELS['5ghz']).toEqual([36, 40, 44, 48]);
+    // No DFS channels (52-144) and no UNII-3 (149-165)
+    for (const ch of ALLOWED_CHANNELS['5ghz']) {
+      expect(ch).toBeLessThan(52);
+    }
   });
 });

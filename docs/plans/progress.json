@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-26i-complete",
+  "currentPhase": "phase-27b-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -776,6 +776,32 @@
         "45 Panel-only i18n-Keys entfernt (EN+DE): panelTitle, score, coverage, overlap, conflicts, roaming, profile*, severity*, effort*, preview, apply, cancelPreview, etc.",
         "Beibehalten: alle dynamisch genutzten Title/Reason-Keys, reject-Keys, detail-Keys",
         "Aktiver UI-Pfad: mixing/+page.svelte -> RecommendationWizard -> RecommendationStep"
+      ]
+    },
+    "27": {
+      "name": "Channel & Channel Width Improvements",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "auditResult": "PASSED - DFS-Policy, Greedy Channel Assignment, Channel Width Recommendations, 771→784 Tests"
+    },
+    "27b": {
+      "name": "Produktreife-Audit — Bugs & Widersprueche bereinigt",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "auditResult": "PASSED - 7 Fixes (2 Bugs, 5 Widersprueche), 7 neue Tests, 784 Tests total, 0 Errors, Build OK, svelte-check 0 Errors",
+      "deliverables": [
+        "Audit-Dokument: docs/plans/recommendation-engine-audit.md (20 Typen vollstaendig dokumentiert, 4 Bugs, 5 Widersprueche, 4 Luecken identifiziert)",
+        "Fix B1: Math.max(20,20) → 20 (toter Code bereinigt)",
+        "Fix B4: preferred_candidate nutzt selectTemplateAp() statt aps[0] (bessere Template-Wahl)",
+        "Fix W1: move_ap Coverage-Schwelle 40% → 25% (realistisch fuer Multi-AP-Szenarien)",
+        "Fix W2: adjust_tx_power Prioritaet jetzt sim-basiert (>8% → medium/warning, >15% → high/critical statt immer low/info)",
+        "Fix W3: disable_ap Schwelle 2% → 5%, low_ap_value Suppression bei vorhandenem disable_ap (Luecke 2-5% geschlossen)",
+        "Fix W4: roaming_hint Suppression wenn sticky_client_risk/handoff_gap_warning/roaming_tx_adjustment vorhanden",
+        "Fix W5: roaming_tx_adjustment Cross-Type Dedup gegen adjust_tx_power fuer gleichen AP",
+        "7 neue Micro-Tests in generator.test.ts (W1-W5, B4, bestehender low_ap_value-Test angepasst)",
+        "Gesamt: 784 Tests, 0 Errors, Build OK, svelte-check 0 Errors"
       ]
     }
   },

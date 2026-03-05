@@ -16,7 +16,7 @@ import type { RFConfig } from '$lib/heatmap/rf-engine';
 import type { FrequencyBand } from '$lib/heatmap/color-schemes';
 import type { AccessPointResponse } from '$lib/api/invoke';
 import type { AnalysisBand } from '$lib/heatmap/channel-analysis';
-import { analyzeChannelConflicts, getRecommendedChannels } from '$lib/heatmap/channel-analysis';
+import { analyzeChannelConflicts, getRecommendedChannels, ALLOWED_CHANNELS } from '$lib/heatmap/channel-analysis';
 import {
   computeAPMetrics,
   computeOverallScore,
@@ -147,31 +147,40 @@ export function generateRecommendations(
     recommendations, weakZones, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, stats, apMetrics,
   );
 
-  // 8. Roaming hints (informational)
-  generateRoamingHints(recommendations, stats, totalCells, band, gridStep);
-
-  // 8b-8d. Roaming pair analysis (computed once, shared across generators)
+  // 8. Roaming pair analysis (computed once, shared across generators)
   const roamingPairs = analyzeRoamingPairs(stats, apIds, band);
 
-  // 8b. Roaming TX power adjustments (actionable)
+  // 8a. Roaming TX power adjustments (actionable)
   generateRoamingTxAdjustments(
     recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel,
   );
 
-  // 8c. Sticky-client risk warnings (informational)
+  // 8b. Sticky-client risk warnings (informational)
   generateStickyClientWarnings(recommendations, roamingPairs, totalCells, band, apLabel);
 
-  // 8d. Handoff gap warnings (informational)
+  // 8c. Handoff gap warnings (informational)
   generateHandoffGapWarnings(recommendations, roamingPairs, band, apLabel);
 
-  // 9. Low-value AP warnings
-  generateLowValueWarnings(recommendations, lowValueApIds, apMetrics, band, apLabel);
+  // 8d. Roaming hints — only if no specific roaming warnings were generated
+  const hasSpecificRoamingWarnings = recommendations.some(
+    r => r.type === 'sticky_client_risk' || r.type === 'handoff_gap_warning' || r.type === 'roaming_tx_adjustment',
+  );
+  if (!hasSpecificRoamingWarnings) {
+    generateRoamingHints(recommendations, stats, totalCells, band, gridStep);
+  }
 
-  // 10. Overlap warnings
-  generateOverlapWarnings(recommendations, overlapZones, totalCells, band, gridStep);
-
-  // 11. Disable AP suggestions
+  // 9. Disable AP suggestions (before low_ap_value to avoid duplicate warnings)
   generateDisableApSuggestions(recommendations, apMetrics, aps, walls, bounds, band, rfConfig, weights, totalCells, apLabel);
+
+  // 10. Low-value AP warnings (suppress for APs that already got disable_ap)
+  const disabledApIds = new Set(
+    recommendations.filter(r => r.type === 'disable_ap').flatMap(r => r.affectedApIds),
+  );
+  const filteredLowValue = lowValueApIds.filter(id => !disabledApIds.has(id));
+  generateLowValueWarnings(recommendations, filteredLowValue, apMetrics, band, apLabel);
+
+  // 11. Overlap warnings
+  generateOverlapWarnings(recommendations, overlapZones, totalCells, band, gridStep);
 
   // 12. Band limit warnings
   generateBandLimitWarnings(recommendations, stats, band, totalCells);
@@ -181,6 +190,9 @@ export function generateRecommendations(
 
   // 14. Preferred candidate location suggestions
   generatePreferredCandidateSuggestions(recommendations, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx);
+
+  // 15. Channel width recommendations (reduce width in multi-AP scenarios)
+  generateChannelWidthRecommendations(recommendations, aps, accessPoints, band, apLabel);
 
   // Deduplicate: max 1 physical recommendation per AP, rest as alternatives
   const deduped = deduplicateRecommendations(recommendations);
@@ -526,7 +538,7 @@ function generateMoveApSuggestions(
 
   for (const ap of aps) {
     const metrics = apMetrics.get(ap.id);
-    if (!metrics || metrics.primaryCoverageRatio > 0.4) continue;
+    if (!metrics || metrics.primaryCoverageRatio > 0.25) continue;
 
     // Check AP capabilities
     const canMove = isActionAllowed(ap.id, 'move_ap', band, ctx);
@@ -979,11 +991,12 @@ function generateTxPowerSuggestions(
         const delta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
 
         if (delta.changePercent > -5) {
+          const absImprove = Math.abs(delta.changePercent);
           recs.push({
             id: genId(),
             type: 'adjust_tx_power',
-            priority: 'low',
-            severity: 'info',
+            priority: absImprove > 15 ? 'high' : absImprove > 8 ? 'medium' : 'low',
+            severity: absImprove > 15 ? 'critical' : absImprove > 8 ? 'warning' : 'info',
             titleKey: 'rec.adjustTxPowerTitle',
             titleParams: { ap: apLabel(ap.id), power: lowerPower },
             reasonKey: 'rec.adjustTxPowerReason',
@@ -1020,8 +1033,8 @@ function generateTxPowerSuggestions(
           recs.push({
             id: genId(),
             type: 'adjust_tx_power',
-            priority: 'low',
-            severity: 'info',
+            priority: delta.changePercent > 15 ? 'high' : delta.changePercent > 8 ? 'medium' : 'low',
+            severity: delta.changePercent > 15 ? 'critical' : delta.changePercent > 8 ? 'warning' : 'info',
             titleKey: 'rec.adjustTxPowerTitle',
             titleParams: { ap: apLabel(ap.id), power: higherPower },
             reasonKey: 'rec.adjustTxPowerUpReason',
@@ -1048,6 +1061,15 @@ function generateTxPowerSuggestions(
   }
 }
 
+/**
+ * Greedy channel assignment: assigns conflict-free channels across all APs.
+ *
+ * Instead of per-conflict recommendations, this builds a global channel plan:
+ * 1. Identify APs involved in conflicts (score >= 0.3)
+ * 2. Sort by total conflict severity (worst first)
+ * 3. Greedily assign the channel with lowest conflict against already-assigned APs
+ * 4. Emit one recommendation per AP whose assigned channel differs from current
+ */
 function generateChannelRecommendations(
   recs: Recommendation[],
   channelAnalysis: ReturnType<typeof analyzeChannelConflicts>,
@@ -1057,52 +1079,130 @@ function generateChannelRecommendations(
   apLabel: (id: string) => string,
 ): void {
   const analysisBand: AnalysisBand = band === '6ghz' ? '5ghz' : band as AnalysisBand;
+  const pool = ALLOWED_CHANNELS[analysisBand];
 
+  // Collect APs with meaningful conflicts
+  const conflictApIds = new Set<string>();
   for (const conflict of channelAnalysis.conflicts) {
     if (conflict.score < 0.3) continue;
+    conflictApIds.add(conflict.ap1Id);
+    conflictApIds.add(conflict.ap2Id);
+  }
 
-    // Suggest channel change for AP with fewer conflicts
-    const summary1 = channelAnalysis.apSummaries.find(s => s.apId === conflict.ap1Id);
-    const summary2 = channelAnalysis.apSummaries.find(s => s.apId === conflict.ap2Id);
-    const targetApId = (summary1?.totalConflicts ?? 0) <= (summary2?.totalConflicts ?? 0)
-      ? conflict.ap1Id : conflict.ap2Id;
+  if (conflictApIds.size === 0) return;
 
-    // Check capabilities
+  // Sort APs by total conflict severity (worst first → gets best channel choice)
+  const apsBySeverity = [...conflictApIds]
+    .map(id => {
+      const summary = channelAnalysis.apSummaries.find(s => s.apId === id);
+      return { id, worstScore: summary?.worstScore ?? 0, totalConflicts: summary?.totalConflicts ?? 0 };
+    })
+    .sort((a, b) => b.worstScore - a.worstScore || b.totalConflicts - a.totalConflicts);
+
+  // Track assigned channels: apId → channel (starts with current assignments)
+  const assignedChannels = new Map<string, number>();
+  for (const ap of accessPoints) {
+    if (!ap.enabled) continue;
+    const ch = analysisBand === '2.4ghz' ? ap.channel_24ghz : ap.channel_5ghz;
+    if (ch != null) assignedChannels.set(ap.id, ch);
+  }
+
+  // Greedy assignment
+  const channelChanges = new Map<string, { from: number; to: number; worstScore: number }>();
+
+  for (const { id: targetApId, worstScore } of apsBySeverity) {
     if (!isActionAllowed(targetApId, 'change_channel', band, ctx)) continue;
 
-    const recommended = getRecommendedChannels(targetApId, accessPoints, analysisBand);
-    if (recommended.length === 0) continue;
+    const targetAp = accessPoints.find(a => a.id === targetApId);
+    if (!targetAp) continue;
 
-    const currentChannel = targetApId === conflict.ap1Id ? conflict.channel1 : conflict.channel2;
-    const suggestedChannel = recommended[0]!;
+    // Score each candidate channel against all OTHER APs' assigned channels
+    const channelScores = pool.map(ch => {
+      let totalConflictScore = 0;
 
-    if (suggestedChannel === currentChannel) continue;
+      for (const other of accessPoints) {
+        if (other.id === targetApId || !other.enabled) continue;
+        const otherCh = assignedChannels.get(other.id);
+        if (otherCh == null) continue;
 
-    const channelParamName = band === '2.4ghz' ? 'channel_24ghz' : 'channel_5ghz';
+        const dx = targetAp.x - other.x;
+        const dy = targetAp.y - other.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const range = 20; // 5 GHz conservative range
+        if (analysisBand === '2.4ghz') {
+          const r = 35; // 2.4 GHz conservative range
+          if (distance > r) continue;
+          const distanceFactor = 1 - (distance / r);
+          const channelDiff = Math.abs(ch - otherCh);
+          if (channelDiff === 0) {
+            totalConflictScore += 1.0 * distanceFactor;
+          } else if (channelDiff <= 4) {
+            totalConflictScore += 0.5 * (1 - channelDiff / 5) * distanceFactor;
+          }
+        } else {
+          if (distance > range) continue;
+          const distanceFactor = 1 - (distance / range);
+          if (ch === otherCh) {
+            totalConflictScore += 1.0 * distanceFactor;
+          }
+        }
+      }
+
+      return { channel: ch, score: totalConflictScore };
+    });
+
+    channelScores.sort((a, b) => a.score - b.score);
+
+    const bestChannel = channelScores[0]!.channel;
+    const currentChannel = assignedChannels.get(targetApId);
+
+    // Update assigned channel map (even if same — prevents re-processing)
+    assignedChannels.set(targetApId, bestChannel);
+
+    if (currentChannel != null && bestChannel !== currentChannel) {
+      channelChanges.set(targetApId, { from: currentChannel, to: bestChannel, worstScore });
+    }
+  }
+
+  // Emit recommendations
+  const channelParamName = band === '2.4ghz' ? 'channel_24ghz' : 'channel_5ghz';
+
+  for (const [targetApId, change] of channelChanges) {
+    // Find worst conflict involving this AP for evidence
+    const worstConflict = channelAnalysis.conflicts.find(
+      c => (c.ap1Id === targetApId || c.ap2Id === targetApId) && c.score >= 0.3,
+    );
+
+    const otherApId = worstConflict
+      ? (worstConflict.ap1Id === targetApId ? worstConflict.ap2Id : worstConflict.ap1Id)
+      : undefined;
 
     recs.push({
       id: genId(),
       type: 'change_channel',
-      priority: conflict.severity === 'high' ? 'high' : 'medium',
-      severity: conflict.severity === 'high' ? 'critical' : 'warning',
+      priority: change.worstScore >= 0.6 ? 'high' : 'medium',
+      severity: change.worstScore >= 0.6 ? 'critical' : 'warning',
       titleKey: 'rec.changeChannelTitle',
-      titleParams: { ap: apLabel(targetApId), channel: suggestedChannel },
+      titleParams: { ap: apLabel(targetApId), channel: change.to },
       reasonKey: 'rec.changeChannelReason',
       reasonParams: {
-        type: conflict.type,
-        otherAp: apLabel(targetApId === conflict.ap1Id ? conflict.ap2Id : conflict.ap1Id),
-        distance: Math.round(conflict.distanceM * 10) / 10,
+        type: 'co-channel' as const,
+        otherAp: otherApId ? apLabel(otherApId) : '',
+        distance: worstConflict ? Math.round(worstConflict.distanceM * 10) / 10 : 0,
       },
-      affectedApIds: [conflict.ap1Id, conflict.ap2Id],
+      affectedApIds: otherApId ? [targetApId, otherApId] : [targetApId],
       affectedBand: band,
       suggestedChange: {
         apId: targetApId,
         parameter: channelParamName,
-        currentValue: currentChannel,
-        suggestedValue: suggestedChannel,
+        currentValue: change.from,
+        suggestedValue: change.to,
       },
       evidence: {
-        metrics: { conflictScore: conflict.score, distance: conflict.distanceM },
+        metrics: {
+          conflictScore: worstConflict?.score ?? change.worstScore,
+          distance: worstConflict?.distanceM ?? 0,
+        },
       },
       confidence: 0.85,
     });
@@ -1171,6 +1271,11 @@ function generateRoamingTxAdjustments(
 ): void {
   const txParamName = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
 
+  // Collect APs that already have an adjust_tx_power recommendation (avoid cross-type duplicates)
+  const txPowerApIds = new Set(
+    recs.filter(r => r.type === 'adjust_tx_power').flatMap(r => r.affectedApIds),
+  );
+
   for (const pair of pairs) {
     if (pair.stickyRatio <= 0.30) continue;
 
@@ -1183,6 +1288,9 @@ function generateRoamingTxAdjustments(
     const otherId = dominantId === pair.ap1Id ? pair.ap2Id : pair.ap1Id;
     const dominantAp = aps.find(a => a.id === dominantId);
     if (!dominantAp) continue;
+
+    // Skip if this AP already has an adjust_tx_power recommendation (cross-type dedup)
+    if (txPowerApIds.has(dominantId)) continue;
 
     // Capability check: emit blocked_recommendation if TX power change is not allowed
     if (!isActionAllowed(dominantId, 'adjust_tx_power', band, ctx)) {
@@ -1472,11 +1580,11 @@ function generateDisableApSuggestions(
   apLabel: (id: string) => string,
 ): void {
   for (const [apId, metrics] of apMetrics) {
-    if (metrics.primaryCoverageRatio >= 0.02) continue;
+    if (metrics.primaryCoverageRatio >= 0.05) continue;
     // Use secondBestCoverageCells: how often this AP is "present but not best"
     // (overlapCells can never exceed primaryCells, making the old check unsatisfiable)
     const presenceRatio = totalCells > 0 ? metrics.secondBestCoverageCells / totalCells : 0;
-    if (presenceRatio < 0.10) continue;
+    if (presenceRatio < 0.05) continue;
 
     // Simulate disabling by removing this AP
     const apsWithout = aps.filter(a => a.id !== apId);
@@ -1702,6 +1810,8 @@ function generatePreferredCandidateSuggestions(
   const preferredCandidates = ctx.candidates.filter(c => c.preferred && !c.forbidden);
   if (preferredCandidates.length === 0) return;
 
+  const templateAp = selectTemplateAp(aps);
+
   for (const cand of preferredCandidates) {
     // Physical validation: skip candidates inside walls
     if (!isPhysicallyValidApPosition(cand.x, cand.y, walls)) continue;
@@ -1715,8 +1825,8 @@ function generatePreferredCandidateSuggestions(
       aps, walls, bounds, band, rfConfig,
       { x: cand.x, y: cand.y },
       {
-        txPowerDbm: aps[0]?.txPowerDbm ?? 20,
-        antennaGainDbi: aps[0]?.antennaGainDbi ?? 4.0,
+        txPowerDbm: templateAp?.txPowerDbm ?? 20,
+        antennaGainDbi: templateAp?.antennaGainDbi ?? 4.0,
         mounting: cand.mountingOptions[0] ?? 'ceiling',
         heightM: 2.5,
       },
@@ -1816,4 +1926,85 @@ function deduplicateRecommendations(recs: Recommendation[]): Recommendation[] {
   }
 
   return result;
+}
+
+// ─── Channel Width Recommendations ────────────────────────────────
+
+/**
+ * Recommend reducing channel width in multi-AP scenarios.
+ *
+ * Rules:
+ * - If AP uses >= 80 MHz and has 2+ nearby APs within range → suggest 40 MHz
+ * - If AP uses >= 40 MHz and has 3+ very close APs (< 10m) → suggest 20 MHz
+ * - Only for 5 GHz band (2.4 GHz is always 20 MHz effectively)
+ */
+function generateChannelWidthRecommendations(
+  recs: Recommendation[],
+  aps: APConfig[],
+  accessPoints: AccessPointResponse[],
+  band: FrequencyBand,
+  apLabel: (id: string) => string,
+): void {
+  // Channel width optimization only relevant for 5 GHz and 6 GHz
+  if (band === '2.4ghz') return;
+
+  const NEARBY_RANGE_M = 20; // 5 GHz effective range
+  const VERY_CLOSE_M = 10;   // Dense deployment threshold
+
+  for (const apResp of accessPoints) {
+    if (!apResp.enabled) continue;
+
+    const currentWidth = parseInt(apResp.channel_width ?? '80', 10);
+    if (isNaN(currentWidth) || currentWidth <= 20) continue;
+
+    // Count nearby APs
+    let nearbyCount = 0;
+    let veryCloseCount = 0;
+
+    for (const other of accessPoints) {
+      if (other.id === apResp.id || !other.enabled) continue;
+      const dx = apResp.x - other.x;
+      const dy = apResp.y - other.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= NEARBY_RANGE_M) nearbyCount++;
+      if (dist <= VERY_CLOSE_M) veryCloseCount++;
+    }
+
+    let suggestedWidth: number | null = null;
+
+    if (veryCloseCount >= 3 && currentWidth > 20) {
+      suggestedWidth = 20;
+    } else if (nearbyCount >= 2 && currentWidth >= 80) {
+      suggestedWidth = 40;
+    }
+
+    if (suggestedWidth == null || suggestedWidth >= currentWidth) continue;
+
+    recs.push({
+      id: genId(),
+      type: 'adjust_channel_width',
+      priority: currentWidth >= 80 && nearbyCount >= 3 ? 'high' : 'medium',
+      severity: currentWidth >= 80 && nearbyCount >= 3 ? 'warning' : 'info',
+      titleKey: 'rec.adjustChannelWidthTitle',
+      titleParams: { ap: apLabel(apResp.id), width: suggestedWidth },
+      reasonKey: 'rec.adjustChannelWidthReason',
+      reasonParams: {
+        currentWidth,
+        suggestedWidth,
+        nearbyCount,
+      },
+      affectedApIds: [apResp.id],
+      affectedBand: band,
+      suggestedChange: {
+        apId: apResp.id,
+        parameter: 'channel_width',
+        currentValue: String(currentWidth),
+        suggestedValue: String(suggestedWidth),
+      },
+      evidence: {
+        metrics: { nearbyApCount: nearbyCount, veryCloseApCount: veryCloseCount, currentWidth },
+      },
+      confidence: 0.75,
+    });
+  }
 }

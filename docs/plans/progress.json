@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-26h-fix-complete",
+  "currentPhase": "phase-26i-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -760,6 +760,22 @@
         "Beibehalten: isRejectableType() nutzt zentrale RECOMMENDATION_CATEGORIES (instructional + actionable_create)",
         "Beibehalten: hasPreviewSupport() — preview ist Change-basiert, nicht kategorie-basiert",
         "Panel nicht importiert seit Phase 25b — aktive UI ist RecommendationWizard + RecommendationStep"
+      ]
+    },
+    "26i": {
+      "name": "Recommendation-UI Altlasten-Bereinigung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "auditResult": "PASSED - 2 tote Komponenten + 45 i18n-Keys + 7 Store-Members entfernt, 771 Tests, 0 Errors, Build OK, -1245 Zeilen",
+      "deliverables": [
+        "RecommendationPanel.svelte geloescht (998 Zeilen, seit Phase 25b nicht importiert)",
+        "RecommendationMarkers.svelte geloescht (131 Zeilen, seit Phase 25b nicht importiert)",
+        "recommendationStore: 7 tote Members entfernt (showHighlighting, toggleHighlighting, previewingRecId, isPreviewActive, startPreview, endPreview, confirmApply, selectedRecommendation)",
+        "recommendationStore: EMPTY_CONTEXT unused Import entfernt",
+        "45 Panel-only i18n-Keys entfernt (EN+DE): panelTitle, score, coverage, overlap, conflicts, roaming, profile*, severity*, effort*, preview, apply, cancelPreview, etc.",
+        "Beibehalten: alle dynamisch genutzten Title/Reason-Keys, reject-Keys, detail-Keys",
+        "Aktiver UI-Pfad: mixing/+page.svelte -> RecommendationWizard -> RecommendationStep"
       ]
     }
   },

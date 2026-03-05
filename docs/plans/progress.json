@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-26g-complete",
+  "currentPhase": "phase-26h-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -745,6 +745,19 @@
         "AP_CREATION_TYPES: infrastructure_required entfernt (war instructional, nicht actionable_create)",
         "handlePreviewApply: stale-Flag konsistent mit handleStepApply (nur bei actionable_config/create)",
         "5 neue Tests: constraint_conflict Score=0, Sortierreihenfolge, blocked_recommendation, AP-creation-types, infrastructure_required"
+      ]
+    },
+    "26h": {
+      "name": "RecommendationPanel Konsistenz",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "auditResult": "PASSED - isConfigType→isSendToMixingEligible, Rejection→isRejectableType, zentrale RECOMMENDATION_CATEGORIES, 771 Tests, 0 Errors, Build OK",
+      "deliverables": [
+        "isConfigType() ersetzt durch isSendToMixingEligible() — nutzt RECOMMENDATION_CATEGORIES statt hardcodierter Liste",
+        "Rejection-Button: hardcodierte 5-Typ-Liste ersetzt durch isRejectableType() (instructional + actionable_create)",
+        "Variante A: alle actionable_config mit suggestedChange duerfen 'Send to Mixing' (inkl. disable_ap + roaming_tx_adjustment)",
+        "Import RECOMMENDATION_CATEGORIES aus types.ts hinzugefuegt"
       ]
     }
   },

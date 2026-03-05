@@ -21,7 +21,7 @@
     RejectionReason,
     EffortLevel,
   } from '$lib/recommendations/types';
-  import { EFFORT_LEVELS } from '$lib/recommendations/types';
+  import { EFFORT_LEVELS, RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
 
   interface RecommendationPanelProps {
     visible: boolean;
@@ -141,8 +141,14 @@
     return EFFORT_LEVELS[rec.type] ?? 'config';
   }
 
-  function isConfigType(rec: Recommendation): boolean {
-    return rec.type === 'change_channel' || rec.type === 'adjust_tx_power';
+  function isSendToMixingEligible(rec: Recommendation): boolean {
+    return RECOMMENDATION_CATEGORIES[rec.type] === 'actionable_config'
+      && !isBlocked(rec) && !!rec.suggestedChange?.apId;
+  }
+
+  function isRejectableType(rec: Recommendation): boolean {
+    const cat = RECOMMENDATION_CATEGORIES[rec.type];
+    return cat === 'instructional' || cat === 'actionable_create';
   }
 
   function hasPreviewSupport(rec: Recommendation): boolean {
@@ -368,8 +374,8 @@
                       </div>
                     {/if}
 
-                    <!-- Send to Mixing (config-type only) -->
-                    {#if isConfigType(rec) && !isBlocked(rec) && rec.suggestedChange?.apId}
+                    <!-- Send to Mixing (actionable_config only) -->
+                    {#if isSendToMixingEligible(rec)}
                       <button
                         class="mixing-btn"
                         onclick={(e: MouseEvent) => { e.stopPropagation(); onSendToMixing?.(rec); }}
@@ -411,8 +417,8 @@
                       {/if}
                     {/if}
 
-                    <!-- Rejection button -->
-                    {#if !isBlocked(rec) && (rec.type === 'move_ap' || rec.type === 'add_ap' || rec.type === 'rotate_ap' || rec.type === 'change_mounting' || rec.type === 'infrastructure_required')}
+                    <!-- Rejection button (instructional + actionable_create only) -->
+                    {#if !isBlocked(rec) && isRejectableType(rec)}
                       <button
                         class="reject-toggle"
                         onclick={(e: MouseEvent) => {

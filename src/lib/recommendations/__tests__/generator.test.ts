@@ -887,4 +887,106 @@ describe('generateRecommendations', () => {
       expect(stickyWarning.affectedApIds).toContain('ap-2');
     }
   });
+
+  it('should generate handoff_gap_warning for pair with weak handoff zone', () => {
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 20 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 20 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    // Large grid to get enough gap cells (>10 threshold)
+    const W = 20;
+    const H = 20;
+    const total = W * H;
+    const grids = makeGrids(W, H, { rssi: -50, delta: 20 });
+    // AP-1 covers left half, AP-2 covers right half
+    for (let r = 0; r < H; r++) {
+      for (let c = 0; c < W; c++) {
+        const idx = r * W + c;
+        if (c < W / 2) {
+          grids.apIndexGrid[idx] = 0;
+          grids.secondBestApIndexGrid[idx] = 1;
+        } else {
+          grids.apIndexGrid[idx] = 1;
+          grids.secondBestApIndexGrid[idx] = 0;
+        }
+        // Handoff zone in the middle columns (c=9,10): delta < 8, weak RSSI (gap)
+        if (c >= 9 && c <= 10) {
+          grids.deltaGrid[idx] = 3; // well within handoff threshold (8)
+          grids.rssiGrid[idx] = -82; // below 5GHz fair threshold (-75)
+        }
+      }
+    }
+
+    const stats: HeatmapStats = {
+      ...makeStats(W, H, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS,
+      { ...BOUNDS, width: 20, height: 20 },
+      BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = [
+      ...result.recommendations,
+      ...result.recommendations.flatMap(r => r.alternativeRecommendations ?? []),
+    ];
+    const gapWarning = allRecs.find(r => r.type === 'handoff_gap_warning');
+    expect(gapWarning).toBeDefined();
+    expect(gapWarning?.affectedApIds).toContain('ap-1');
+    expect(gapWarning?.affectedApIds).toContain('ap-2');
+  });
+
+  it('should not generate roaming_tx_adjustment when TX power capability is blocked', () => {
+    // Same sticky setup that normally generates roaming_tx_adjustment
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 15 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    const grids = makeGrids(10, 10, { rssi: -50, delta: 20 });
+    for (let i = 0; i < 80; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 80; i < 100; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 80; i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = 80; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    // Block TX power change for both APs on 5GHz
+    const caps = new Map([
+      ['ap-1', {
+        apId: 'ap-1',
+        canMove: true, canRotate: true, canChangeMounting: true,
+        canChangeTxPower24: true, canChangeTxPower5: false,
+        canChangeChannel24: true, canChangeChannel5: true,
+      }],
+      ['ap-2', {
+        apId: 'ap-2',
+        canMove: true, canRotate: true, canChangeMounting: true,
+        canChangeTxPower24: true, canChangeTxPower5: false,
+        canChangeChannel24: true, canChangeChannel5: true,
+      }],
+    ]);
+
+    const ctx: RecommendationContext = {
+      ...EMPTY_CONTEXT,
+      apCapabilities: caps,
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+    );
+
+    const allRecs = [
+      ...result.recommendations,
+      ...result.recommendations.flatMap(r => r.alternativeRecommendations ?? []),
+    ];
+    const roamingTx = allRecs.find(r => r.type === 'roaming_tx_adjustment');
+    expect(roamingTx).toBeUndefined();
+  });
 });

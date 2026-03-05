@@ -24,6 +24,7 @@ import {
   findOverlapZones,
   findLowValueAPs,
   analyzeRoamingPairs,
+  type RoamingPairMetrics,
 } from './analysis';
 import { simulateChange, simulateAddAP, clearSimulatorCache, simulateGrid, scoreFromBins } from './simulator';
 import { BAND_THRESHOLDS } from '$lib/heatmap/coverage-stats';
@@ -147,16 +148,19 @@ export function generateRecommendations(
   // 8. Roaming hints (informational)
   generateRoamingHints(recommendations, stats, totalCells, band, gridStep);
 
+  // 8b-8d. Roaming pair analysis (computed once, shared across generators)
+  const roamingPairs = analyzeRoamingPairs(stats, apIds, band);
+
   // 8b. Roaming TX power adjustments (actionable)
   generateRoamingTxAdjustments(
-    recommendations, stats, apMetrics, aps, walls, bounds, band, rfConfig, weights, apIds, apLabel,
+    recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel,
   );
 
   // 8c. Sticky-client risk warnings (informational)
-  generateStickyClientWarnings(recommendations, stats, apIds, band, apLabel);
+  generateStickyClientWarnings(recommendations, roamingPairs, totalCells, band, apLabel);
 
   // 8d. Handoff gap warnings (informational)
-  generateHandoffGapWarnings(recommendations, stats, apIds, band, apLabel);
+  generateHandoffGapWarnings(recommendations, roamingPairs, band, apLabel);
 
   // 9. Low-value AP warnings
   generateLowValueWarnings(recommendations, lowValueApIds, apMetrics, band, apLabel);
@@ -1144,7 +1148,7 @@ function generateRoamingHints(
 
 function generateRoamingTxAdjustments(
   recs: Recommendation[],
-  stats: HeatmapStats,
+  pairs: RoamingPairMetrics[],
   apMetrics: Map<string, APMetrics>,
   aps: APConfig[],
   walls: WallData[],
@@ -1152,10 +1156,9 @@ function generateRoamingTxAdjustments(
   band: FrequencyBand,
   rfConfig: RFConfig,
   weights: ScoringWeights,
-  apIds: string[],
+  ctx: RecommendationContext,
   apLabel: (id: string) => string,
 ): void {
-  const pairs = analyzeRoamingPairs(stats, apIds, band);
   const txParamName = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
 
   for (const pair of pairs) {
@@ -1170,6 +1173,9 @@ function generateRoamingTxAdjustments(
     const otherId = dominantId === pair.ap1Id ? pair.ap2Id : pair.ap1Id;
     const dominantAp = aps.find(a => a.id === dominantId);
     if (!dominantAp) continue;
+
+    // Capability check: skip if TX power change is not allowed for this AP/band
+    if (!isActionAllowed(dominantId, 'adjust_tx_power', band, ctx)) continue;
 
     const reducedPower = dominantAp.txPowerDbm - 3;
     if (reducedPower < 10) continue; // Don't go below 10 dBm
@@ -1220,13 +1226,11 @@ function generateRoamingTxAdjustments(
 
 function generateStickyClientWarnings(
   recs: Recommendation[],
-  stats: HeatmapStats,
-  apIds: string[],
+  pairs: RoamingPairMetrics[],
+  totalCells: number,
   band: FrequencyBand,
   apLabel: (id: string) => string,
 ): void {
-  const pairs = analyzeRoamingPairs(stats, apIds, band);
-  const totalCells = stats.totalCells ?? 0;
 
   for (const pair of pairs) {
     if (pair.stickyRatio <= 0.50) continue;
@@ -1261,12 +1265,10 @@ function generateStickyClientWarnings(
 
 function generateHandoffGapWarnings(
   recs: Recommendation[],
-  stats: HeatmapStats,
-  apIds: string[],
+  pairs: RoamingPairMetrics[],
   band: FrequencyBand,
   apLabel: (id: string) => string,
 ): void {
-  const pairs = analyzeRoamingPairs(stats, apIds, band);
   const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
 
   for (const pair of pairs) {

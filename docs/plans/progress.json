@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
-  "lastUpdated": "2026-03-04",
-  "currentPhase": "phase-26c-complete",
+  "lastUpdated": "2026-03-05",
+  "currentPhase": "phase-26d-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -686,6 +686,22 @@
         "  B.4: Verbesserter roamingScore mit Sticky-Penalty und Gap-Penalty",
         "  B.5: 5 neue Tests (analysis: sticky, gap, single-AP; generator: roaming_tx, sticky_warning)",
         "Gesamt: 759 Tests, 0 Errors, Build OK, svelte-check 0 Errors"
+      ]
+    },
+    "26d-fix": {
+      "name": "Phase 26d Restluecken-Abschluss",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "auditResult": "PASSED - Capability-Check Bugfix + 3 neue Tests + Cleanup, 762 Tests, 0 Errors, Build OK",
+      "deliverables": [
+        "Bugfix: isActionAllowed('adjust_tx_power') Check in generateRoamingTxAdjustments (fehlender Capability-Guard)",
+        "Cleanup: analyzeRoamingPairs() einmalig zentral berechnet, an 3 Generatoren weitergegeben",
+        "Test B1: handoff_gap_warning bei schwacher Handoff-Zone (20x20 Grid, delta<8, RSSI<fair)",
+        "Test B2: roaming_tx_adjustment blockiert bei canChangeTxPower5=false (beide APs)",
+        "Test B3: roaming_tx_adjustment blockiert bei canChangeTxPower5=false nur beim dominanten AP",
+        "Utility: collectAllRecommendations() fuer rekursive Alternative-Sammlung in Tests",
+        "Gesamt: 762 Tests, 0 Errors, Build OK, svelte-check 0 Errors"
       ]
     }
   },

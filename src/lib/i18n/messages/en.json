@@ -513,7 +513,10 @@
     "blockedRoamingTxTitle": "TX power adjustment blocked: {ap}",
     "blockedRoamingTxReason": "AP {ap} dominates {percent}% of the handoff zone with {otherAp}, but TX power changes are not allowed for this AP.",
     "adjustChannelWidthTitle": "Reduce channel width to {width} MHz: {ap}",
-    "adjustChannelWidthReason": "AP uses {currentWidth} MHz with {nearbyCount} nearby APs — reducing to {suggestedWidth} MHz reduces co-channel interference and improves stability."
+    "adjustChannelWidthReason": "AP uses {currentWidth} MHz with {nearbyCount} nearby APs — reducing to {suggestedWidth} MHz reduces co-channel interference and improves stability.",
+    "changeChannelTxAlternativeReason": "{type} conflict with {otherAp} ({distance}m apart). Consider reducing TX power as alternative to channel change.",
+    "addApStackingReason": "Additional AP for weak zone ({cells} cells, avg {avgRssi} dBm). Existing adjustments may reduce need.",
+    "addApCandidateStackingReason": "Additional AP for weak zone ({cells} cells, avg {avgRssi} dBm). Best candidate: {candidate} ({distance}m from ideal). Existing adjustments may reduce need."
   },
   "candidate": {
     "title": "Candidate Location",

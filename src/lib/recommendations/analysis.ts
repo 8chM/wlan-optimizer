@@ -16,7 +16,9 @@ import type {
   ScoringWeights,
   WeakZone,
   OverlapZone,
+  ApRole,
 } from './types';
+import type { FloorBounds } from '$lib/heatmap/worker-types';
 
 // ─── Per-AP Metrics ───────────────────────────────────────────────
 
@@ -475,6 +477,8 @@ export interface RoamingPairMetrics {
   avgRssiInZone: number;
   /** Ratio of cells with delta > stickyThreshold (no realistic handoff) */
   stickyRatio: number;
+  /** PriorityZone relevance of handoff zone cells (0.3-1.0) */
+  pzRelevanceScore?: number;
 }
 
 const HANDOFF_THRESHOLD = 8;  // dB — close enough for client roaming
@@ -490,6 +494,8 @@ export function analyzeRoamingPairs(
   stats: HeatmapStats,
   apIds: string[],
   band: FrequencyBand,
+  priorityZones: PriorityZone[] = [],
+  bounds?: FloorBounds,
 ): RoamingPairMetrics[] {
   const { deltaGrid, apIndexGrid, secondBestApIndexGrid, rssiGrid } = stats;
   const total = stats.totalCells ?? 0;
@@ -554,9 +560,52 @@ export function analyzeRoamingPairs(
     }
   }
 
+  // Precompute PZ cell lookup for handoff zone relevance
+  const gridWidth = stats.gridWidth ?? 1;
+  const gridStep = stats.gridStep ?? 0.25;
+  const originX = bounds?.originX ?? 0;
+  const originY = bounds?.originY ?? 0;
+
   const results: RoamingPairMetrics[] = [];
   for (const acc of pairMap.values()) {
     if (acc.totalPairCells === 0) continue;
+
+    // Compute PZ relevance of handoff zone
+    let pzRelevance: number | undefined;
+    if (priorityZones.length > 0 && acc.handoffCells > 0) {
+      // Re-scan handoff cells for PZ overlap
+      let pzWeightedCount = 0;
+      let handoffCount = 0;
+      for (let i = 0; i < total; i++) {
+        const d = deltaGrid[i] ?? 99;
+        if (d >= HANDOFF_THRESHOLD || d >= 99) continue;
+        const bestIdx = apIndexGrid[i]!;
+        const secondIdx = secondBestApIndexGrid[i];
+        if (secondIdx === undefined || secondIdx === 255) continue;
+        const a1 = apIds[bestIdx];
+        const a2 = apIds[secondIdx];
+        if (!a1 || !a2) continue;
+        const key = a1 < a2 ? `${a1}|${a2}` : `${a2}|${a1}`;
+        if (key !== (acc.ap1Id < acc.ap2Id ? `${acc.ap1Id}|${acc.ap2Id}` : `${acc.ap2Id}|${acc.ap1Id}`)) continue;
+
+        handoffCount++;
+        const row = Math.floor(i / gridWidth);
+        const col = i % gridWidth;
+        const wx = originX + col * gridStep;
+        const wy = originY + row * gridStep;
+        for (const pz of priorityZones) {
+          if (wx >= pz.x && wx <= pz.x + pz.width && wy >= pz.y && wy <= pz.y + pz.height) {
+            pzWeightedCount += pz.weight;
+            break;
+          }
+        }
+      }
+      if (handoffCount > 0) {
+        const ratio = pzWeightedCount / handoffCount;
+        pzRelevance = ratio > 0 ? Math.min(1.0, 0.3 + ratio * 0.7) : 0.4;
+      }
+    }
+
     results.push({
       ap1Id: acc.ap1Id,
       ap2Id: acc.ap2Id,
@@ -566,10 +615,114 @@ export function analyzeRoamingPairs(
       gapCells: acc.gapCells,
       avgRssiInZone: acc.handoffCells > 0 ? acc.handoffRssiSum / acc.handoffCells : -100,
       stickyRatio: acc.stickyCells / acc.totalPairCells,
+      pzRelevanceScore: pzRelevance,
     });
   }
 
   return results;
+}
+
+// ─── Low-Value AP Detection ───────────────────────────────────────
+
+// ─── Zone Relevance ──────────────────────────────────────────────
+
+/**
+ * Compute how relevant a weak zone is based on PriorityZone overlap or
+ * geometric distance to the floorplan center.
+ *
+ * @returns Relevance score 0.3-1.0 (higher = more important area)
+ */
+export function computeZoneRelevance(
+  zone: WeakZone,
+  bounds: FloorBounds,
+  priorityZones: PriorityZone[],
+  stats: HeatmapStats,
+): number {
+  // Strategy 1: PriorityZone overlap (if PZs exist)
+  if (priorityZones.length > 0 && zone.cellIndices.length > 0) {
+    const gridWidth = stats.gridWidth ?? 1;
+    const gridStep = stats.gridStep ?? 0.25;
+    const originX = (bounds.originX ?? 0);
+    const originY = (bounds.originY ?? 0);
+
+    let weightedOverlap = 0;
+    let totalCells = 0;
+
+    for (const idx of zone.cellIndices) {
+      const row = Math.floor(idx / gridWidth);
+      const col = idx % gridWidth;
+      const wx = originX + col * gridStep;
+      const wy = originY + row * gridStep;
+      totalCells++;
+
+      for (const pz of priorityZones) {
+        if (wx >= pz.x && wx <= pz.x + pz.width && wy >= pz.y && wy <= pz.y + pz.height) {
+          weightedOverlap += pz.weight;
+          break; // Count each cell only once
+        }
+      }
+    }
+
+    if (totalCells > 0) {
+      const overlapRatio = weightedOverlap / totalCells;
+      // Map 0.0-1.0 → 0.3-1.0
+      if (overlapRatio > 0) {
+        return Math.min(1.0, 0.3 + overlapRatio * 0.7);
+      }
+      // Zone has no PZ overlap → lower relevance (0.4)
+      return 0.4;
+    }
+  }
+
+  // Strategy 2: Geometric fallback — distance from centroid to floorplan center
+  const centerX = (bounds.originX ?? 0) + bounds.width / 2;
+  const centerY = (bounds.originY ?? 0) + bounds.height / 2;
+  const diagonal = Math.sqrt(bounds.width ** 2 + bounds.height ** 2);
+
+  if (diagonal === 0) return 0.5;
+
+  const dx = zone.centroidX - centerX;
+  const dy = zone.centroidY - centerY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const normalizedDist = Math.min(1, dist / (diagonal / 2));
+
+  // Center=1.0, halfway=0.65, edge=0.5, corner=0.3
+  return Math.max(0.3, 1.0 - normalizedDist * 0.7);
+}
+
+// ─── AP Role Classification ─────────────────────────────────────
+
+/**
+ * Classify an AP's role based on coverage metrics and roaming characteristics.
+ */
+export function classifyApRole(
+  apId: string,
+  apMetrics: Map<string, APMetrics>,
+  roamingPairs: RoamingPairMetrics[],
+): ApRole {
+  const metrics = apMetrics.get(apId);
+  if (!metrics) return 'edge';
+
+  // Central: highest coverage or >30% primary coverage
+  if (metrics.primaryCoverageRatio > 0.30) return 'central';
+
+  // Check if this is the AP with highest coverage
+  let highestCoverage = 0;
+  for (const [, m] of apMetrics) {
+    if (m.primaryCoverageRatio > highestCoverage) highestCoverage = m.primaryCoverageRatio;
+  }
+  if (metrics.primaryCoverageRatio === highestCoverage && highestCoverage > 0) return 'central';
+
+  // Roaming bridge: 2+ good handoff pairs (handoffZoneCells > 5)
+  const goodPairs = roamingPairs.filter(
+    p => (p.ap1Id === apId || p.ap2Id === apId) && p.handoffZoneCells > 5,
+  );
+  if (goodPairs.length >= 2) return 'roaming_bridge';
+
+  // Redundant: <5% primary AND no good handoff pairs
+  if (metrics.primaryCoverageRatio < 0.05 && goodPairs.length === 0) return 'redundant';
+
+  return 'edge';
 }
 
 // ─── Low-Value AP Detection ───────────────────────────────────────

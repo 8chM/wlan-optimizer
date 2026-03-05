@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-27b-complete",
+  "currentPhase": "phase-27c-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -802,6 +802,22 @@
         "Fix W5: roaming_tx_adjustment Cross-Type Dedup gegen adjust_tx_power fuer gleichen AP",
         "7 neue Micro-Tests in generator.test.ts (W1-W5, B4, bestehender low_ap_value-Test angepasst)",
         "Gesamt: 784 Tests, 0 Errors, Build OK, svelte-check 0 Errors"
+      ]
+    },
+    "27c": {
+      "name": "Fachregeln fuer Recommendation Engine",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-05",
+      "deliverables": [
+        "Block 1: Zone Relevance System — computeZoneRelevance() mit PZ-Overlap und geometrischem Fallback",
+        "Block 2: Exhaust Existing Infrastructure — isWeakZoneAddressableByExistingAPs(), uplink-limited skip, Stacking-Penalty",
+        "Block 3: AP-Rollen (classifyApRole: central/edge/roaming_bridge/redundant) + TX Power Guards (central 25% threshold, gap check, increase quality gate)",
+        "Block 4: Roaming PZ-Awareness — pzRelevanceScore, sticky suppression bei gap, kleine Gap-Zonen unterdrueckt",
+        "Block 5: Move-AP zone relevance factor, Channel TX-alternative Annotation",
+        "Block 6: computeRiskScore none-coverage penalty, Pipeline-Reorder (roamingPairs FRUEH)",
+        "Block 7: 3 neue i18n-Keys EN+DE (changeChannelTxAlternativeReason, addApStackingReason, addApCandidateStackingReason)",
+        "Block 8: 12 neue Tests, 795 Tests total, 0 Errors in Rec-Files, Build OK"
       ]
     }
   },

@@ -200,7 +200,9 @@ export function computeRiskScore(rec: Recommendation): number {
     const after = rec.simulatedDelta.coverageAfter;
     if (after.excellent < before.excellent - 5) risk += 15;
     if (after.good < before.good - 5) risk += 10;
+    // Coverage-none increase: strong penalty for creating dead zones
     if (after.none > before.none + 5) risk += 20;
+    if (after.none > before.none) risk += 10; // Any none increase gets base penalty
   }
 
   return Math.max(0, Math.min(100, risk));

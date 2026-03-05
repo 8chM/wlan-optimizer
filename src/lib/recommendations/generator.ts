@@ -24,6 +24,8 @@ import {
   findOverlapZones,
   findLowValueAPs,
   analyzeRoamingPairs,
+  computeZoneRelevance,
+  classifyApRole,
   type RoamingPairMetrics,
 } from './analysis';
 import { simulateChange, simulateAddAP, clearSimulatorCache, simulateGrid, scoreFromBins } from './simulator';
@@ -52,6 +54,7 @@ import type {
   RecommendationContext,
   CoverageBinPercents,
   SimulatedDelta,
+  ApRole,
 } from './types';
 import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES, RECOMMENDATION_CATEGORIES } from './types';
 
@@ -104,6 +107,20 @@ export function generateRecommendations(
   const overlapZones = findOverlapZones(stats, originX, originY);
   const lowValueApIds = findLowValueAPs(apMetrics);
 
+  // Enrich weak zones with relevance scores
+  for (const wz of weakZones) {
+    wz.zoneRelevance = computeZoneRelevance(wz, bounds, ctx.priorityZones, stats);
+  }
+
+  // Roaming pair analysis — computed EARLY so AP roles and TX guards can use it
+  const roamingPairs = analyzeRoamingPairs(stats, apIds, band, ctx.priorityZones, bounds);
+
+  // Classify AP roles (needs roamingPairs)
+  const apRoles = new Map<string, ApRole>();
+  for (const apId of apIds) {
+    apRoles.set(apId, classifyApRole(apId, apMetrics, roamingPairs));
+  }
+
   // Build AP label lookup (show user-assigned names instead of UUIDs)
   const apLabelMap = new Map<string, string>();
   for (const ap of accessPoints) {
@@ -119,9 +136,9 @@ export function generateRecommendations(
     recommendations, channelAnalysis, accessPoints, band, ctx, apLabel,
   );
 
-  // 2. TX power adjustments (config, no physical change)
+  // 2. TX power adjustments (config, no physical change) — with AP role guards
   generateTxPowerSuggestions(
-    recommendations, apMetrics, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, apLabel,
+    recommendations, apMetrics, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, apLabel, apRoles,
   );
 
   // 3. Coverage warnings (informational)
@@ -132,7 +149,7 @@ export function generateRecommendations(
     recommendations, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx, apLabel,
   );
 
-  // 5. Move AP suggestions (major physical)
+  // 5. Move AP suggestions (major physical) — with zone relevance
   generateMoveApSuggestions(
     recommendations, apMetrics, weakZones, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx, apLabel, stats,
   );
@@ -142,13 +159,10 @@ export function generateRecommendations(
     recommendations, apMetrics, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx, apLabel,
   );
 
-  // 7. Add AP suggestions (infrastructure)
+  // 7. Add AP suggestions (infrastructure) — with exhaustion check and stacking penalty
   generateAddApSuggestions(
     recommendations, weakZones, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, stats, apMetrics,
   );
-
-  // 8. Roaming pair analysis (computed once, shared across generators)
-  const roamingPairs = analyzeRoamingPairs(stats, apIds, band);
 
   // 8a. Roaming TX power adjustments (actionable)
   generateRoamingTxAdjustments(
@@ -329,6 +343,38 @@ function generateCoverageWarnings(
   }
 }
 
+/**
+ * Check if a weak zone could be addressed by adjusting existing APs
+ * (TX increase, move) rather than adding a new AP.
+ */
+function isWeakZoneAddressableByExistingAPs(
+  zone: WeakZone,
+  existingRecs: Recommendation[],
+  aps: APConfig[],
+  apMetrics?: Map<string, APMetrics>,
+): { addressable: boolean; reason: string } {
+  // Find APs within 8m of zone centroid
+  for (const ap of aps) {
+    const dx = zone.centroidX - ap.x;
+    const dy = zone.centroidY - ap.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist >= 8) continue;
+
+    // Check if this nearby AP already has a config recommendation that could help
+    const hasHelpfulRec = existingRecs.some(r =>
+      r.affectedApIds.includes(ap.id) &&
+      (r.type === 'adjust_tx_power' || r.type === 'move_ap' || r.type === 'roaming_tx_adjustment') &&
+      r.simulatedDelta && r.simulatedDelta.changePercent > 2,
+    );
+
+    if (hasHelpfulRec) {
+      return { addressable: true, reason: `existing AP ${ap.id} has pending adjustments` };
+    }
+  }
+
+  return { addressable: false, reason: '' };
+}
+
 function generateAddApSuggestions(
   recs: Recommendation[],
   weakZones: WeakZone[],
@@ -344,7 +390,10 @@ function generateAddApSuggestions(
   stats: HeatmapStats,
   apMetrics?: Map<string, APMetrics>,
 ): void {
-  const largeZones = weakZones.filter(z => z.cellCount >= 20);
+  // Sort large zones by cellCount * zoneRelevance (relevance-weighted)
+  const largeZones = weakZones
+    .filter(z => z.cellCount >= 20)
+    .sort((a, b) => (b.cellCount * (b.zoneRelevance ?? 0.5)) - (a.cellCount * (a.zoneRelevance ?? 0.5)));
   if (largeZones.length === 0) return;
 
   // Select best AP as template (by primary coverage), fallback to defaults
@@ -361,8 +410,21 @@ function generateAddApSuggestions(
 
   // Multi-zone: process top 3 zones instead of only the largest
   const topZones = largeZones.slice(0, 3);
+  let addApCount = 0;
 
   for (const zone of topZones) {
+    // Exhaust existing infrastructure: check if a nearby AP with existing config rec could address this
+    const exhaustion = isWeakZoneAddressableByExistingAPs(zone, recs, aps, apMetrics);
+    if (exhaustion.addressable) continue;
+
+    // Check if zone is uplink-limited (>50% cells) — add_ap won't help
+    if (stats.uplinkLimitedGrid && zone.cellIndices.length > 0) {
+      let uplinkCount = 0;
+      for (const idx of zone.cellIndices) {
+        if (stats.uplinkLimitedGrid[idx]) uplinkCount++;
+      }
+      if (uplinkCount / zone.cellIndices.length > 0.50) continue;
+    }
     // RF-weighted target instead of geometric centroid
     const target = computeWeightedTarget(zone, stats, originX, originY, gridStep);
     const idealX = target.x;
@@ -393,17 +455,22 @@ function generateAddApSuggestions(
         );
 
         if (delta.changePercent > 2) {
+          // Stacking penalty: 2nd add_ap gets severity -1, 3rd gets priority -1 too
+          let stackPriority: 'high' | 'medium' | 'low' = 'medium';
+          let stackSeverity: 'critical' | 'warning' | 'info' = match.requiresInfrastructure ? 'warning' : 'info';
+          if (addApCount >= 2) stackPriority = 'low';
+          if (addApCount >= 1 && stackSeverity !== 'info') stackSeverity = 'info';
           recs.push({
             id: genId(),
             type: match.requiresInfrastructure ? 'infrastructure_required' : 'add_ap',
-            priority: 'medium',
-            severity: match.requiresInfrastructure ? 'warning' : 'info',
+            priority: stackPriority,
+            severity: stackSeverity,
             titleKey: match.requiresInfrastructure ? 'rec.infraRequiredTitle' : 'rec.addApTitle',
             titleParams: {
               x: Math.round(match.candidate.x * 10) / 10,
               y: Math.round(match.candidate.y * 10) / 10,
             },
-            reasonKey: 'rec.addApCandidateReason',
+            reasonKey: addApCount > 0 ? 'rec.addApCandidateStackingReason' : 'rec.addApCandidateReason',
             reasonParams: {
               cells: zone.cellCount,
               avgRssi: Math.round(zone.avgRssi),
@@ -430,6 +497,7 @@ function generateAddApSuggestions(
             distanceToIdeal: match.distanceToIdeal,
             infrastructureRequired: match.requiresInfrastructure,
           });
+          addApCount++;
           continue; // Next zone
         }
       } else {
@@ -483,17 +551,22 @@ function generateAddApSuggestions(
     );
 
     if (delta.changePercent > 2) {
+      // Stacking penalty for fallback path
+      let stackPriority: 'high' | 'medium' | 'low' = 'medium';
+      let stackSeverity: 'critical' | 'warning' | 'info' = 'warning';
+      if (addApCount >= 2) stackPriority = 'low';
+      if (addApCount >= 1) stackSeverity = 'info';
       recs.push({
         id: genId(),
         type: 'add_ap',
-        priority: 'medium',
-        severity: 'warning',
+        priority: stackPriority,
+        severity: stackSeverity,
         titleKey: 'rec.addApTitle',
         titleParams: {
           x: Math.round(validX * 10) / 10,
           y: Math.round(validY * 10) / 10,
         },
-        reasonKey: 'rec.addApReason',
+        reasonKey: addApCount > 0 ? 'rec.addApStackingReason' : 'rec.addApReason',
         reasonParams: {
           cells: zone.cellCount,
           avgRssi: Math.round(zone.avgRssi),
@@ -515,6 +588,7 @@ function generateAddApSuggestions(
         idealTargetPosition: { x: idealX, y: idealY },
         requiresUserDecision: true,
       });
+      addApCount++;
     }
   }
 }
@@ -586,11 +660,12 @@ function generateMoveApSuggestions(
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < 1) continue; // Too close to current position
 
-      // Score: closer zones score higher, priority zones get boost, larger zones preferred
+      // Score: closer zones score higher, priority zones get boost, larger zones preferred, relevance-weighted
       const distScore = Math.max(0, 100 - dist * 5);
       const priorityBoost = zonePZ ? zonePZ.weight * 20 : 0;
       const sizeBoost = Math.min(30, zone.cellCount / 5);
-      scoredZones.push({ zone, score: distScore + priorityBoost + sizeBoost, pz: zonePZ });
+      const relevanceFactor = zone.zoneRelevance ?? 0.5;
+      scoredZones.push({ zone, score: (distScore + priorityBoost + sizeBoost) * relevanceFactor, pz: zonePZ });
     }
     scoredZones.sort((a, b) => b.score - a.score);
     const topZones = scoredZones.slice(0, 3);
@@ -971,6 +1046,7 @@ function generateTxPowerSuggestions(
   gridStep: number,
   ctx: RecommendationContext,
   apLabel: (id: string) => string,
+  apRoles: Map<string, ApRole> = new Map(),
 ): void {
   for (const ap of aps) {
     // Check capabilities
@@ -982,15 +1058,22 @@ function generateTxPowerSuggestions(
     // Band-specific parameter name for TX power
     const txParamName = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
 
+    // AP role-based overlap threshold: central APs need higher overlap to justify reduction
+    const role = apRoles.get(ap.id) ?? 'edge';
+    const overlapThreshold = role === 'central' ? 0.25 : 0.15;
+
     // If this AP has lots of overlap, try reducing TX power
     const overlapRatio = totalCells > 0 ? metrics.overlapCells / totalCells : 0;
-    if (overlapRatio > 0.15) {
+    if (overlapRatio > overlapThreshold) {
       const lowerPower = ap.txPowerDbm - 3;
       if (lowerPower >= 10) {
         const mod: APModification = { apId: ap.id, txPowerDbm: lowerPower };
         const delta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
 
-        if (delta.changePercent > -5) {
+        // Gap check: skip if TX reduction would increase "none" coverage by >10%
+        if (delta.coverageAfter.none > delta.coverageBefore.none + 10) {
+          // Would create a coverage hole — skip
+        } else if (delta.changePercent > -5) {
           const absImprove = Math.abs(delta.changePercent);
           recs.push({
             id: genId(),
@@ -1029,7 +1112,10 @@ function generateTxPowerSuggestions(
         const mod: APModification = { apId: ap.id, txPowerDbm: higherPower };
         const delta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
 
-        if (delta.changePercent > 2) {
+        // Quality gate: ≥2% improvement AND at least 5 new "good" cells
+        const newGoodCells = (delta.coverageAfter.excellent + delta.coverageAfter.good)
+          - (delta.coverageBefore.excellent + delta.coverageBefore.good);
+        if (delta.changePercent > 2 && newGoodCells >= 5) {
           recs.push({
             id: genId(),
             type: 'adjust_tx_power',
@@ -1177,6 +1263,17 @@ function generateChannelRecommendations(
       ? (worstConflict.ap1Id === targetApId ? worstConflict.ap2Id : worstConflict.ap1Id)
       : undefined;
 
+    // TX-as-cause annotation: if both conflicting APs have high overlap (>20%)
+    let reasonKey = 'rec.changeChannelReason';
+    if (otherApId && worstConflict) {
+      const targetSummary = channelAnalysis.apSummaries.find(s => s.apId === targetApId);
+      const otherSummary = channelAnalysis.apSummaries.find(s => s.apId === otherApId);
+      if (targetSummary && otherSummary &&
+          (targetSummary.worstScore ?? 0) > 0.2 && (otherSummary.worstScore ?? 0) > 0.2) {
+        reasonKey = 'rec.changeChannelTxAlternativeReason';
+      }
+    }
+
     recs.push({
       id: genId(),
       type: 'change_channel',
@@ -1184,7 +1281,7 @@ function generateChannelRecommendations(
       severity: change.worstScore >= 0.6 ? 'critical' : 'warning',
       titleKey: 'rec.changeChannelTitle',
       titleParams: { ap: apLabel(targetApId), channel: change.to },
-      reasonKey: 'rec.changeChannelReason',
+      reasonKey,
       reasonParams: {
         type: 'co-channel' as const,
         otherAp: otherApId ? apLabel(otherApId) : '',
@@ -1330,11 +1427,16 @@ function generateRoamingTxAdjustments(
     // Only suggest if score doesn't drop too much
     if (delta.changePercent < -5) continue;
 
+    // PZ-weighted severity/priority
+    const pzFactor = pair.pzRelevanceScore ?? 0.5;
+    const roamPriority = pzFactor >= 0.7 ? 'high' : 'medium';
+    const roamSeverity = pzFactor >= 0.7 ? 'warning' : 'info';
+
     recs.push({
       id: genId(),
       type: 'roaming_tx_adjustment',
-      priority: 'medium',
-      severity: 'warning',
+      priority: roamPriority as 'high' | 'medium' | 'low',
+      severity: roamSeverity as 'critical' | 'warning' | 'info',
       titleKey: 'rec.roamingTxTitle',
       titleParams: { ap: apLabel(dominantId) },
       reasonKey: 'rec.roamingTxReason',
@@ -1372,11 +1474,20 @@ function generateStickyClientWarnings(
   band: FrequencyBand,
   apLabel: (id: string) => string,
 ): void {
+  // Collect pairs that have handoff_gap_warning (gap is more important than sticky)
+  const gapPairKeys = new Set(
+    recs.filter(r => r.type === 'handoff_gap_warning')
+      .map(r => [...r.affectedApIds].sort().join('|')),
+  );
 
   for (const pair of pairs) {
     if (pair.stickyRatio <= 0.50) continue;
     // Only warn if handoff zone is very small (<5% of pair cells)
     if (totalCells > 0 && pair.handoffZoneCells / totalCells >= 0.05) continue;
+
+    // Suppress sticky if a handoff_gap_warning already exists for this pair
+    const pairKey = [pair.ap1Id, pair.ap2Id].sort().join('|');
+    if (gapPairKeys.has(pairKey)) continue;
 
     recs.push({
       id: genId(),
@@ -1413,15 +1524,21 @@ function generateHandoffGapWarnings(
   const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
 
   for (const pair of pairs) {
+    // Suppress very small gap zones
+    if (pair.gapCells < 5) continue;
     if (pair.gapCells <= 10) continue;
     if (pair.handoffZoneCells === 0) continue;
     if (pair.gapCells / pair.handoffZoneCells <= 0.20) continue;
 
+    // PZ-weighted priority
+    const pzFactor = pair.pzRelevanceScore ?? 0.5;
+    const basePriority = pzFactor >= 0.7 ? 'high' : pzFactor >= 0.4 ? 'medium' : 'low';
+
     recs.push({
       id: genId(),
       type: 'handoff_gap_warning',
-      priority: 'medium',
-      severity: 'warning',
+      priority: basePriority,
+      severity: basePriority === 'high' ? 'warning' : 'info',
       titleKey: 'rec.handoffGapTitle',
       titleParams: { ap1: apLabel(pair.ap1Id), ap2: apLabel(pair.ap2Id) },
       reasonKey: 'rec.handoffGapReason',

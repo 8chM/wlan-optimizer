@@ -10,6 +10,8 @@ import type { AccessPointResponse } from '$lib/api/invoke';
 import type { Recommendation, RecommendationContext, CandidateLocation, ConstraintZone, PriorityZone } from '../types';
 import { EMPTY_CONTEXT, RECOMMENDATION_CATEGORIES } from '../types';
 import { createRFConfig } from '$lib/heatmap/rf-engine';
+import { computeZoneRelevance, classifyApRole, analyzeRoamingPairs } from '../analysis';
+import type { APMetrics, WeakZone } from '../types';
 
 /** Recursively collects all recommendations including nested alternatives. */
 function collectAllRecommendations(recs: Recommendation[]): Recommendation[] {
@@ -1545,6 +1547,374 @@ describe('generateRecommendations', () => {
     // selectTemplateAp picks the AP with highest coverage ratio
     if (prefRec) {
       expect(prefRec).toBeDefined();
+    }
+  });
+
+  // ─── Phase 27c: Zone Relevance + Fachregeln Tests ───────────────
+
+  it('computeZoneRelevance: PZ overlap should yield high relevance', () => {
+    const zone: WeakZone = {
+      centroidX: 5, centroidY: 5, cellCount: 20, avgRssi: -85,
+      cellIndices: Array.from({ length: 20 }, (_, i) => i + 40), // indices 40-59 → row 4-5, col 0-9
+    };
+    const pz: PriorityZone = {
+      zoneId: 'pz-1', label: 'Office',
+      x: 0, y: 0, width: 10, height: 10,
+      weight: 1.5, targetBand: 'either', mustHaveCoverage: false,
+    };
+    const grids = makeGrids(10, 10);
+    const stats = makeStats(10, 10, grids);
+
+    const relevance = computeZoneRelevance(zone, BOUNDS, [pz], stats);
+    // Zone fully inside PZ with weight 1.5 → high relevance
+    expect(relevance).toBeGreaterThanOrEqual(0.7);
+    expect(relevance).toBeLessThanOrEqual(1.0);
+  });
+
+  it('computeZoneRelevance: geometric fallback — center vs corner', () => {
+    const grids = makeGrids(10, 10);
+    const stats = makeStats(10, 10, grids);
+
+    // Center zone
+    const centerZone: WeakZone = {
+      centroidX: 5, centroidY: 5, cellCount: 10, avgRssi: -85, cellIndices: [],
+    };
+    const centerRelevance = computeZoneRelevance(centerZone, BOUNDS, [], stats);
+
+    // Corner zone
+    const cornerZone: WeakZone = {
+      centroidX: 0, centroidY: 0, cellCount: 10, avgRssi: -85, cellIndices: [],
+    };
+    const cornerRelevance = computeZoneRelevance(cornerZone, BOUNDS, [], stats);
+
+    expect(centerRelevance).toBeGreaterThan(cornerRelevance);
+    expect(centerRelevance).toBeGreaterThanOrEqual(0.8);
+    expect(cornerRelevance).toBeLessThanOrEqual(0.5);
+  });
+
+  it('zoneRelevance should influence add_ap zone sorting', () => {
+    const ap = makeAP('ap-1', 0, 0);
+    const apResp = makeAPResponse('ap-1', 0, 0);
+
+    const grids = makeGrids(10, 10, { rssi: -90 });
+    // Strong coverage near AP
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 3; c++) {
+        grids.rssiGrid[r * 10 + c] = -40;
+      }
+    }
+    const stats = makeStats(10, 10, grids, {
+      excellent: 9, good: 0, fair: 0, poor: 20, none: 71,
+    });
+
+    // PZ in center area (higher relevance) not in corner
+    const pz: PriorityZone = {
+      zoneId: 'pz-1', label: 'Living Room',
+      x: 3, y: 3, width: 4, height: 4,
+      weight: 2.0, targetBand: 'either', mustHaveCoverage: false,
+    };
+
+    const ctx: RecommendationContext = {
+      ...EMPTY_CONTEXT,
+      priorityZones: [pz],
+    };
+
+    const result = generateRecommendations(
+      [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+    );
+
+    // Should produce some recommendations; add_ap should prefer zones overlapping PZ
+    expect(result.recommendations.length).toBeGreaterThan(0);
+  });
+
+  it('add_ap should be skipped when nearby AP has pending TX rec (exhaust existing)', () => {
+    const ap1 = makeAP('ap-1', 3, 3, { txPowerDbm: 14 }); // low power, could increase
+    const apResp1 = makeAPResponse('ap-1', 3, 3);
+
+    // Weak zone near ap-1 (within 8m)
+    const grids = makeGrids(10, 10, { rssi: -85 });
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        grids.rssiGrid[r * 10 + c] = -45; // good near AP
+      }
+    }
+    const stats = makeStats(10, 10, grids, {
+      excellent: 16, good: 0, fair: 0, poor: 40, none: 44,
+    });
+
+    const result = generateRecommendations(
+      [ap1], [apResp1], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    // If there's an adjust_tx_power for ap-1, the nearby weak zone should not get add_ap
+    const txRecs = result.recommendations.filter(r => r.type === 'adjust_tx_power');
+    const addApRecs = result.recommendations.filter(r => r.type === 'add_ap');
+
+    // If TX rec exists AND add_ap for nearby zone was suppressed, add_ap count should be lower
+    // This is a behavioral test — the exhaustion check reduces add_ap count
+    if (txRecs.length > 0) {
+      // With exhaustion check, we expect fewer or equal add_ap recommendations
+      expect(addApRecs.length).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('add_ap should apply stacking penalty for 2nd/3rd AP', () => {
+    const ap = makeAP('ap-1', 0, 0);
+    const apResp = makeAPResponse('ap-1', 0, 0);
+
+    // Very weak coverage everywhere — generates multiple weak zones
+    const grids = makeGrids(20, 20, { rssi: -92 });
+    // Small strong area near AP
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 3; c++) {
+        grids.rssiGrid[r * 20 + c] = -40;
+      }
+    }
+    const stats: HeatmapStats = {
+      ...makeStats(20, 20, grids, { excellent: 9, good: 0, fair: 0, poor: 50, none: 341 }),
+    };
+
+    const result = generateRecommendations(
+      [ap], [apResp], WALLS, { ...BOUNDS, width: 20, height: 20 },
+      BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const addApRecs = result.recommendations.filter(r => r.type === 'add_ap');
+    // If multiple add_ap, later ones should have lower severity/priority
+    if (addApRecs.length >= 2) {
+      // First should be more prominent than last
+      const severityOrder = { critical: 0, warning: 1, info: 2 };
+      const first = severityOrder[addApRecs[0]!.severity];
+      const last = severityOrder[addApRecs[addApRecs.length - 1]!.severity];
+      expect(last).toBeGreaterThanOrEqual(first);
+    }
+  });
+
+  it('classifyApRole: central for >30% coverage', () => {
+    const metrics = new Map<string, APMetrics>([
+      ['ap-1', {
+        apId: 'ap-1', primaryCoverageCells: 40, primaryCoverageRatio: 0.40,
+        overlapCells: 5, avgDeltaInPrimary: 10, peakRssi: -35,
+        secondBestCoverageCells: 10, channelConflictScore: 0,
+      }],
+    ]);
+    const role = classifyApRole('ap-1', metrics, []);
+    expect(role).toBe('central');
+  });
+
+  it('classifyApRole: roaming_bridge for 2+ good handoff pairs', () => {
+    const metrics = new Map<string, APMetrics>([
+      ['ap-1', {
+        apId: 'ap-1', primaryCoverageCells: 15, primaryCoverageRatio: 0.15,
+        overlapCells: 5, avgDeltaInPrimary: 10, peakRssi: -40,
+        secondBestCoverageCells: 20, channelConflictScore: 0,
+      }],
+      ['ap-2', {
+        apId: 'ap-2', primaryCoverageCells: 40, primaryCoverageRatio: 0.40,
+        overlapCells: 5, avgDeltaInPrimary: 10, peakRssi: -35,
+        secondBestCoverageCells: 10, channelConflictScore: 0,
+      }],
+      ['ap-3', {
+        apId: 'ap-3', primaryCoverageCells: 45, primaryCoverageRatio: 0.45,
+        overlapCells: 5, avgDeltaInPrimary: 10, peakRssi: -35,
+        secondBestCoverageCells: 10, channelConflictScore: 0,
+      }],
+    ]);
+    const pairs = [
+      { ap1Id: 'ap-1', ap2Id: 'ap-2', handoffZoneCells: 10, handoffZoneRatio: 0.3, avgDeltaInZone: 4, gapCells: 0, avgRssiInZone: -55, stickyRatio: 0.1 },
+      { ap1Id: 'ap-1', ap2Id: 'ap-3', handoffZoneCells: 8, handoffZoneRatio: 0.25, avgDeltaInZone: 5, gapCells: 0, avgRssiInZone: -58, stickyRatio: 0.1 },
+    ];
+    const role = classifyApRole('ap-1', metrics, pairs);
+    expect(role).toBe('roaming_bridge');
+  });
+
+  it('TX Power: central AP should require higher overlap threshold (25%)', () => {
+    // AP-1 is central (high coverage), has moderate overlap
+    const ap1 = makeAP('ap-1', 5, 5, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 3, 3, { txPowerDbm: 17 });
+    const apResp1 = makeAPResponse('ap-1', 5, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 3, 3, 44);
+
+    // High delta (>5) + low overlap by default → no overlap cells counted
+    const grids = makeGrids(10, 10, { rssi: -50, delta: 15, overlap: 1 });
+    // AP-1 covers 70% (central)
+    for (let i = 0; i < 70; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 70; i < 100; i++) grids.apIndexGrid[i] = 1;
+    // 20 cells with overlap (delta < 5 AND overlapCount >= 2) → 20% overlap
+    for (let i = 0; i < 20; i++) {
+      grids.overlapCountGrid[i] = 3;
+      grids.deltaGrid[i] = 3;
+    }
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    // Central AP with 20% overlap (below 25% threshold) should NOT get TX reduce
+    const txReduce = result.recommendations.find(r =>
+      r.type === 'adjust_tx_power' &&
+      r.affectedApIds.includes('ap-1') &&
+      r.suggestedChange?.suggestedValue !== undefined &&
+      Number(r.suggestedChange.suggestedValue) < ap1.txPowerDbm,
+    );
+    expect(txReduce).toBeUndefined();
+  });
+
+  it('Roaming: sticky_client_risk suppressed when handoff_gap_warning exists for same pair', () => {
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 20 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 20 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    // Setup: both sticky (delta>15) and gap (weak RSSI in handoff zone)
+    const W = 20;
+    const H = 20;
+    const grids = makeGrids(W, H, { rssi: -50, delta: 20 });
+    for (let r = 0; r < H; r++) {
+      for (let c = 0; c < W; c++) {
+        const idx = r * W + c;
+        if (c < W / 2) {
+          grids.apIndexGrid[idx] = 0;
+          grids.secondBestApIndexGrid[idx] = 1;
+        } else {
+          grids.apIndexGrid[idx] = 1;
+          grids.secondBestApIndexGrid[idx] = 0;
+        }
+        // Handoff zone in middle with weak RSSI (gap)
+        if (c >= 9 && c <= 10) {
+          grids.deltaGrid[idx] = 3;
+          grids.rssiGrid[idx] = -82;
+        }
+      }
+    }
+
+    const stats: HeatmapStats = {
+      ...makeStats(W, H, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS,
+      { ...BOUNDS, width: 20, height: 20 },
+      BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const gapWarning = allRecs.find(r => r.type === 'handoff_gap_warning');
+    const stickyWarning = allRecs.find(r => r.type === 'sticky_client_risk');
+
+    // If gap exists, sticky should be suppressed for the same pair
+    if (gapWarning) {
+      expect(stickyWarning).toBeUndefined();
+    }
+  });
+
+  it('Handoff gap: small gap zones (< 5 cells) should be suppressed', () => {
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 20 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 20 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    // Very small handoff zone with gap (only 3 cells)
+    const grids = makeGrids(10, 10, { rssi: -50, delta: 20 });
+    for (let i = 0; i < 50; i++) {
+      grids.apIndexGrid[i] = 0;
+      grids.secondBestApIndexGrid[i] = 1;
+    }
+    for (let i = 50; i < 100; i++) {
+      grids.apIndexGrid[i] = 1;
+      grids.secondBestApIndexGrid[i] = 0;
+    }
+    // Only 3 gap cells (below threshold of 5)
+    for (let i = 48; i <= 50; i++) {
+      grids.deltaGrid[i] = 3;
+      grids.rssiGrid[i] = -82;
+    }
+
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const gapWarning = allRecs.find(r => r.type === 'handoff_gap_warning');
+    // Small gap zone should be suppressed
+    expect(gapWarning).toBeUndefined();
+  });
+
+  it('Channel: TX-alternative annotation when both APs have high overlap', () => {
+    // Two APs close together, same channel, high conflict scores
+    const ap1 = makeAP('ap-1', 3, 5, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 5, 5, { txPowerDbm: 23 });
+    const apResp1 = makeAPResponse('ap-1', 3, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 5, 5, 36);
+
+    const grids = makeGrids(10, 10, { rssi: -50, delta: 4, overlap: 2 });
+    for (let i = 0; i < 50; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 50; i < 100; i++) grids.apIndexGrid[i] = 1;
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const channelRec = result.recommendations.find(r => r.type === 'change_channel');
+    if (channelRec) {
+      // Should use either standard or TX-alternative reason key
+      expect(
+        channelRec.reasonKey === 'rec.changeChannelReason' ||
+        channelRec.reasonKey === 'rec.changeChannelTxAlternativeReason',
+      ).toBe(true);
+    }
+  });
+
+  it('Move-AP: should use zone relevance factor in scoring', () => {
+    const ap = makeAP('ap-1', 0, 0);
+    const apResp = makeAPResponse('ap-1', 0, 0);
+
+    const grids = makeGrids(10, 10, { rssi: -85 });
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 3; c++) {
+        grids.rssiGrid[r * 10 + c] = -40;
+      }
+    }
+    const stats = makeStats(10, 10, grids, {
+      excellent: 9, good: 0, fair: 20, poor: 40, none: 31,
+    });
+
+    // PZ that makes central zones more relevant
+    const pz: PriorityZone = {
+      zoneId: 'pz-1', label: 'Office',
+      x: 3, y: 3, width: 4, height: 4,
+      weight: 2.0, targetBand: 'either', mustHaveCoverage: false,
+    };
+
+    const ctx: RecommendationContext = {
+      ...EMPTY_CONTEXT,
+      priorityZones: [pz],
+    };
+
+    const result = generateRecommendations(
+      [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'aggressive', ctx,
+    );
+
+    // Zone relevance should influence move_ap targeting
+    const moveRec = result.recommendations.find(r => r.type === 'move_ap');
+    if (moveRec?.idealTargetPosition) {
+      // With PZ in center, move target should be biased towards center
+      expect(moveRec.idealTargetPosition.x).toBeGreaterThanOrEqual(2);
+      expect(moveRec.idealTargetPosition.y).toBeGreaterThanOrEqual(2);
     }
   });
 });

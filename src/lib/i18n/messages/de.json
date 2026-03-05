@@ -513,7 +513,10 @@
     "blockedRoamingTxTitle": "TX-Power-Anpassung blockiert: {ap}",
     "blockedRoamingTxReason": "AP {ap} dominiert {percent}% der Uebergangszone mit {otherAp}, aber TX-Power-Aenderungen sind fuer diesen AP nicht erlaubt.",
     "adjustChannelWidthTitle": "Kanalbreite auf {width} MHz reduzieren: {ap}",
-    "adjustChannelWidthReason": "AP nutzt {currentWidth} MHz bei {nearbyCount} APs in Reichweite — Reduktion auf {suggestedWidth} MHz verringert Interferenz und verbessert Stabilitaet."
+    "adjustChannelWidthReason": "AP nutzt {currentWidth} MHz bei {nearbyCount} APs in Reichweite — Reduktion auf {suggestedWidth} MHz verringert Interferenz und verbessert Stabilitaet.",
+    "changeChannelTxAlternativeReason": "{type}-Konflikt mit {otherAp} ({distance}m Abstand). TX-Power-Reduktion als Alternative zum Kanalwechsel erwaegen.",
+    "addApStackingReason": "Zusaetzlicher AP fuer Schwachzone ({cells} Zellen, Ø {avgRssi} dBm). Bestehende Anpassungen koennten Bedarf reduzieren.",
+    "addApCandidateStackingReason": "Zusaetzlicher AP fuer Schwachzone ({cells} Zellen, Ø {avgRssi} dBm). Bester Kandidat: {candidate} ({distance}m vom Ideal). Bestehende Anpassungen koennten Bedarf reduzieren."
   },
   "candidate": {
     "title": "Kandidaten-Position",

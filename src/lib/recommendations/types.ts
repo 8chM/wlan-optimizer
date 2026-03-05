@@ -464,7 +464,12 @@ export interface WeakZone {
   avgRssi: number;
   /** Cell indices */
   cellIndices: number[];
+  /** Zone relevance (0.3-1.0): higher = more important area */
+  zoneRelevance?: number;
 }
+
+/** AP role classification for TX power guards and dedup logic */
+export type ApRole = 'central' | 'edge' | 'roaming_bridge' | 'redundant';
 
 /** A contiguous zone with excessive AP overlap */
 export interface OverlapZone {

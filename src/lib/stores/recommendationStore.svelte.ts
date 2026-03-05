@@ -2,8 +2,7 @@
  * Recommendation Store — Svelte 5 reactive store.
  *
  * Manages the recommendation analysis lifecycle, profile selection,
- * selected recommendation highlighting, constraint context,
- * candidate locations, and rejection workflow.
+ * constraint context, candidate locations, and rejection workflow.
  *
  * Context fields are stored as SEPARATE $state variables to avoid
  * circular $effect dependencies when syncing from the editor page.
@@ -26,7 +25,6 @@ import type {
   RejectionReason,
   RecommendationRejection,
 } from '$lib/recommendations/types';
-import { EMPTY_CONTEXT } from '$lib/recommendations/types';
 import { generateRecommendations } from '$lib/recommendations/generator';
 import { applyRejection } from '$lib/recommendations/constraints';
 
@@ -35,8 +33,6 @@ function createRecommendationStore() {
   let loading = $state(false);
   let profile = $state<ExpertProfile>('balanced');
   let selectedRecommendationId = $state<string | null>(null);
-  let showHighlighting = $state(true);
-  let previewingRecId = $state<string | null>(null);
 
   // Context fields as separate state to avoid circular dependencies
   let ctxCandidates = $state<CandidateLocation[]>([]);
@@ -72,13 +68,7 @@ function createRecommendationStore() {
     get loading() { return loading; },
     get profile() { return profile; },
     get selectedRecommendationId() { return selectedRecommendationId; },
-    get selectedRecommendation(): Recommendation | null {
-      return result?.recommendations.find(r => r.id === selectedRecommendationId) ?? null;
-    },
-    get showHighlighting() { return showHighlighting; },
     get context() { return buildContext(); },
-    get previewingRecId() { return previewingRecId; },
-    get isPreviewActive() { return previewingRecId !== null; },
 
     setProfile(p: ExpertProfile): void {
       profile = p;
@@ -86,22 +76,6 @@ function createRecommendationStore() {
 
     selectRecommendation(id: string | null): void {
       selectedRecommendationId = id;
-    },
-
-    toggleHighlighting(): void {
-      showHighlighting = !showHighlighting;
-    },
-
-    startPreview(recId: string): void {
-      previewingRecId = recId;
-    },
-
-    endPreview(): void {
-      previewingRecId = null;
-    },
-
-    confirmApply(): void {
-      previewingRecId = null;
     },
 
     // ─── Context Management ──────────────────────────────

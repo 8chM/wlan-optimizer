@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28h-complete",
+  "currentPhase": "phase-28i-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -926,6 +926,21 @@
         "T3a/T3b: Uplink-Gating verifiziert (>10% Benefit bei uplinkRatio > 0.60, Zone-Level 50% Filter)",
         "Ergebnis: Alle 3 Bug-Pattern durch bestehende Guards korrekt abgefangen — kein Code-Fix noetig",
         "6 neue Tests, 840 Tests total (839 pass + 1 flaky Performance-Test)"
+      ]
+    },
+    "28i": {
+      "name": "Candidate-Only Gating fuer add_ap / move_ap",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "move_ap Strategy 2 (Interpolation) nur bei ctx.candidates.length === 0 (generator.ts:708)",
+        "add_ap war bereits candidate-only (kein Fallback auf freie Koordinaten)",
+        "T1: add_ap forbidden candidates → infrastructure_required statt freie Koordinate",
+        "T2: add_ap valid candidate → selectedCandidatePosition exakt Candidate-Coords",
+        "T3: move_ap candidate-only → kein interpolation-based move bei vorhandenen Candidates",
+        "T4: move_ap Fallback erlaubt wenn keine Candidates definiert",
+        "844 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

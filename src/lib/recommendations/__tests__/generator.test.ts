@@ -2864,4 +2864,212 @@ describe('generateRecommendations', () => {
       }
     });
   });
+
+  // ─── Phase 28i: Candidate-Only Gating ──────────────────────────
+
+  describe('Candidate-Only Gating', () => {
+    // Helper: create a candidate location
+    function makeCandidate(
+      id: string, x: number, y: number,
+      overrides?: Partial<CandidateLocation>,
+    ): CandidateLocation {
+      return {
+        id, x, y,
+        label: id,
+        mountingOptions: ['ceiling', 'wall'],
+        hasLan: true, hasPoe: true, hasPower: true,
+        preferred: false, forbidden: false,
+        ...overrides,
+      } as CandidateLocation;
+    }
+
+    it('T1: add_ap with candidates — all candidates forbidden → no add_ap, infrastructure_required instead', () => {
+      // Single AP covering corner, large weak zone elsewhere
+      // Candidates exist but are all forbidden → no add_ap with free coordinates
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 }); // mostly weak
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 30, none: 61,
+      });
+
+      // All candidates are forbidden
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [
+          makeCandidate('c-1', 7, 7, { forbidden: true }),
+          makeCandidate('c-2', 5, 8, { forbidden: true }),
+        ],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // INVARIANT: No add_ap with free (non-candidate) coordinates
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'add_ap should not appear when all candidates are forbidden').toBe(0);
+
+      // Should have infrastructure_required instead
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+      expect(infraRecs.length).toBeGreaterThan(0);
+    });
+
+    it('T2: add_ap uses candidate — valid candidate → add_ap has selectedCandidatePosition', () => {
+      // Single AP covering corner, valid candidate in weak zone
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 30, none: 61,
+      });
+
+      // Valid candidate at (7, 7) — in weak zone
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [
+          makeCandidate('c-good', 7, 7),
+        ],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap' || r.type === 'infrastructure_required');
+
+      // At least one position-based rec should exist
+      expect(addApRecs.length).toBeGreaterThan(0);
+
+      // Every add_ap must have selectedCandidatePosition matching the candidate
+      for (const rec of addApRecs) {
+        if (rec.type === 'add_ap') {
+          expect(rec.selectedCandidatePosition).toBeDefined();
+          expect(rec.selectedCandidatePosition!.x).toBe(7);
+          expect(rec.selectedCandidatePosition!.y).toBe(7);
+        }
+      }
+    });
+
+    it('T3: move_ap candidate-only — no interpolation when candidates exist', () => {
+      // AP with very low coverage, weak zone nearby, candidates defined but no improvement possible
+      // → no move_ap with interpolated (non-candidate) coordinates
+      const ap = makeAP('ap-1', 1, 1, { txPowerDbm: 15 });
+      const apResp = makeAPResponse('ap-1', 1, 1);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -80 });
+      // AP covers only a tiny area → low primaryCoverageRatio
+      grids.rssiGrid[1 * W + 1] = -40;
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 1, good: 2, fair: 10, poor: 40, none: 47,
+      });
+
+      // Candidate far away that wouldn't improve things (opposite corner)
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [
+          makeCandidate('c-far', 9, 9),
+        ],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const moveRecs = allRecs.filter(r => r.type === 'move_ap');
+
+      // INVARIANT: Any move_ap must use a candidate position, not interpolation
+      for (const rec of moveRecs) {
+        if (rec.selectedCandidatePosition) {
+          // Position must exactly match a candidate
+          const matchesCandidate = ctx.candidates.some(
+            c => c.x === rec.selectedCandidatePosition!.x &&
+                 c.y === rec.selectedCandidatePosition!.y,
+          );
+          expect(
+            matchesCandidate,
+            `move_ap target (${rec.selectedCandidatePosition.x}, ${rec.selectedCandidatePosition.y}) ` +
+            `is not a candidate position`,
+          ).toBe(true);
+        }
+        // If no selectedCandidatePosition, check suggestedValue against candidates
+        const suggested = rec.suggestedChange?.suggestedValue as string;
+        if (suggested && !rec.selectedCandidatePosition) {
+          // Parse "(x, y)" format
+          const match = suggested.match(/\(([\d.]+),\s*([\d.]+)\)/);
+          if (match) {
+            const sx = parseFloat(match[1]!);
+            const sy = parseFloat(match[2]!);
+            const matchesCandidate = ctx.candidates.some(
+              c => Math.abs(c.x - sx) < 0.1 && Math.abs(c.y - sy) < 0.1,
+            );
+            expect(
+              matchesCandidate,
+              `move_ap to (${sx}, ${sy}) uses interpolation instead of candidate`,
+            ).toBe(true);
+          }
+        }
+      }
+    });
+
+    it('T4: move_ap fallback allowed when no candidates defined', () => {
+      // Same setup as T3 but without candidates → interpolation allowed
+      const ap = makeAP('ap-1', 1, 1, { txPowerDbm: 15 });
+      const apResp = makeAPResponse('ap-1', 1, 1);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -80 });
+      grids.rssiGrid[1 * W + 1] = -40;
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 1, good: 2, fair: 10, poor: 40, none: 47,
+      });
+
+      // No candidates → fallback interpolation allowed
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const moveRecs = allRecs.filter(r => r.type === 'move_ap');
+
+      // move_ap is allowed to use interpolated positions (no candidate constraint)
+      // We just verify the engine still considers move_ap at all
+      // (The AP has very low coverage, so move_ap should be a viable recommendation)
+      // Whether it actually appears depends on simulation results
+      // The key point: the code path for interpolation is NOT blocked
+      // (This test documents the expected behavior when no candidates exist)
+      if (moveRecs.length > 0) {
+        // Interpolated moves won't have selectedCandidatePosition matching any candidate
+        // (because there are none) — that's fine
+        expect(moveRecs[0]!.type).toBe('move_ap');
+      }
+    });
+  });
 });

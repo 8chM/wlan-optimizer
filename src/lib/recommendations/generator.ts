@@ -30,7 +30,7 @@ import {
 } from './analysis';
 import { simulateChange, simulateAddAP, clearSimulatorCache, simulateGrid, scoreFromBins } from './simulator';
 import { BAND_THRESHOLDS } from '$lib/heatmap/coverage-stats';
-import { findBestCandidate, isMovementAllowed, isNewApAllowed, isPhysicallyValidApPosition, getConstraintsAtPoint, findNearestValidPosition } from './candidates';
+import { findBestCandidate, isMovementAllowed, isNewApAllowed, isPhysicallyValidApPosition, getConstraintsAtPoint } from './candidates';
 import {
   isActionAllowed,
   getBlockingReasons,
@@ -490,15 +490,19 @@ function generateAddApSuggestions(
           let stackSeverity: 'critical' | 'warning' | 'info' = match.requiresInfrastructure ? 'warning' : 'info';
           if (addApCount >= 2) stackPriority = 'low';
           if (addApCount >= 1 && stackSeverity !== 'info') stackSeverity = 'info';
+          const hasLabel = !!match.candidate.label;
+          const addTitleKey = hasLabel ? 'rec.addApAtCandidateTitle' : 'rec.addApTitle';
+          const infraTitleKey = hasLabel ? 'rec.infraRequiredAtCandidateTitle' : 'rec.infraRequiredTitle';
           recs.push({
             id: genId(),
             type: match.requiresInfrastructure ? 'infrastructure_required' : 'add_ap',
             priority: stackPriority,
             severity: stackSeverity,
-            titleKey: match.requiresInfrastructure ? 'rec.infraRequiredTitle' : 'rec.addApTitle',
+            titleKey: match.requiresInfrastructure ? infraTitleKey : addTitleKey,
             titleParams: {
               x: Math.round(match.candidate.x * 10) / 10,
               y: Math.round(match.candidate.y * 10) / 10,
+              ...(hasLabel ? { candidate: match.candidate.label } : {}),
             },
             reasonKey: addApCount > 0 ? 'rec.addApCandidateStackingReason' : 'rec.addApCandidateReason',
             reasonParams: {
@@ -530,17 +534,22 @@ function generateAddApSuggestions(
           addApCount++;
           continue; // Next zone
         }
+        // Candidate exists but benefit too small — don't fall through to fallback
+        // with arbitrary coordinates when user has defined candidate positions
+        continue;
       } else {
         // No valid candidate — infrastructure_required recommendation
+        const infraLabel = match.candidate?.label;
         recs.push({
           id: genId(),
           type: 'infrastructure_required',
           priority: 'medium',
           severity: 'warning',
-          titleKey: 'rec.infraRequiredTitle',
+          titleKey: infraLabel ? 'rec.infraRequiredAtCandidateTitle' : 'rec.infraRequiredTitle',
           titleParams: {
             x: Math.round(idealX * 10) / 10,
             y: Math.round(idealY * 10) / 10,
+            ...(infraLabel ? { candidate: infraLabel } : {}),
           },
           reasonKey: 'rec.infraRequiredReason',
           reasonParams: {
@@ -563,63 +572,8 @@ function generateAddApSuggestions(
       }
     }
 
-    // Fallback: no candidate locations defined — use weighted target directly
-    let validX = idealX;
-    let validY = idealY;
-    if (!isNewApAllowed(idealX, idealY, ctx.constraintZones) || !isPhysicallyValidApPosition(idealX, idealY, walls)) {
-      const alt = findNearestValidPosition(idealX, idealY, walls, ctx.constraintZones, bounds);
-      if (!alt) continue;
-      validX = alt.x;
-      validY = alt.y;
-    }
-
-    const delta = simulateAddAP(
-      aps, walls, bounds, band, rfConfig,
-      { x: validX, y: validY },
-      templateConfig,
-      weights,
-    );
-
-    if (delta.changePercent > uplinkMinBenefit) {
-      // Stacking penalty for fallback path
-      let stackPriority: 'high' | 'medium' | 'low' = 'medium';
-      let stackSeverity: 'critical' | 'warning' | 'info' = 'warning';
-      if (addApCount >= 2) stackPriority = 'low';
-      if (addApCount >= 1) stackSeverity = 'info';
-      recs.push({
-        id: genId(),
-        type: 'add_ap',
-        priority: stackPriority,
-        severity: stackSeverity,
-        titleKey: 'rec.addApTitle',
-        titleParams: {
-          x: Math.round(validX * 10) / 10,
-          y: Math.round(validY * 10) / 10,
-        },
-        reasonKey: addApCount > 0 ? 'rec.addApStackingReason' : 'rec.addApReason',
-        reasonParams: {
-          cells: zone.cellCount,
-          avgRssi: Math.round(zone.avgRssi),
-        },
-        affectedApIds: [],
-        affectedBand: band,
-        suggestedChange: {
-          parameter: 'position',
-          currentValue: 'none',
-          suggestedValue: `(${validX.toFixed(1)}, ${validY.toFixed(1)})`,
-        },
-        evidence: {
-          metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi },
-          affectedCells: zone.cellIndices.slice(0, 2000),
-          gridStep,
-        },
-        simulatedDelta: delta,
-        confidence: 0.7,
-        idealTargetPosition: { x: idealX, y: idealY },
-        requiresUserDecision: true,
-      });
-      addApCount++;
-    }
+    // No candidate locations defined — skip add_ap.
+    // AP placement is only possible at user-defined candidate positions.
   }
 }
 
@@ -751,7 +705,8 @@ function generateMoveApSuggestions(
       }
 
       // Strategy 2: Fallback — interpolate towards RF-weighted target
-      if (!bestDelta || bestDelta.changePercent <= 3) {
+      // Only when no candidate locations are defined; with candidates, only candidate-based moves are allowed.
+      if (ctx.candidates.length === 0 && (!bestDelta || bestDelta.changePercent <= 3)) {
         const dx = target.x - ap.x;
         const dy = target.y - ap.y;
         const fractions = [0.25, 0.5, 0.75];

@@ -492,6 +492,8 @@
     "disableApReason": "AP {ap} covers only {coverage}% of the area with {overlap}% overlap — disabling reduces interference",
     "bandLimitTitle": "Band limitation ({percent}% uplink-limited)",
     "bandLimitReason": "{percent}% of cells are uplink-limited on {band} — consider lower band or client-side improvements",
+    "sixGhzChannelNoteTitle": "6 GHz channel planning note",
+    "sixGhzChannelNoteReason": "6 GHz channels use the 5 GHz channel pool in this version. Explicit 6 GHz planning not yet available.",
     "constraintConflictTitle": "{ap} in {zoneType} zone",
     "constraintConflictReason": "AP {ap} is currently placed in a {zoneType} zone — consider moving it",
     "preferredCandidateTitle": "Use preferred location {candidate}",

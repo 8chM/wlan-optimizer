@@ -200,6 +200,7 @@
 
   let measureStart = $state<{ x: number; y: number } | null>(null);
   let measureEnd = $state<{ x: number; y: number } | null>(null);
+  let selectedMeasurementId = $state<string | null>(null);
 
   // Reset measure on tool change
   $effect(() => {
@@ -241,16 +242,39 @@
     measureEnd = null;
   }
 
-  // Enter key to pin measurement
+  function handleSelectMeasurement(id: string): void {
+    selectedMeasurementId = id;
+    canvasStore.clearSelection();
+  }
+
+  function handleDeleteMeasurement(): void {
+    if (!selectedMeasurementId) return;
+    const updated = workspaceStore.savedMeasurements.filter(m => m.id !== selectedMeasurementId);
+    workspaceStore.setSavedMeasurements(updated);
+    selectedMeasurementId = null;
+    const floorId = floor?.id;
+    if (floorId) {
+      localStorage.setItem(`wlan-opt:measurements:${floorId}`, JSON.stringify(updated));
+    }
+  }
+
+  // Enter key to pin measurement, Delete to remove selected measurement
   $effect(() => {
-    function handleEnterPin(e: KeyboardEvent): void {
+    function handleMeasureKeys(e: KeyboardEvent): void {
       if (e.key === 'Enter' && measureStart && measureEnd) {
         e.preventDefault();
         handlePinMeasurement();
       }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedMeasurementId) {
+        e.preventDefault();
+        handleDeleteMeasurement();
+      }
+      if (e.key === 'Escape' && selectedMeasurementId) {
+        selectedMeasurementId = null;
+      }
     }
-    document.addEventListener('keydown', handleEnterPin);
-    return () => document.removeEventListener('keydown', handleEnterPin);
+    document.addEventListener('keydown', handleMeasureKeys);
+    return () => document.removeEventListener('keydown', handleMeasureKeys);
   });
 
   // ─── Display Canvas (base vs forecast) ─────────────────────────
@@ -510,7 +534,9 @@
           <SavedMeasurements
             measurements={workspaceStore.savedMeasurements}
             {scalePxPerMeter}
-            interactive={pageContext === 'editor'}
+            interactive={canvasStore.activeTool === 'select' || canvasStore.activeTool === 'measure'}
+            selectedId={selectedMeasurementId}
+            onSelect={handleSelectMeasurement}
           />
         {/if}
 
@@ -543,8 +569,10 @@
       onOffsetChange={(x, y) => canvasStore.setOffset(x, y)}
     />
 
-    <!-- Floating heatmap controls panel -->
-    <EditorHeatmapPanel />
+    <!-- Floating heatmap controls panel (editor + mixing pages) -->
+    {#if pageContext === 'editor' || pageContext === 'mixing'}
+      <EditorHeatmapPanel />
+    {/if}
 
     <!-- Measure tool result display -->
     {#if canvasStore.activeTool === 'measure' && measuredDistance !== null}

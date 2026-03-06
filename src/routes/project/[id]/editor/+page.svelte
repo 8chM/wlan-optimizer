@@ -1394,7 +1394,7 @@ $effect(() => {
 
 $effect(() => {
   return () => {
-    editorHeatmapStore.reset();
+    // Don't reset editorHeatmapStore — EditorHeatmap is persistent in WorkspaceCanvas
     channelStore.reset();
     workspaceStore.unregisterEditorCallbacks();
     workspaceStore.setCursorOverride(null);

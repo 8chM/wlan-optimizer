@@ -492,6 +492,8 @@
     "disableApReason": "AP {ap} deckt nur {coverage}% der Flaeche ab bei {overlap}% Ueberlappung — Deaktivierung reduziert Interferenz",
     "bandLimitTitle": "Band-Einschraenkung ({percent}% uplink-limitiert)",
     "bandLimitReason": "{percent}% der Zellen sind uplink-limitiert auf {band} — niedrigeres Band oder Client-seitige Verbesserungen erwaegen",
+    "sixGhzChannelNoteTitle": "Hinweis zur 6-GHz-Kanalplanung",
+    "sixGhzChannelNoteReason": "6-GHz-Kanaele verwenden den 5-GHz-Kanalpool in dieser Version. Explizite 6-GHz-Kanalplanung ist noch nicht verfuegbar.",
     "constraintConflictTitle": "{ap} in {zoneType}-Zone",
     "constraintConflictReason": "AP {ap} befindet sich aktuell in einer {zoneType}-Zone — Verschiebung erwaegen",
     "preferredCandidateTitle": "Bevorzugten Standort {candidate} nutzen",

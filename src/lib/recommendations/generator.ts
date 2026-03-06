@@ -58,6 +58,16 @@ import type {
 } from './types';
 import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES, RECOMMENDATION_CATEGORIES } from './types';
 
+// ─── Roaming TX Constants ────────────────────────────────────────
+const MIN_HANDOFF_CELLS = 50;       // A2: Minimum handoff zone cells
+const MIN_HANDOFF_RATIO = 0.01;     // A2: Minimum handoff zone ratio
+const STICKY_TRIGGER = 0.30;        // A4: Min stickyRatio for trigger
+const GAP_TRIGGER = 0.20;           // A4: Min gapRatio for trigger
+const GAP_RATIO_CRITICAL = 0.40;    // A3: Critical gap rate
+const UPLINK_BLOCK_ROAMING = 0.70;  // C2: Uplink block threshold
+const ROAMING_TX_STEPS = [-3, -6, -9] as const;
+const ROAMING_TX_MIN_DBM = 10;
+
 let nextRecId = 0;
 function genId(): string {
   nextRecId++;
@@ -166,7 +176,7 @@ export function generateRecommendations(
 
   // 8a. Roaming TX power adjustments (actionable)
   generateRoamingTxAdjustments(
-    recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel,
+    recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel, stats,
   );
 
   // 8b. Sticky-client risk warnings (informational)
@@ -1250,6 +1260,31 @@ function generateChannelRecommendations(
     }
   }
 
+  // B1: Max 3 recommendations, deduplicate target channels (keep best worstScore)
+  const targetChannelBest = new Map<number, { apId: string; worstScore: number }>();
+  for (const [apId, change] of channelChanges) {
+    const existing = targetChannelBest.get(change.to);
+    if (!existing || change.worstScore > existing.worstScore) {
+      targetChannelBest.set(change.to, { apId, worstScore: change.worstScore });
+    }
+  }
+  const dedupedKeep = new Set([...targetChannelBest.values()].map(v => v.apId));
+  // Remove APs that lost the target-channel dedup
+  for (const [apId] of channelChanges) {
+    if (!dedupedKeep.has(apId)) channelChanges.delete(apId);
+  }
+  // Limit to top 3 by worstScore
+  if (channelChanges.size > 3) {
+    const sorted = [...channelChanges.entries()]
+      .sort((a, b) => b[1].worstScore - a[1].worstScore)
+      .slice(0, 3)
+      .map(([id]) => id);
+    const keepSet = new Set(sorted);
+    for (const [apId] of [...channelChanges]) {
+      if (!keepSet.has(apId)) channelChanges.delete(apId);
+    }
+  }
+
   // Emit recommendations
   const channelParamName = band === '2.4ghz' ? 'channel_24ghz' : 'channel_5ghz';
 
@@ -1258,6 +1293,9 @@ function generateChannelRecommendations(
     const worstConflict = channelAnalysis.conflicts.find(
       c => (c.ap1Id === targetApId || c.ap2Id === targetApId) && c.score >= 0.3,
     );
+
+    // B2: Skip distant low-severity conflicts
+    if (worstConflict && worstConflict.distanceM > 12 && change.worstScore < 0.5) continue;
 
     const otherApId = worstConflict
       ? (worstConflict.ap1Id === targetApId ? worstConflict.ap2Id : worstConflict.ap1Id)
@@ -1302,6 +1340,24 @@ function generateChannelRecommendations(
         },
       },
       confidence: 0.85,
+    });
+  }
+
+  // B3: 6 GHz informational note
+  if (band === '6ghz') {
+    recs.push({
+      id: genId(),
+      type: 'band_limit_warning',
+      priority: 'low',
+      severity: 'info',
+      titleKey: 'rec.sixGhzChannelNoteTitle',
+      titleParams: {},
+      reasonKey: 'rec.sixGhzChannelNoteReason',
+      reasonParams: {},
+      affectedApIds: [],
+      affectedBand: band,
+      evidence: { metrics: {} },
+      confidence: 0.9,
     });
   }
 }
@@ -1365,6 +1421,7 @@ function generateRoamingTxAdjustments(
   weights: ScoringWeights,
   ctx: RecommendationContext,
   apLabel: (id: string) => string,
+  stats: HeatmapStats,
 ): void {
   const txParamName = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
 
@@ -1373,8 +1430,23 @@ function generateRoamingTxAdjustments(
     recs.filter(r => r.type === 'adjust_tx_power').flatMap(r => r.affectedApIds),
   );
 
+  // C2: Compute uplink-limited ratio once
+  const totalCells = stats.totalCells ?? 0;
+  let uplinkLimitedCount = 0;
+  if (stats.uplinkLimitedGrid && totalCells > 0) {
+    for (let i = 0; i < totalCells; i++) {
+      if (stats.uplinkLimitedGrid[i]) uplinkLimitedCount++;
+    }
+  }
+  const uplinkLimitedRatio = totalCells > 0 ? uplinkLimitedCount / totalCells : 0;
+
   for (const pair of pairs) {
-    if (pair.stickyRatio <= 0.30) continue;
+    // A2: Skip when handoff zone is too small (trivial pair)
+    if (pair.handoffZoneCells < MIN_HANDOFF_CELLS && pair.handoffZoneRatio < MIN_HANDOFF_RATIO) continue;
+
+    // A4: Require meaningful sticky or gap signal before proceeding
+    const gapRatio = pair.gapCells / Math.max(pair.handoffZoneCells, 1);
+    if (pair.stickyRatio < STICKY_TRIGGER && gapRatio < GAP_TRIGGER) continue;
 
     // Identify dominant AP in this pair
     const m1 = apMetrics.get(pair.ap1Id);
@@ -1389,7 +1461,7 @@ function generateRoamingTxAdjustments(
     // Skip if this AP already has an adjust_tx_power recommendation (cross-type dedup)
     if (txPowerApIds.has(dominantId)) continue;
 
-    // Capability check: emit blocked_recommendation if TX power change is not allowed
+    // A6: Capability check — emit blocked_recommendation if TX power change is not allowed
     if (!isActionAllowed(dominantId, 'adjust_tx_power', band, ctx)) {
       recs.push({
         id: genId(),
@@ -1415,17 +1487,49 @@ function generateRoamingTxAdjustments(
       continue;
     }
 
-    const reducedPower = dominantAp.txPowerDbm - 3;
-    if (reducedPower < 10) continue; // Don't go below 10 dBm
+    // A3: Critical gap rate — only proceed if simulation doesn't worsen score
+    if (gapRatio >= GAP_RATIO_CRITICAL) {
+      const probeStep = ROAMING_TX_STEPS[0]!;
+      const probePower = dominantAp.txPowerDbm + probeStep;
+      if (probePower < ROAMING_TX_MIN_DBM) continue;
+      const probeDelta = simulateChange(aps, walls, bounds, band, rfConfig, {
+        apId: dominantId,
+        txPowerDbm: probePower,
+      }, weights);
+      if (probeDelta.changePercent < 0) continue;
+    }
 
-    // Simulate TX power reduction
-    const delta = simulateChange(aps, walls, bounds, band, rfConfig, {
-      apId: dominantId,
-      txPowerDbm: reducedPower,
-    }, weights);
+    // A5: Iterate TX steps, pick best positive delta
+    let bestDelta: SimulatedDelta | null = null;
+    let bestStep = 0;
+    let bestPower = dominantAp.txPowerDbm;
 
-    // Only suggest if score doesn't drop too much
-    if (delta.changePercent < -5) continue;
+    for (const step of ROAMING_TX_STEPS) {
+      const reducedPower = dominantAp.txPowerDbm + step;
+      if (reducedPower < ROAMING_TX_MIN_DBM) break;
+
+      const delta = simulateChange(aps, walls, bounds, band, rfConfig, {
+        apId: dominantId,
+        txPowerDbm: reducedPower,
+      }, weights);
+
+      if (delta.changePercent >= 0) {
+        if (!bestDelta || delta.changePercent > bestDelta.changePercent) {
+          bestDelta = delta;
+          bestStep = Math.abs(step);
+          bestPower = reducedPower;
+        }
+      }
+    }
+
+    // No positive step found → skip
+    if (!bestDelta) continue;
+
+    // A1: Skip if score deteriorates
+    if (bestDelta.scoreAfter < bestDelta.scoreBefore) continue;
+
+    // C2: Block roaming TX when uplink is heavily limited and benefit is marginal
+    if (uplinkLimitedRatio > UPLINK_BLOCK_ROAMING && bestDelta.changePercent < 2) continue;
 
     // PZ-weighted severity/priority
     const pzFactor = pair.pzRelevanceScore ?? 0.5;
@@ -1444,7 +1548,7 @@ function generateRoamingTxAdjustments(
         ap: apLabel(dominantId),
         otherAp: apLabel(otherId),
         percent: Math.round(pair.stickyRatio * 100),
-        delta: 3,
+        delta: bestStep,
       },
       affectedApIds: [dominantId],
       affectedBand: band,
@@ -1452,7 +1556,7 @@ function generateRoamingTxAdjustments(
         apId: dominantId,
         parameter: txParamName,
         currentValue: dominantAp.txPowerDbm,
-        suggestedValue: reducedPower,
+        suggestedValue: bestPower,
       },
       evidence: {
         metrics: {
@@ -1461,7 +1565,7 @@ function generateRoamingTxAdjustments(
           gapCells: pair.gapCells,
         },
       },
-      simulatedDelta: delta,
+      simulatedDelta: bestDelta,
       confidence: 0.7,
     });
   }
@@ -1775,7 +1879,7 @@ function generateBandLimitWarnings(
       titleKey: 'rec.bandLimitTitle',
       titleParams: { percent: Math.round(limitedPct) },
       reasonKey: 'rec.bandLimitReason',
-      reasonParams: { percent: Math.round(limitedPct), band },
+      reasonParams: { percent: Math.round(limitedPct), band, uplinkNote: 'device_antenna_placement' },
       affectedApIds: [],
       affectedBand: band,
       evidence: {

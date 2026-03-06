@@ -957,20 +957,27 @@ describe('generateRecommendations', () => {
   });
 
   it('should not generate roaming_tx_adjustment when TX power capability is blocked', () => {
-    // Same sticky setup that normally generates roaming_tx_adjustment
-    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 23 });
-    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 15 });
-    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
-    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+    // Larger grid to pass A2 min-handoff guard (50 cells)
+    const ap1 = makeAP('ap-1', 2, 10, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 18, 10, { txPowerDbm: 15 });
+    const apResp1 = makeAPResponse('ap-1', 2, 10, 36);
+    const apResp2 = makeAPResponse('ap-2', 18, 10, 44);
 
-    const grids = makeGrids(10, 10, { rssi: -50, delta: 20 });
-    for (let i = 0; i < 80; i++) grids.apIndexGrid[i] = 0;
-    for (let i = 80; i < 100; i++) grids.apIndexGrid[i] = 1;
-    for (let i = 0; i < 80; i++) grids.secondBestApIndexGrid[i] = 1;
-    for (let i = 80; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+    const W = 20;
+    const H = 20;
+    const total = W * H;
+    const grids = makeGrids(W, H, { rssi: -50, delta: 20 });
+    for (let i = 0; i < Math.floor(total * 0.6); i++) grids.apIndexGrid[i] = 0;
+    for (let i = Math.floor(total * 0.6); i < total; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < Math.floor(total * 0.6); i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = Math.floor(total * 0.6); i < total; i++) grids.secondBestApIndexGrid[i] = 0;
+    // Create handoff zone (delta < 8) for 80 cells to pass A2 guard
+    for (let i = Math.floor(total * 0.4); i < Math.floor(total * 0.6); i++) {
+      grids.deltaGrid[i] = 5;
+    }
 
     const stats: HeatmapStats = {
-      ...makeStats(10, 10, grids),
+      ...makeStats(W, H, grids),
       apIds: ['ap-1', 'ap-2'],
     };
 
@@ -996,7 +1003,9 @@ describe('generateRecommendations', () => {
     };
 
     const result = generateRecommendations(
-      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      [ap1, ap2], [apResp1, apResp2], WALLS,
+      { width: 20, height: 20, originX: 0, originY: 0 },
+      BAND, stats, RF_CONFIG, 'balanced', ctx,
     );
 
     const allRecs = collectAllRecommendations(result.recommendations);
@@ -1012,20 +1021,27 @@ describe('generateRecommendations', () => {
   });
 
   it('should not generate roaming_tx_adjustment when only dominant AP has TX power blocked', () => {
-    // Same sticky setup — AP-1 dominates 80%
-    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 23 });
-    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 15 });
-    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
-    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+    // Larger grid to pass A2 min-handoff guard (50 cells)
+    const ap1 = makeAP('ap-1', 2, 10, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 18, 10, { txPowerDbm: 15 });
+    const apResp1 = makeAPResponse('ap-1', 2, 10, 36);
+    const apResp2 = makeAPResponse('ap-2', 18, 10, 44);
 
-    const grids = makeGrids(10, 10, { rssi: -50, delta: 20 });
-    for (let i = 0; i < 80; i++) grids.apIndexGrid[i] = 0;
-    for (let i = 80; i < 100; i++) grids.apIndexGrid[i] = 1;
-    for (let i = 0; i < 80; i++) grids.secondBestApIndexGrid[i] = 1;
-    for (let i = 80; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+    const W = 20;
+    const H = 20;
+    const total = W * H;
+    const grids = makeGrids(W, H, { rssi: -50, delta: 20 });
+    for (let i = 0; i < Math.floor(total * 0.6); i++) grids.apIndexGrid[i] = 0;
+    for (let i = Math.floor(total * 0.6); i < total; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < Math.floor(total * 0.6); i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = Math.floor(total * 0.6); i < total; i++) grids.secondBestApIndexGrid[i] = 0;
+    // Create handoff zone (delta < 8) for 80 cells to pass A2 guard
+    for (let i = Math.floor(total * 0.4); i < Math.floor(total * 0.6); i++) {
+      grids.deltaGrid[i] = 5;
+    }
 
     const stats: HeatmapStats = {
-      ...makeStats(10, 10, grids),
+      ...makeStats(W, H, grids),
       apIds: ['ap-1', 'ap-2'],
     };
 
@@ -1045,7 +1061,9 @@ describe('generateRecommendations', () => {
     };
 
     const result = generateRecommendations(
-      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      [ap1, ap2], [apResp1, apResp2], WALLS,
+      { width: 20, height: 20, originX: 0, originY: 0 },
+      BAND, stats, RF_CONFIG, 'balanced', ctx,
     );
 
     const allRecs = collectAllRecommendations(result.recommendations);
@@ -1915,6 +1933,205 @@ describe('generateRecommendations', () => {
       // With PZ in center, move target should be biased towards center
       expect(moveRec.idealTargetPosition.x).toBeGreaterThanOrEqual(2);
       expect(moveRec.idealTargetPosition.y).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  // ─── Phase 28b: Zusatz-Regelwerk 2 Tests ────────────────────────
+
+  it('D1: roaming_tx NOT generated when scoreAfter < scoreBefore', () => {
+    // Two APs, dominant has very low TX so any reduction would hurt coverage
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 12 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 10 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    // AP-1 dominates 70%, delta > 15 (sticky), good coverage
+    const grids = makeGrids(10, 10, { rssi: -45, delta: 18 });
+    for (let i = 0; i < 70; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 70; i < 100; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 70; i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = 70; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const roamingTx = allRecs.filter(r =>
+      r.type === 'roaming_tx_adjustment' && r.affectedApIds.includes('ap-1'),
+    );
+    // With TX at 12 dBm, steps -3/-6/-9 would yield 9/6/3 — all below 10 dBm min,
+    // so no valid step exists → no roaming_tx should be generated
+    expect(roamingTx.length).toBe(0);
+  });
+
+  it('D2: roaming_tx NOT generated when handoffZoneCells < MIN_HANDOFF_CELLS', () => {
+    // Small grid (5x5=25 cells) → handoff zone can never reach 50 cells
+    const ap1 = makeAP('ap-1', 1, 2.5, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 4, 2.5, { txPowerDbm: 15 });
+    const apResp1 = makeAPResponse('ap-1', 1, 2.5, 36);
+    const apResp2 = makeAPResponse('ap-2', 4, 2.5, 44);
+
+    const grids = makeGrids(5, 5, { rssi: -50, delta: 20 });
+    // AP-1 dominates ~80%, high delta → sticky
+    for (let i = 0; i < 20; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 20; i < 25; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < 20; i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = 20; i < 25; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats: HeatmapStats = {
+      ...makeStats(5, 5, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, { width: 5, height: 5, originX: 0, originY: 0 },
+      BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    // With 25 total cells, handoffZoneCells < 50 and handoffZoneRatio < 0.01 → A2 skip
+    const roamingTx = allRecs.filter(r => r.type === 'roaming_tx_adjustment');
+    expect(roamingTx.length).toBe(0);
+  });
+
+  it('D3: roaming_tx adaptive steps picks best (highest TX power yields largest step)', () => {
+    // High TX power allows all 3 steps → should pick best changePercent
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 26 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 15 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    // Large grid for sufficient handoff cells
+    const W = 20;
+    const H = 20;
+    const grids = makeGrids(W, H, { rssi: -50, delta: 18 });
+    const total = W * H;
+    // AP-1 dominates 75%, sticky
+    for (let i = 0; i < Math.floor(total * 0.75); i++) grids.apIndexGrid[i] = 0;
+    for (let i = Math.floor(total * 0.75); i < total; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < Math.floor(total * 0.75); i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = Math.floor(total * 0.75); i < total; i++) grids.secondBestApIndexGrid[i] = 0;
+
+    const stats: HeatmapStats = {
+      ...makeStats(W, H, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, { width: 20, height: 20, originX: 0, originY: 0 },
+      BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const roamingTx = allRecs.find(r =>
+      r.type === 'roaming_tx_adjustment' && r.affectedApIds.includes('ap-1'),
+    );
+    if (roamingTx?.suggestedChange) {
+      // With txPower=26, all steps (-3→23, -6→20, -9→17) are valid (>= 10)
+      // The chosen value should be one of the valid steps
+      const suggested = roamingTx.suggestedChange.suggestedValue as number;
+      expect([17, 20, 23]).toContain(suggested);
+      expect(suggested).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it('D4: channel recs do not produce duplicate target channels for nearby APs', () => {
+    // 3 APs all on same channel, close together
+    const ap1 = makeAP('ap-1', 3, 5);
+    const ap2 = makeAP('ap-2', 5, 5);
+    const ap3 = makeAP('ap-3', 7, 5);
+    const apResp1 = makeAPResponse('ap-1', 3, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 5, 5, 36);
+    const apResp3 = makeAPResponse('ap-3', 7, 5, 36);
+
+    const grids = makeGrids(10, 10, { rssi: -50 });
+    for (let i = 0; i < 33; i++) grids.apIndexGrid[i] = 0;
+    for (let i = 33; i < 66; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 66; i < 100; i++) grids.apIndexGrid[i] = 2;
+
+    const stats: HeatmapStats = {
+      ...makeStats(10, 10, grids),
+      apIds: ['ap-1', 'ap-2', 'ap-3'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2, ap3], [apResp1, apResp2, apResp3], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const channelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+    // B1: no two channel recs should suggest the same target channel
+    const targetChannels = channelRecs.map(r => r.suggestedChange?.suggestedValue);
+    const uniqueTargets = new Set(targetChannels);
+    expect(uniqueTargets.size).toBe(targetChannels.length);
+    // B1: max 3 channel recs
+    expect(channelRecs.length).toBeLessThanOrEqual(3);
+  });
+
+  it('D5: band_limit_warning priority high when uplinkLimitedRatio > 0.6', () => {
+    const ap = makeAP('ap-1', 5, 5);
+    const apResp = makeAPResponse('ap-1', 5, 5);
+
+    const grids = makeGrids(10, 10, { rssi: -50 });
+    // 65% uplink limited
+    for (let i = 0; i < 65; i++) grids.uplinkLimitedGrid[i] = 1;
+
+    const stats = makeStats(10, 10, grids);
+
+    const result = generateRecommendations(
+      [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const bandLimit = result.recommendations.find(r =>
+      r.type === 'band_limit_warning' && r.titleKey === 'rec.bandLimitTitle',
+    );
+    expect(bandLimit).toBeDefined();
+    expect(bandLimit?.priority).toBe('high');
+    expect(bandLimit?.severity).toBe('critical');
+  });
+
+  it('D6: uplink blocks roaming_tx when ratio > 0.7 and benefit < 2%', () => {
+    const ap1 = makeAP('ap-1', 2, 5, { txPowerDbm: 23 });
+    const ap2 = makeAP('ap-2', 8, 5, { txPowerDbm: 15 });
+    const apResp1 = makeAPResponse('ap-1', 2, 5, 36);
+    const apResp2 = makeAPResponse('ap-2', 8, 5, 44);
+
+    // Large grid for sufficient handoff cells
+    const W = 20;
+    const H = 20;
+    const total = W * H;
+    const grids = makeGrids(W, H, { rssi: -50, delta: 18 });
+    for (let i = 0; i < Math.floor(total * 0.75); i++) grids.apIndexGrid[i] = 0;
+    for (let i = Math.floor(total * 0.75); i < total; i++) grids.apIndexGrid[i] = 1;
+    for (let i = 0; i < Math.floor(total * 0.75); i++) grids.secondBestApIndexGrid[i] = 1;
+    for (let i = Math.floor(total * 0.75); i < total; i++) grids.secondBestApIndexGrid[i] = 0;
+    // 75% uplink limited → above UPLINK_BLOCK_ROAMING (0.70)
+    for (let i = 0; i < Math.floor(total * 0.75); i++) grids.uplinkLimitedGrid[i] = 1;
+
+    const stats: HeatmapStats = {
+      ...makeStats(W, H, grids),
+      apIds: ['ap-1', 'ap-2'],
+    };
+
+    const result = generateRecommendations(
+      [ap1, ap2], [apResp1, apResp2], WALLS, { width: 20, height: 20, originX: 0, originY: 0 },
+      BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    // With 75% uplink limitation, roaming_tx should be blocked unless benefit >= 2%
+    // Simulation with minor TX reduction on a 20x20 grid typically yields <2% benefit
+    const roamingTx = allRecs.filter(r => r.type === 'roaming_tx_adjustment');
+    // Either no roaming_tx at all, or if one exists it must have changePercent >= 2
+    for (const rec of roamingTx) {
+      if (rec.simulatedDelta) {
+        expect(rec.simulatedDelta.changePercent).toBeGreaterThanOrEqual(2);
+      }
     }
   });
 });

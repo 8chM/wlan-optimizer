@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
-  "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-28-complete",
+  "lastUpdated": "2026-03-06",
+  "currentPhase": "phase-28b-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -837,6 +837,20 @@
         "mixing/+page.svelte umgeschrieben: 1090 → 450 Zeilen (nur Sidebar + Forecast + Overlays)",
         "Netto ~1800 Zeilen duplizierter Code eliminiert",
         "Verifikation: svelte-check 0 Errors, 783/784 Tests pass, Build OK"
+      ]
+    },
+    "28b": {
+      "name": "Zusatz-Regelwerk 2: Roaming, Kanalplanung, Uplink-Limitierung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Block 1: Roaming TX Rewrite — 8 Constants, adaptive TX steps (-3/-6/-9), A1-A5 Guards, C2 Uplink-Block",
+        "Block 2: Channel Guards — B1 max 3 recs + target-channel dedup, B2 distance filter (>12m + <0.5), B3 6GHz informational",
+        "Block 3: Uplink-Limitation — uplinkNote device_antenna_placement in reasonParams",
+        "Block 4: 2 neue i18n-Keys EN+DE (sixGhzChannelNoteTitle/Reason)",
+        "Block 5: 6 neue Tests (D1-D6), 2 bestehende Tests angepasst (A2-Guard), 802 Tests total",
+        "Verifikation: 802 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

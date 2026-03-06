@@ -122,7 +122,7 @@
   $effect(() => {
     editorHeatmapStore.setVisible(true);
     return () => {
-      editorHeatmapStore.setVisible(false);
+      // Don't reset heatmap visibility — EditorHeatmap is persistent in WorkspaceCanvas
       workspaceStore.setForecastCanvas(null);
       workspaceStore.setForecastActive(false);
       workspaceStore.setDisplayApOverrides(new Map());

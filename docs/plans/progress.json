@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28f-complete",
+  "currentPhase": "phase-28g-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -901,6 +901,18 @@
         "Block 1: rules.md — Source of Truth & Guarantees Sektion mit Vorgehen bei neuem Type (10 Schritte)",
         "Block 2: rulesIntegrity.test.ts — E6 (Union→Map bidirektional) + E7 (GENERATOR_EMITTED_TYPES anti-drift)",
         "Block 3: Verifikation OK — 834 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28g": {
+      "name": "Dev-Debug-Panel fuer Empfehlungen",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "RecommendationStep.svelte: Einklappbare Debug-Sektion (nur import.meta.env.DEV)",
+        "Zeigt: type, category, priority, severity, alle 6 Scores, simulatedDelta, evidence.metrics, confidence",
+        "Prod-Build: komplett entfernt durch Vite Dead-Code-Elimination",
+        "Verifikation OK — 834 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

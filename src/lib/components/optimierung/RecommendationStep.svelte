@@ -73,6 +73,9 @@
 
   const ROAMING_DETAIL_TYPES = new Set(['roaming_tx_adjustment', 'sticky_client_risk', 'handoff_gap_warning']);
   let showRoamingDetails = $derived(ROAMING_DETAIL_TYPES.has(rec.type));
+
+  const IS_DEV = import.meta.env.DEV;
+  let debugOpen = $state(false);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -138,6 +141,55 @@
           </div>
         {/if}
       </div>
+    {/if}
+
+    {#if IS_DEV}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <div class="debug-toggle" onclick={(e) => { e.stopPropagation(); debugOpen = !debugOpen; }}>
+        {debugOpen ? '\u25BC' : '\u25B6'} Debug
+      </div>
+      {#if debugOpen}
+        <div class="debug-panel">
+          <div class="debug-row"><span class="debug-key">type</span><span class="debug-val">{rec.type}</span></div>
+          <div class="debug-row"><span class="debug-key">category</span><span class="debug-val">{category}</span></div>
+          <div class="debug-row"><span class="debug-key">priority</span><span class="debug-val">{rec.priority}</span></div>
+          <div class="debug-row"><span class="debug-key">severity</span><span class="debug-val">{rec.severity}</span></div>
+          {#if rec.recommendationScore != null}
+            <div class="debug-row"><span class="debug-key">recScore</span><span class="debug-val">{rec.recommendationScore.toFixed(1)}</span></div>
+          {/if}
+          {#if rec.benefitScore != null}
+            <div class="debug-row"><span class="debug-key">benefit</span><span class="debug-val">{rec.benefitScore.toFixed(1)}</span></div>
+          {/if}
+          {#if rec.feasibilityScore != null}
+            <div class="debug-row"><span class="debug-key">feasibility</span><span class="debug-val">{rec.feasibilityScore.toFixed(1)}</span></div>
+          {/if}
+          {#if rec.effortScore != null}
+            <div class="debug-row"><span class="debug-key">effort</span><span class="debug-val">{rec.effortScore.toFixed(1)}</span></div>
+          {/if}
+          {#if rec.riskScore != null}
+            <div class="debug-row"><span class="debug-key">risk</span><span class="debug-val">{rec.riskScore.toFixed(1)}</span></div>
+          {/if}
+          {#if rec.infrastructureCostScore != null}
+            <div class="debug-row"><span class="debug-key">infraCost</span><span class="debug-val">{rec.infrastructureCostScore.toFixed(1)}</span></div>
+          {/if}
+          {#if rec.simulatedDelta}
+            <div class="debug-divider"></div>
+            <div class="debug-row"><span class="debug-key">scoreBefore</span><span class="debug-val">{rec.simulatedDelta.scoreBefore.toFixed(1)}</span></div>
+            <div class="debug-row"><span class="debug-key">scoreAfter</span><span class="debug-val">{rec.simulatedDelta.scoreAfter.toFixed(1)}</span></div>
+            <div class="debug-row"><span class="debug-key">change%</span><span class="debug-val">{rec.simulatedDelta.changePercent.toFixed(1)}%</span></div>
+          {/if}
+          {#if rec.evidence?.metrics && Object.keys(rec.evidence.metrics).length > 0}
+            <div class="debug-divider"></div>
+            {#each Object.entries(rec.evidence.metrics) as [key, value]}
+              <div class="debug-row"><span class="debug-key">{key}</span><span class="debug-val">{typeof value === 'number' ? (Number.isInteger(value) ? value : value.toFixed(2)) : value}</span></div>
+            {/each}
+          {/if}
+          {#if rec.confidence != null}
+            <div class="debug-row"><span class="debug-key">confidence</span><span class="debug-val">{rec.confidence.toFixed(2)}</span></div>
+          {/if}
+        </div>
+      {/if}
     {/if}
 
     {#if isBlocked}
@@ -432,5 +484,47 @@
     font-size: 0.62rem;
     color: #c0c0d0;
     font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .debug-toggle {
+    margin-top: 4px;
+    font-size: 0.58rem;
+    color: #606078;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .debug-toggle:hover {
+    color: #a0a0b8;
+  }
+
+  .debug-panel {
+    margin: 2px 0 4px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.58rem;
+    line-height: 1.5;
+  }
+
+  .debug-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .debug-key {
+    color: #707088;
+  }
+
+  .debug-val {
+    color: #a0a0c0;
+  }
+
+  .debug-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    margin: 2px 0;
   }
 </style>

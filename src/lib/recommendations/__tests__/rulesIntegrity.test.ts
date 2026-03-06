@@ -35,6 +35,7 @@ const ALL_RECOMMENDATION_TYPES: RecommendationType[] = [
   'preferred_candidate_location',
   'blocked_recommendation',
   'roaming_tx_adjustment',
+  'roaming_tx_boost',
   'sticky_client_risk',
   'handoff_gap_warning',
   'adjust_channel_width',
@@ -84,8 +85,8 @@ describe('Rules Integrity', () => {
       }
     });
 
-    it('RECOMMENDATION_CATEGORIES has exactly 20 entries', () => {
-      expect(Object.keys(RECOMMENDATION_CATEGORIES)).toHaveLength(20);
+    it('RECOMMENDATION_CATEGORIES has exactly 21 entries', () => {
+      expect(Object.keys(RECOMMENDATION_CATEGORIES)).toHaveLength(21);
     });
   });
 
@@ -118,8 +119,8 @@ describe('Rules Integrity', () => {
       }
     });
 
-    it('EFFORT_LEVELS has exactly 20 entries', () => {
-      expect(Object.keys(EFFORT_LEVELS)).toHaveLength(20);
+    it('EFFORT_LEVELS has exactly 21 entries', () => {
+      expect(Object.keys(EFFORT_LEVELS)).toHaveLength(21);
     });
   });
 
@@ -258,6 +259,7 @@ describe('Rules Integrity', () => {
       'preferred_candidate_location',
       'roaming_hint',
       'roaming_tx_adjustment',
+      'roaming_tx_boost',
       'rotate_ap',
       'sticky_client_risk',
     ];
@@ -330,6 +332,7 @@ describe('Rules Integrity', () => {
       preferred_candidate_location: 'preferredCandidateTitle',
       blocked_recommendation: 'blockedMoveTitle', // uses generic blocked keys
       roaming_tx_adjustment: 'roamingTxTitle',
+      roaming_tx_boost: 'roamingTxBoostTitle',
       sticky_client_risk: 'stickyClientTitle',
       handoff_gap_warning: 'handoffGapTitle',
       adjust_channel_width: 'adjustChannelWidthTitle',

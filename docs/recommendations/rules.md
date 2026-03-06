@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-06 (Phase 28j — Full Audit)
+Last updated: 2026-03-06 (Phase 28m — Roaming TX Boost)
 
 ---
 
@@ -96,24 +96,41 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 
 ## 3. Roaming Rules
 
-Generator: `generateRoamingTxAdjustments()` (generator.ts:1394-1554)
-Also: `generateStickyClientWarnings()` (:1556-1602), `generateHandoffGapWarnings()` (:1604-1649)
+### 3a. Dominant TX Down — `generateRoamingTxAdjustments()` (generator.ts:1481-1645)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| RM-01 | A1: Score guard | bestDelta.scoreAfter < scoreBefore | — | Skip (would worsen score) | :1556 |
-| RM-02 | A2: Minimum handoff zone | handoffZoneCells < 50 AND handoffZoneRatio < 0.01 | — | Skip (trivial pair) | :1472 |
-| RM-03 | A3: Critical gap rate probe | gapRatio >= 0.40 | probeDelta.changePercent < 0 | Skip (simulation worsens) | :1518-1527 |
-| RM-04 | A4: Trigger thresholds | stickyRatio < 0.30 AND gapRatio < 0.20 | — | Skip (no meaningful signal) | :1474-1476 |
-| RM-05 | A5: Adaptive TX steps | — | reducedPower < ROAMING_TX_MIN_DBM (10) | Try [-3, -6, -9], pick best positive delta | :1534-1550 |
-| RM-06 | A6: Capability check | isActionAllowed returns false | — | Emit blocked_recommendation | :1492-1515 |
-| RM-07 | C2: Uplink block | uplinkLimitedRatio > 0.70 AND changePercent < 2 | — | Skip (marginal benefit under uplink limitation) | :1559 |
-| RM-08 | Cross-type dedup | AP already has adjust_tx_power rec | — | Skip (avoid duplicate TX changes) | :1489 |
-| RM-09 | PZ-weighted priority | pzFactor >= 0.7 | — | high/warning, else medium/info | :1562-1564 |
-| RM-10 | Sticky client warning | stickyRatio > 0.50 AND handoffZoneCells/totalCells < 0.05 | — | Emit sticky_client_risk | :1615-1617 |
-| RM-11 | Handoff gap warning | gapCells > 10 AND gapRatio > 0.20 | handoffZoneCells > 0 | Emit handoff_gap_warning | :1659-1662 |
-| RM-12 | Sticky suppressed by gap | handoff_gap_warning exists for this pair | — | Skip sticky_client_risk | :1621 |
-| RM-13 | Roaming hint suppression | sticky_client_risk, handoff_gap_warning, or roaming_tx_adjustment exists | — | Skip roaming_hint generation | :201-206 |
+| RM-01 | A1: Score guard | bestDelta.scoreAfter < scoreBefore | — | Skip (would worsen score) | :1598 |
+| RM-02 | A2: Minimum handoff zone | handoffZoneCells < 50 AND handoffZoneRatio < 0.01 | — | Skip (trivial pair) | :1514 |
+| RM-03 | A3: Critical gap rate probe | gapRatio >= 0.40 | probeDelta.changePercent < 0 | Skip (simulation worsens) | :1560-1568 |
+| RM-04 | A4: Trigger thresholds | stickyRatio < 0.30 AND gapRatio < 0.20 | — | Skip (no meaningful signal) | :1516-1517 |
+| RM-05 | A5: Adaptive TX steps | — | reducedPower < ROAMING_TX_MIN_DBM (10) | Try [-3, -6, -9], pick best positive delta | :1576-1592 |
+| RM-06 | A6: Capability check | isActionAllowed returns false | — | Emit blocked_recommendation | :1534-1556 |
+| RM-07 | C2: Uplink block | uplinkLimitedRatio > 0.70 AND changePercent < 2 | — | Skip (marginal benefit under uplink limitation) | :1601 |
+| RM-07b | A7: Gap-too-high guard | gapRatio >= 0.20 | — | Skip (use boost instead) | :1520 |
+| RM-08 | Cross-type dedup | AP already has adjust_tx_power rec | — | Skip (avoid duplicate TX changes) | :1498 |
+| RM-09 | PZ-weighted priority | pzFactor >= 0.7 | — | high/warning, else medium/info | :1605-1606 |
+
+### 3b. Weaker AP TX Boost — `generateRoamingTxBoosts()` (generator.ts:1646-1779)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| RB-01 | Gap trigger | gapRatio >= 0.25 AND handoffZoneCells >= 50 | — | Enter boost path | :1664-1665 |
+| RB-02 | Weaker AP selection | m1.primaryCoverageRatio <= m2.primaryCoverageRatio | — | Target weaker AP for TX increase | :1670-1671 |
+| RB-03 | Cross-type dedup | AP already has adjust_tx_power or roaming_tx_adjustment rec | — | Skip | :1660 |
+| RB-04 | Capability check | isActionAllowed returns false | — | Emit blocked_recommendation (blockedRoamingTxBoostTitle) | :1680-1699 |
+| RB-05 | TX boost steps | — | boostedPower > 30 dBm | Try [+3, +6], pick best positive delta | :1705-1717 |
+| RB-06 | Score + changePercent guard | scoreAfter < scoreBefore OR changePercent < 0 | — | Skip (worsens) | :1712 |
+| RB-07 | PZ-weighted priority | pzFactor >= 0.7 | — | high/warning, else medium/info | :1723-1724 |
+
+### 3c. Warnings — `generateStickyClientWarnings()` (:1780-1825), `generateHandoffGapWarnings()` (:1828-1873)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| RM-10 | Sticky client warning | stickyRatio > 0.50 AND handoffZoneCells/totalCells < 0.05 | — | Emit sticky_client_risk | :1797 |
+| RM-11 | Handoff gap warning | gapCells > 10 AND gapRatio > 0.20 | handoffZoneCells > 0 | Emit handoff_gap_warning | :1848-1850 |
+| RM-12 | Sticky suppressed by gap | handoff_gap_warning exists for this pair | — | Skip sticky_client_risk | :1803 |
+| RM-13 | Roaming hint suppression | sticky_client_risk, handoff_gap_warning, roaming_tx_adjustment, or roaming_tx_boost exists | — | Skip roaming_hint generation | :218-221 |
 
 ### Tests
 - D1: roaming TX A5 adaptive steps (Phase 28b)
@@ -124,6 +141,9 @@ Also: `generateStickyClientWarnings()` (:1556-1602), `generateHandoffGapWarnings
 - D8: roaming_tx allowed when uplink high but benefit >= 2% (Phase 28d)
 - B1: handoff_gap_warning test (Phase 26d-fix)
 - B2/B3: capability blocked roaming_tx (Phase 26d-fix)
+- **T1: high gapRatio → roaming_tx_boost, not adjustment (Phase 28m)**
+- **T2: canChangeTxPower=false → blocked_recommendation for boost (Phase 28m)**
+- **T3: boost worsens score → skipped (Phase 28m)**
 - Sticky client / gap warning: analysis.test.ts (Phase 26d)
 - W4: roaming_hint suppression (Phase 27b)
 - W5: cross-type dedup (Phase 27b)
@@ -297,11 +317,11 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | LV-01 | Low-value AP | AP in lowValueApIds list | Not in disabledApIds | low/info low_ap_value warning | :1658-1678 |
 
-### Roaming Hints — `generateRoamingHints()` (generator.ts:1347-1390)
+### Roaming Hints — `generateRoamingHints()` (generator.ts:1434-1477)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| RH-01 | Roaming hint | lowDeltaPercent > 15 | No specific roaming warnings exist (sticky/gap/roaming_tx absent, checked at :201-206) | Informational roaming hint | :1368-1389 |
+| RH-01 | Roaming hint | lowDeltaPercent > 15 | No specific roaming warnings exist (sticky/gap/roaming_tx/boost absent, checked at :218-221) | Informational roaming hint | :1455-1476 |
 
 ---
 
@@ -311,7 +331,9 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |---------|-------|--------------------|-------|
 | Channel | CH-01..CH-07 | generateChannelRecommendations | 1149-1345 |
 | TX-Power | TX-01..TX-08 | generateTxPowerSuggestions | 1026-1147 |
-| Roaming | RM-01..RM-13 | generateRoamingTxAdjustments + Sticky + Gap | 1394-1649 |
+| Roaming (Down) | RM-01..RM-09 | generateRoamingTxAdjustments | 1481-1645 |
+| Roaming (Boost) | RB-01..RB-07 | generateRoamingTxBoosts | 1646-1779 |
+| Roaming (Warnings) | RM-10..RM-13 | generateStickyClientWarnings + Gap | 1780-1873 |
 | Add/Move/Rotate/Mount | AM-01..AM-15 | 4 generators | 400-1024 |
 | Uplink | UL-01..UL-04 | generateBandLimitWarnings + gating | 1841-1878, :68-69 |
 | Disable AP | DA-01..DA-04 | generateDisableApSuggestions | 1773-1839 |
@@ -324,7 +346,7 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 | Low-Value | LV-01 | generateLowValueWarnings | 1651-1679 |
 | Roaming Hint | RH-01 | generateRoamingHints | 1347-1390 |
 
-**Total: 64 rules across 14 clusters.**
+**Total: 71 rules across 16 clusters.**
 
 All rules have code references. No "not implemented" rules identified — every documented rule has a corresponding code path.
 

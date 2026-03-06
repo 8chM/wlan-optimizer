@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28k-complete",
+  "currentPhase": "phase-28m-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -973,6 +973,27 @@
         "T7: too-far Candidates → infrastructure_required + reasons enthält 'too_far'",
         "T4: bestehender T5 (leere Candidates → kein add_ap) bleibt unverändert",
         "858 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28m": {
+      "name": "Roaming-Regeln erweitern — Gap vs Sticky, TX up/down",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Neuer RecommendationType: roaming_tx_boost (actionable_config) — TX-Power-Erhoehung des schwachen AP bei hohem gapRatio",
+        "generateRoamingTxBoosts() — Neue Funktion (generator.ts:1646-1779): gapRatio>=0.25 + handoffCells>=50 → weaker AP +3/+6 dBm (max 30)",
+        "GAP_MAX_FOR_ADJUSTMENT=0.20 Guard — roaming_tx_adjustment (dominant down) nur bei niedrigem gapRatio",
+        "Capability Checks: isActionAllowed + blocked_recommendation mit eigener titleKey fuer boost",
+        "Cross-type Dedup: adjust_tx_power, roaming_tx_adjustment und roaming_tx_boost gegenseitig gesperrt",
+        "4 neue i18n-Keys EN+DE: roamingTxBoostTitle, roamingTxBoostReason, blockedRoamingTxBoostTitle, blockedRoamingTxBoostReason",
+        "RecommendationStep.svelte: roaming_tx_boost in ROAMING_DETAIL_TYPES + Score-Anzeige",
+        "rulesIntegrity.test.ts: roaming_tx_boost in ALL_RECOMMENDATION_TYPES, GENERATOR_EMITTED_TYPES, E5 titleKey-Map, Zaehler 20→21",
+        "T1: high gapRatio → roaming_tx_boost, nicht adjustment",
+        "T2: canChangeTxPower=false → blocked_recommendation fuer boost",
+        "T3: boost worsens score → skipped",
+        "rules.md: 3 Roaming-Sub-Cluster (Down/Boost/Warnings), 71 Regeln total, 16 Cluster",
+        "863 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 OK"
       ]
     }
   },

@@ -71,7 +71,7 @@
   let isApplyable = $derived(category === 'actionable_config' || category === 'actionable_create');
   let isInformational = $derived(category === 'informational');
 
-  const ROAMING_DETAIL_TYPES = new Set(['roaming_tx_adjustment', 'sticky_client_risk', 'handoff_gap_warning']);
+  const ROAMING_DETAIL_TYPES = new Set(['roaming_tx_adjustment', 'roaming_tx_boost', 'sticky_client_risk', 'handoff_gap_warning']);
   let showRoamingDetails = $derived(ROAMING_DETAIL_TYPES.has(rec.type));
 
   const IS_DEV = import.meta.env.DEV;
@@ -108,7 +108,7 @@
 
     {#if showRoamingDetails}
       <div class="roaming-details">
-        {#if rec.type === 'roaming_tx_adjustment' && rec.simulatedDelta}
+        {#if (rec.type === 'roaming_tx_adjustment' || rec.type === 'roaming_tx_boost') && rec.simulatedDelta}
           <div class="detail-row">
             <span class="detail-label">{t('rec.detailScoreChange')}</span>
             <span class="detail-value">

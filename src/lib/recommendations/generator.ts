@@ -71,6 +71,10 @@ const UPLINK_SUPPRESS_ADD_MOVE = 0.60; // C1: Suppress add_ap/move_ap unless lar
 const UPLINK_ADD_MOVE_MIN_BENEFIT = 10; // C1: Min changePercent for add/move under uplink suppression
 const ROAMING_TX_STEPS = [-3, -6, -9] as const;
 const ROAMING_TX_MIN_DBM = 10;
+const ROAMING_TX_BOOST_STEPS = [3, 6] as const;
+const ROAMING_TX_MAX_DBM = 30;
+const GAP_BOOST_TRIGGER = 0.25;     // Gap ratio threshold for TX boost
+const GAP_MAX_FOR_ADJUSTMENT = 0.20; // Max gap ratio for dominant-down adjustment
 
 // ─── Candidate Distance Guards ──────────────────────────────────
 /** Max distance (m) from ideal target to candidate for add_ap recommendations */
@@ -196,9 +200,14 @@ export function generateRecommendations(
     recommendations, weakZones, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, stats, apMetrics, uplinkLimitedRatio,
   );
 
-  // 8a. Roaming TX power adjustments (actionable)
+  // 8a. Roaming TX power adjustments — dominant down (only when gap is small)
   generateRoamingTxAdjustments(
     recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel, stats,
+  );
+
+  // 8a2. Roaming TX boost — weaker AP up (when gap is high)
+  generateRoamingTxBoosts(
+    recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel,
   );
 
   // 8b. Sticky-client risk warnings (informational)
@@ -209,7 +218,7 @@ export function generateRecommendations(
 
   // 8d. Roaming hints — only if no specific roaming warnings were generated
   const hasSpecificRoamingWarnings = recommendations.some(
-    r => r.type === 'sticky_client_risk' || r.type === 'handoff_gap_warning' || r.type === 'roaming_tx_adjustment',
+    r => r.type === 'sticky_client_risk' || r.type === 'handoff_gap_warning' || r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost',
   );
   if (!hasSpecificRoamingWarnings) {
     generateRoamingHints(recommendations, stats, totalCells, band, gridStep);
@@ -445,7 +454,7 @@ function isWeakZoneAddressableByExistingAPs(
     // Check if this nearby AP already has a config recommendation that could help
     const hasHelpfulRec = existingRecs.some(r =>
       r.affectedApIds.includes(ap.id) &&
-      (r.type === 'adjust_tx_power' || r.type === 'move_ap' || r.type === 'roaming_tx_adjustment') &&
+      (r.type === 'adjust_tx_power' || r.type === 'move_ap' || r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost') &&
       r.simulatedDelta && r.simulatedDelta.changePercent > 2,
     );
 
@@ -1103,7 +1112,13 @@ function generateTxPowerSuggestions(
   ctx: RecommendationContext,
   apLabel: (id: string) => string,
   apRoles: Map<string, ApRole> = new Map(),
+  uplinkLimitedRatio = 0,
 ): void {
+  // Uplink-aware TX increase suppression: when >60% of cells are uplink-limited,
+  // TX increase rarely helps (bottleneck is client→AP, not AP→client).
+  const UPLINK_SUPPRESS_TX_INCREASE = 0.60;
+  const UPLINK_TX_INCREASE_MIN_BENEFIT = 10;
+
   for (const ap of aps) {
     // Check capabilities
     if (!isActionAllowed(ap.id, 'adjust_tx_power', band, ctx)) continue;
@@ -1163,15 +1178,21 @@ function generateTxPowerSuggestions(
 
     // If AP has low coverage (and we didn't already suggest reducing), try increasing TX power
     if (metrics.primaryCoverageRatio < 0.15) {
+      // Uplink-aware suppression: when >60% of cells are uplink-limited,
+      // TX increase rarely helps (the bottleneck is client→AP, not AP→client).
+      // Require much higher improvement (≥10%) to justify the recommendation.
+      const txIncreaseMinBenefit = uplinkLimitedRatio > UPLINK_SUPPRESS_TX_INCREASE
+        ? UPLINK_TX_INCREASE_MIN_BENEFIT : 2;
+
       const higherPower = ap.txPowerDbm + 3;
       if (higherPower <= 30) {
         const mod: APModification = { apId: ap.id, txPowerDbm: higherPower };
         const delta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
 
-        // Quality gate: ≥2% improvement AND at least 5 new "good" cells
+        // Quality gate: improvement above threshold AND at least 5 new "good" cells
         const newGoodCells = (delta.coverageAfter.excellent + delta.coverageAfter.good)
           - (delta.coverageBefore.excellent + delta.coverageBefore.good);
-        if (delta.changePercent > 2 && newGoodCells >= 5) {
+        if (delta.changePercent > txIncreaseMinBenefit && newGoodCells >= 5) {
           recs.push({
             id: genId(),
             type: 'adjust_tx_power',
@@ -1496,6 +1517,9 @@ function generateRoamingTxAdjustments(
     const gapRatio = pair.gapCells / Math.max(pair.handoffZoneCells, 1);
     if (pair.stickyRatio < STICKY_TRIGGER && gapRatio < GAP_TRIGGER) continue;
 
+    // A7: Only reduce dominant TX when gap is small — high gap uses boost instead
+    if (gapRatio >= GAP_MAX_FOR_ADJUSTMENT) continue;
+
     // Identify dominant AP in this pair
     const m1 = apMetrics.get(pair.ap1Id);
     const m2 = apMetrics.get(pair.ap2Id);
@@ -1616,6 +1640,140 @@ function generateRoamingTxAdjustments(
       simulatedDelta: bestDelta,
       confidence: 0.7,
     });
+  }
+}
+
+function generateRoamingTxBoosts(
+  recs: Recommendation[],
+  pairs: RoamingPairMetrics[],
+  apMetrics: Map<string, APMetrics>,
+  aps: APConfig[],
+  walls: WallData[],
+  bounds: FloorBounds,
+  band: FrequencyBand,
+  rfConfig: RFConfig,
+  weights: ScoringWeights,
+  ctx: RecommendationContext,
+  apLabel: (id: string) => string,
+): void {
+  const txParamName = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
+
+  // Collect APs that already have TX power recommendations (avoid cross-type duplicates)
+  const txPowerApIds = new Set(
+    recs.filter(r => r.type === 'adjust_tx_power' || r.type === 'roaming_tx_adjustment').flatMap(r => r.affectedApIds),
+  );
+
+  for (const pair of pairs) {
+    // Only trigger for high gap ratio with sufficient handoff zone
+    const gapRatio = pair.gapCells / Math.max(pair.handoffZoneCells, 1);
+    if (gapRatio < GAP_BOOST_TRIGGER) continue;
+    if (pair.handoffZoneCells < MIN_HANDOFF_CELLS) continue;
+
+    // Determine weaker AP (smaller primaryCoverageRatio)
+    const m1 = apMetrics.get(pair.ap1Id);
+    const m2 = apMetrics.get(pair.ap2Id);
+    if (!m1 || !m2) continue;
+
+    const weakerId = m1.primaryCoverageRatio <= m2.primaryCoverageRatio ? pair.ap1Id : pair.ap2Id;
+    const strongerId = weakerId === pair.ap1Id ? pair.ap2Id : pair.ap1Id;
+    const weakerAp = aps.find(a => a.id === weakerId);
+    if (!weakerAp) continue;
+
+    // Skip if this AP already has a TX power recommendation
+    if (txPowerApIds.has(weakerId)) continue;
+
+    // Capability check — emit blocked_recommendation if TX power change is not allowed
+    if (!isActionAllowed(weakerId, 'adjust_tx_power', band, ctx)) {
+      recs.push({
+        id: genId(),
+        type: 'blocked_recommendation',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.blockedRoamingTxBoostTitle',
+        titleParams: { ap: apLabel(weakerId) },
+        reasonKey: 'rec.blockedRoamingTxBoostReason',
+        reasonParams: {
+          ap: apLabel(weakerId),
+          otherAp: apLabel(strongerId),
+          gapPercent: Math.round(gapRatio * 100),
+        },
+        affectedApIds: [weakerId],
+        affectedBand: band,
+        evidence: { metrics: { gapRatio, gapCells: pair.gapCells } },
+        confidence: 0.5,
+        blockedByConstraints: [
+          `TX power change not allowed for ${apLabel(weakerId)} on ${band}`,
+        ],
+      });
+      continue;
+    }
+
+    // Iterate TX boost steps, pick best positive delta
+    let bestDelta: SimulatedDelta | null = null;
+    let bestStep = 0;
+    let bestPower = weakerAp.txPowerDbm;
+
+    for (const step of ROAMING_TX_BOOST_STEPS) {
+      const boostedPower = weakerAp.txPowerDbm + step;
+      if (boostedPower > ROAMING_TX_MAX_DBM) break;
+
+      const delta = simulateChange(aps, walls, bounds, band, rfConfig, {
+        apId: weakerId,
+        txPowerDbm: boostedPower,
+      }, weights);
+
+      if (delta.changePercent >= 0 && delta.scoreAfter >= delta.scoreBefore) {
+        if (!bestDelta || delta.changePercent > bestDelta.changePercent) {
+          bestDelta = delta;
+          bestStep = step;
+          bestPower = boostedPower;
+        }
+      }
+    }
+
+    // No positive step found → skip
+    if (!bestDelta) continue;
+
+    // PZ-weighted severity/priority
+    const pzFactor = pair.pzRelevanceScore ?? 0.5;
+    const boostPriority = pzFactor >= 0.7 ? 'high' : 'medium';
+    const boostSeverity = pzFactor >= 0.7 ? 'warning' : 'info';
+
+    recs.push({
+      id: genId(),
+      type: 'roaming_tx_boost',
+      priority: boostPriority as 'high' | 'medium' | 'low',
+      severity: boostSeverity as 'critical' | 'warning' | 'info',
+      titleKey: 'rec.roamingTxBoostTitle',
+      titleParams: { ap: apLabel(weakerId) },
+      reasonKey: 'rec.roamingTxBoostReason',
+      reasonParams: {
+        ap: apLabel(weakerId),
+        otherAp: apLabel(strongerId),
+        gapPercent: Math.round(gapRatio * 100),
+        delta: bestStep,
+      },
+      affectedApIds: [weakerId],
+      affectedBand: band,
+      suggestedChange: {
+        apId: weakerId,
+        parameter: txParamName,
+        currentValue: weakerAp.txPowerDbm,
+        suggestedValue: bestPower,
+      },
+      evidence: {
+        metrics: {
+          gapRatio,
+          gapCells: pair.gapCells,
+          handoffZoneCells: pair.handoffZoneCells,
+          stickyRatio: pair.stickyRatio,
+        },
+      },
+      simulatedDelta: bestDelta,
+      confidence: 0.7,
+    });
+
+    txPowerApIds.add(weakerId);
   }
 }
 

@@ -29,6 +29,7 @@ export type RecommendationType =
   | 'preferred_candidate_location'
   | 'blocked_recommendation'
   | 'roaming_tx_adjustment'
+  | 'roaming_tx_boost'
   | 'sticky_client_risk'
   | 'handoff_gap_warning'
   | 'adjust_channel_width';
@@ -328,6 +329,7 @@ export const EFFORT_LEVELS: Record<RecommendationType, EffortLevel> = {
   preferred_candidate_location: 'infrastructure',
   blocked_recommendation: 'config',
   roaming_tx_adjustment: 'config',
+  roaming_tx_boost: 'config',
   sticky_client_risk: 'config',
   handoff_gap_warning: 'config',
   adjust_channel_width: 'config',
@@ -355,6 +357,7 @@ export const RECOMMENDATION_CATEGORIES: Record<RecommendationType, Recommendatio
   adjust_tx_power: 'actionable_config',
   disable_ap: 'actionable_config',
   roaming_tx_adjustment: 'actionable_config',
+  roaming_tx_boost: 'actionable_config',
   adjust_channel_width: 'actionable_config',
 
   // Creates a new AP: Apply adds an AP to the floor plan

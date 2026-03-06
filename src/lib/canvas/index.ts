@@ -8,3 +8,7 @@ export { default as AccessPointMarker } from './AccessPointMarker.svelte';
 export { default as GridOverlay } from './GridOverlay.svelte';
 export { default as HeatmapOverlay } from './HeatmapOverlay.svelte';
 export { default as MeasurementPoints } from './MeasurementPoints.svelte';
+export { default as WorkspaceCanvas } from './WorkspaceCanvas.svelte';
+export { default as EditorCanvasLayers } from './EditorCanvasLayers.svelte';
+export { default as MeasureCanvasLayers } from './MeasureCanvasLayers.svelte';
+export { default as MixingCanvasLayers } from './MixingCanvasLayers.svelte';

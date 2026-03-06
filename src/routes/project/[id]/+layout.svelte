@@ -1,6 +1,7 @@
 <script lang="ts">
 import { page } from '$app/stores';
 import Layout from '$lib/components/layout/Layout.svelte';
+import WorkspaceCanvas from '$lib/canvas/WorkspaceCanvas.svelte';
 import { canvasStore } from '$lib/stores/canvasStore.svelte';
 import type { EditorTool } from '$lib/stores/canvasStore.svelte';
 import { projectStore } from '$lib/stores/projectStore.svelte';
@@ -39,7 +40,17 @@ function handleZoomTo(percent: number): void {
 }
 
 function handleFitToScreen(): void {
-  canvasStore.resetView();
+  if (canvasStore.floorWidthM > 0 && canvasStore.floorHeightM > 0) {
+    canvasStore.fitToScreen(
+      canvasStore.floorWidthM,
+      canvasStore.floorHeightM,
+      canvasStore.floorScalePxPerM,
+      canvasStore.containerW,
+      canvasStore.containerH,
+    );
+  } else {
+    canvasStore.resetView();
+  }
 }
 
 function handleToggleGrid(): void {
@@ -82,5 +93,18 @@ function handleSetScale(): void {
   onSetScale={handleSetScale}
   projectSettingsUrl={`/project/${projectId}/wizard`}
 >
-  {@render children()}
+  <div class="workspace">
+    {@render children()}
+    <WorkspaceCanvas />
+  </div>
 </Layout>
+
+<style>
+  .workspace {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+</style>

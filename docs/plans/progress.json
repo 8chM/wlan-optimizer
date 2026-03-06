@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-05",
-  "currentPhase": "phase-27c-complete",
+  "currentPhase": "phase-28-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -818,6 +818,25 @@
         "Block 6: computeRiskScore none-coverage penalty, Pipeline-Reorder (roamingPairs FRUEH)",
         "Block 7: 3 neue i18n-Keys EN+DE (changeChannelTxAlternativeReason, addApStackingReason, addApCandidateStackingReason)",
         "Block 8: 12 neue Tests, 795 Tests total, 0 Errors in Rec-Files, Build OK"
+      ]
+    },
+    "28": {
+      "name": "Single-Canvas-Architektur — Persistenter Canvas im Layout",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "workspaceStore.svelte.ts (187 Zeilen) — Kommunikationsbruecke zwischen Seiten und Canvas",
+        "WorkspaceCanvas.svelte (618 Zeilen) — Persistenter Canvas im Layout, konsolidiert ALLE gemeinsame Canvas-Logik",
+        "EditorCanvasLayers.svelte (349 Zeilen) — Editor-spezifische Canvas-Overlays (Walls, Rooms, Candidates, Zones, Hit-Trace)",
+        "MeasureCanvasLayers.svelte (40 Zeilen) — Mess-spezifische Canvas-Overlays (MeasurementPoints)",
+        "MixingCanvasLayers.svelte (55 Zeilen) — Mixing-spezifische Canvas-Overlays (read-only Candidates/Zones)",
+        "Layout +layout.svelte erweitert: WorkspaceCanvas persistent im Workspace-Flex",
+        "editor/+page.svelte umgeschrieben: 2724 → 920 Zeilen (nur Floating-Panels + Editor-Logik)",
+        "measure/+page.svelte umgeschrieben: 685 → 200 Zeilen (nur Sidebar + Click-Handler)",
+        "mixing/+page.svelte umgeschrieben: 1090 → 450 Zeilen (nur Sidebar + Forecast + Overlays)",
+        "Netto ~1800 Zeilen duplizierter Code eliminiert",
+        "Verifikation: svelte-check 0 Errors, 783/784 Tests pass, Build OK"
       ]
     }
   },

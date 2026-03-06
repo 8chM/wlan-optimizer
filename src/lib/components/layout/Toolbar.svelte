@@ -226,15 +226,15 @@ let themeLabel = $derived(
             disabled={!canUndo}
             title="{t('action.undo')} (\u2318Z)"
           >
-            <span class="tool-icon">\u21A9</span>
+            <span class="tool-icon">↩</span>
           </button>
           <button
             class="tool-btn"
             onclick={onRedo}
             disabled={!canRedo}
-            title="{t('action.redo')} (\u21E7\u2318Z)"
+            title="{t('action.redo')} (⇧⌘Z)"
           >
-            <span class="tool-icon">\u21AA</span>
+            <span class="tool-icon">↪</span>
           </button>
         </div>
       {/if}

@@ -22,14 +22,54 @@
     (projectStore.activeFloor?.access_points ?? []).filter((ap) => ap.enabled),
   );
 
+  /** Human-readable AP label: label > "AP N" (never raw UUID) */
+  function apDisplayName(ap: { id: string; label?: string | null }, index: number): string {
+    return ap.label || `AP ${index + 1}`;
+  }
+
   let filteredApLabel = $derived.by(() => {
     if (!editorHeatmapStore.apFilter) return null;
-    const ap = activeAps.find((a) => a.id === editorHeatmapStore.apFilter);
-    return ap ? (ap.label || ap.id) : editorHeatmapStore.apFilter;
+    const idx = activeAps.findIndex((a) => a.id === editorHeatmapStore.apFilter);
+    const ap = idx >= 0 ? activeAps[idx] : undefined;
+    if (!ap) return editorHeatmapStore.apFilter;
+    return apDisplayName(ap, idx);
   });
 
   /** Whether the advanced parameters section is expanded */
   let advancedOpen = $state(false);
+
+  // ── Drag state ──
+  let panelX = $state<number | null>(null);
+  let panelY = $state<number | null>(null);
+  let dragging = $state(false);
+  let dragOffsetX = $state(0);
+  let dragOffsetY = $state(0);
+
+  function handleDragStart(e: MouseEvent): void {
+    // Only drag from the header area (the first row)
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.tagName === 'SELECT') return;
+    dragging = true;
+    const panel = (e.currentTarget as HTMLElement).closest('.editor-heatmap-panel') as HTMLElement;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    e.preventDefault();
+  }
+
+  function handleDragMove(e: MouseEvent): void {
+    if (!dragging) return;
+    const parent = document.querySelector('.editor-heatmap-panel')?.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
+    panelX = Math.max(0, Math.min(parentRect.width - 230, e.clientX - parentRect.left - dragOffsetX));
+    panelY = Math.max(0, Math.min(parentRect.height - 50, e.clientY - parentRect.top - dragOffsetY));
+  }
+
+  function handleDragEnd(): void {
+    dragging = false;
+  }
 
   /** Band-specific default PL exponent for display */
   let defaultN = $derived(PATH_LOSS_EXPONENTS[editorHeatmapStore.band] ?? 3.2);
@@ -41,8 +81,25 @@
   ];
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<svelte:window
+  onmousemove={handleDragMove}
+  onmouseup={handleDragEnd}
+/>
+
 {#if visible}
-  <div class="editor-heatmap-panel">
+  <div
+    class="editor-heatmap-panel"
+    style:left={panelX !== null ? `${panelX}px` : ''}
+    style:top={panelY !== null ? `${panelY}px` : ''}
+    style:right={panelX === null ? '12px' : 'auto'}
+    style:bottom={panelY === null ? '12px' : 'auto'}
+  >
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="panel-drag-handle" onmousedown={handleDragStart}>
+      <span class="drag-dots">⠿</span>
+      <span class="drag-label">{t('heatmap.title')}</span>
+    </div>
     <HeatmapControls
       band={editorHeatmapStore.band}
       colorScheme={editorHeatmapStore.colorScheme}
@@ -74,13 +131,13 @@
           >
             {t('heatmap.allAps')}
           </button>
-          {#each activeAps as ap (ap.id)}
+          {#each activeAps as ap, i (ap.id)}
             <button
               class="ap-btn"
               class:active={editorHeatmapStore.apFilter === ap.id}
               onclick={() => editorHeatmapStore.setApFilter(ap.id)}
             >
-              {ap.label || ap.id}
+              {apDisplayName(ap, i)}
             </button>
           {/each}
         </div>
@@ -102,6 +159,48 @@
             </button>
           {/each}
         </div>
+      </div>
+
+      <!-- Signal Probe toggle + result -->
+      <div class="probe-section">
+        <button
+          class="probe-toggle"
+          class:active={editorHeatmapStore.probeActive}
+          onclick={() => editorHeatmapStore.setProbeActive(!editorHeatmapStore.probeActive)}
+        >
+          {t('heatmap.probe')}
+        </button>
+
+        {#if editorHeatmapStore.probeActive}
+          {#if editorHeatmapStore.probePoint && editorHeatmapStore.probeRssi !== null}
+            {@const rssi = editorHeatmapStore.probeRssi}
+            {@const pt = editorHeatmapStore.probePoint}
+            {@const color = rssi >= -45 ? '#22c55e' : rssi >= -60 ? '#84cc16' : rssi >= -70 ? '#f59e0b' : rssi >= -80 ? '#ef4444' : '#6b7280'}
+            {@const quality = rssi >= -45 ? t('signal.excellent') : rssi >= -60 ? t('signal.good') : rssi >= -70 ? t('signal.fair') : rssi >= -80 ? t('signal.poor') : t('signal.noSignal')}
+            <div class="probe-result">
+              <div class="probe-coords">
+                {t('heatmap.probeResult').replace('{x}', pt.x.toFixed(1)).replace('{y}', pt.y.toFixed(1))}
+              </div>
+              <div class="probe-rssi" style:color={color}>
+                {rssi.toFixed(1)} dBm — {quality}
+              </div>
+              {#if editorHeatmapStore.probeBestApId}
+                {@const apLabel = (() => {
+                  const allAps = (projectStore.activeFloor?.access_points ?? []).filter(a => a.enabled);
+                  const idx = allAps.findIndex(a => a.id === editorHeatmapStore.probeBestApId);
+                  const found = idx >= 0 ? allAps[idx] : undefined;
+                  if (!found) return editorHeatmapStore.probeBestApId;
+                  return apDisplayName(found, idx);
+                })()}
+                <div class="probe-ap">
+                  {t('heatmap.probeBestAp')}: {apLabel}
+                </div>
+              {/if}
+            </div>
+          {:else}
+            <div class="probe-hint">{t('heatmap.probeHint')}</div>
+          {/if}
+        {/if}
       </div>
 
       <!-- Advanced model parameters (collapsible) -->
@@ -196,6 +295,33 @@
 {/if}
 
 <style>
+  .panel-drag-handle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: grab;
+    padding: 2px 0 4px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    user-select: none;
+  }
+
+  .panel-drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .drag-dots {
+    font-size: 0.7rem;
+    color: #606070;
+    line-height: 1;
+  }
+
+  .drag-label {
+    font-size: 0.7rem;
+    color: #808090;
+    font-weight: 500;
+  }
+
   .editor-heatmap-panel {
     position: absolute;
     bottom: 12px;
@@ -311,6 +437,71 @@
     border-color: rgba(74, 108, 247, 0.4);
     color: #e0e0f0;
     font-weight: 600;
+  }
+
+  /* ── Signal Probe ───────────────────────────────────────────── */
+
+  .probe-section {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .probe-toggle {
+    width: 100%;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    color: #a0a0b0;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .probe-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #c0c0d0;
+  }
+
+  .probe-toggle.active {
+    background: rgba(74, 108, 247, 0.15);
+    border-color: rgba(74, 108, 247, 0.4);
+    color: #e0e0f0;
+    font-weight: 600;
+  }
+
+  .probe-hint {
+    font-size: 0.65rem;
+    color: #808090;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .probe-result {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .probe-coords {
+    font-size: 0.65rem;
+    color: #a0a0b0;
+  }
+
+  .probe-rssi {
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .probe-ap {
+    font-size: 0.65rem;
+    color: #a0a0b0;
   }
 
   /* ── Advanced section ─────────────────────────────────────── */

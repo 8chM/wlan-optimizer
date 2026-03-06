@@ -32,6 +32,14 @@ function createEditorHeatmapStore() {
   let backSectorPenalty = $state<number>(-15);
   /** Wall-mount side sector penalty in dB */
   let sideSectorPenalty = $state<number>(-5);
+  /** Signal Probe active state */
+  let probeActive = $state(false);
+  /** Signal Probe clicked point (meters) */
+  let probePoint = $state<{ x: number; y: number } | null>(null);
+  /** Signal Probe result RSSI (dBm) */
+  let probeRssi = $state<number | null>(null);
+  /** Signal Probe best AP ID */
+  let probeBestApId = $state<string | null>(null);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -47,6 +55,10 @@ function createEditorHeatmapStore() {
     get receiverGainDbi() { return receiverGainDbi; },
     get backSectorPenalty() { return backSectorPenalty; },
     get sideSectorPenalty() { return sideSectorPenalty; },
+    get probeActive() { return probeActive; },
+    get probePoint() { return probePoint; },
+    get probeRssi() { return probeRssi; },
+    get probeBestApId() { return probeBestApId; },
 
     // ── Actions ─────────────────────────────────────────────
 
@@ -102,6 +114,27 @@ function createEditorHeatmapStore() {
       sideSectorPenalty = p;
     },
 
+    setProbeActive(v: boolean): void {
+      probeActive = v;
+      if (!v) {
+        probePoint = null;
+        probeRssi = null;
+        probeBestApId = null;
+      }
+    },
+
+    setProbeResult(point: { x: number; y: number }, rssi: number, apId: string | null): void {
+      probePoint = point;
+      probeRssi = rssi;
+      probeBestApId = apId;
+    },
+
+    clearProbe(): void {
+      probePoint = null;
+      probeRssi = null;
+      probeBestApId = null;
+    },
+
     /** Reset advanced model parameters to defaults */
     resetAdvanced(): void {
       calibratedN = undefined;
@@ -123,6 +156,10 @@ function createEditorHeatmapStore() {
       receiverGainDbi = undefined;
       backSectorPenalty = -15;
       sideSectorPenalty = -5;
+      probeActive = false;
+      probePoint = null;
+      probeRssi = null;
+      probeBestApId = null;
     },
   };
 }

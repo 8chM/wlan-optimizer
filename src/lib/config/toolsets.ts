@@ -40,7 +40,7 @@ export const TOOLSETS: Record<PageContext, ToolbarConfig> = {
     showSnapToggle: false,
     showScaleCalibration: false,
     showBackgroundOpacity: true,
-    showBandToggle: false,
+    showBandToggle: true,
   },
   mixing: {
     allowedTools: ['select', 'pan', 'measure'],

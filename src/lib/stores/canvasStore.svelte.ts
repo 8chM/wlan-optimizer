@@ -47,6 +47,12 @@ function createCanvasStore() {
   let backgroundOffsetX = $state(0);
   let backgroundOffsetY = $state(0);
   let pageContext = $state<PageContext>('editor');
+  /** Floor dimensions for fit-to-screen (set by each page on load) */
+  let floorWidthM = $state(0);
+  let floorHeightM = $state(0);
+  let floorScalePxPerM = $state(50);
+  let containerW = $state(800);
+  let containerH = $state(600);
 
   return {
     // ── Getters ─────────────────────────────────────────────
@@ -71,6 +77,12 @@ function createCanvasStore() {
     get backgroundOffsetX() { return backgroundOffsetX; },
     get backgroundOffsetY() { return backgroundOffsetY; },
     get pageContext() { return pageContext; },
+
+    get floorWidthM() { return floorWidthM; },
+    get floorHeightM() { return floorHeightM; },
+    get floorScalePxPerM() { return floorScalePxPerM; },
+    get containerW() { return containerW; },
+    get containerH() { return containerH; },
 
     get toolbarConfig(): ToolbarConfig {
       return TOOLSETS[pageContext];
@@ -179,6 +191,18 @@ function createCanvasStore() {
       backgroundOpacity = Math.min(1, Math.max(0, v));
     },
 
+    /** Update floor dimensions for fit-to-screen (called by each page) */
+    setFloorDimensions(wM: number, hM: number, pxPerM: number): void {
+      floorWidthM = wM;
+      floorHeightM = hM;
+      floorScalePxPerM = pxPerM;
+    },
+
+    setContainerSize(w: number, h: number): void {
+      containerW = w;
+      containerH = h;
+    },
+
     setBackgroundOffset(x: number, y: number): void {
       backgroundOffsetX = x;
       backgroundOffsetY = y;
@@ -197,6 +221,37 @@ function createCanvasStore() {
       scale = 1;
       offsetX = 0;
       offsetY = 0;
+    },
+
+    /**
+     * Fit the floorplan content into the visible viewport with padding.
+     * Works on all pages (editor, mixing, measure) since it uses canvasStore state.
+     */
+    fitToScreen(
+      floorplanWidthM: number,
+      floorplanHeightM: number,
+      scalePxPerMeter: number,
+      containerWidth: number,
+      containerHeight: number,
+      padding = 40,
+    ): void {
+      const effectiveWidth = floorplanWidthM * scalePxPerMeter;
+      const effectiveHeight = floorplanHeightM * scalePxPerMeter;
+      if (effectiveWidth <= 0 || effectiveHeight <= 0) return;
+
+      const availableWidth = containerWidth - padding * 2;
+      const availableHeight = containerHeight - padding * 2;
+
+      const scaleX = availableWidth / effectiveWidth;
+      const scaleY = availableHeight / effectiveHeight;
+      const newScale = Math.min(10, Math.max(0.1, Math.min(scaleX, scaleY)));
+
+      const scaledWidth = effectiveWidth * newScale;
+      const scaledHeight = effectiveHeight * newScale;
+
+      scale = newScale;
+      offsetX = (containerWidth - scaledWidth) / 2;
+      offsetY = (containerHeight - scaledHeight) / 2;
     },
 
     zoomIn(): void {

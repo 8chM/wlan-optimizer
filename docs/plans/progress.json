@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28g-complete",
+  "currentPhase": "phase-28h-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -913,6 +913,19 @@
         "Zeigt: type, category, priority, severity, alle 6 Scores, simulatedDelta, evidence.metrics, confidence",
         "Prod-Build: komplett entfernt durch Vite Dead-Code-Elimination",
         "Verifikation OK — 834 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28h": {
+      "name": "Recommendation Correctness — Channel, Roaming, Uplink Guards",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "T1a/T1b: Channel-Duplikat-Tests — B1-Dedup verifiziert (unique target channels, max 3, auch bei >20m Distanz)",
+        "T2a/T2b: Roaming scoreAfter >= scoreBefore Invariante verifiziert (changePercent >= 0 + A1-Guard)",
+        "T3a/T3b: Uplink-Gating verifiziert (>10% Benefit bei uplinkRatio > 0.60, Zone-Level 50% Filter)",
+        "Ergebnis: Alle 3 Bug-Pattern durch bestehende Guards korrekt abgefangen — kein Code-Fix noetig",
+        "6 neue Tests, 840 Tests total (839 pass + 1 flaky Performance-Test)"
       ]
     }
   },

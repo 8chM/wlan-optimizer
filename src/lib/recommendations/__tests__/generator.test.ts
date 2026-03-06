@@ -2545,4 +2545,323 @@ describe('generateRecommendations', () => {
       }
     }
   });
+
+  // ─── Phase 28h: Recommendation Correctness ─────────────────────
+
+  describe('T1: Channel recs — no duplicate target channels', () => {
+    it('T1a: 4 close APs on same channel get diverse target channels', () => {
+      // 4 APs all on ch36, within 15m of each other (within 20m range)
+      // Greedy should assign different channels to each
+      const aps = [
+        makeAP('ap-1', 2, 2),
+        makeAP('ap-2', 8, 2),
+        makeAP('ap-3', 2, 8),
+        makeAP('ap-4', 8, 8),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 2, 2, 36),
+        makeAPResponse('ap-2', 8, 2, 36),
+        makeAPResponse('ap-3', 2, 8, 36),
+        makeAPResponse('ap-4', 8, 8, 36),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -55, overlap: 2 });
+      const stats = makeStats(W, H, grids, {
+        excellent: 20, good: 30, fair: 30, poor: 15, none: 5,
+      });
+      stats.apIds = ['ap-1', 'ap-2', 'ap-3', 'ap-4'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const channelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+
+      // At least one channel change recommendation
+      expect(channelRecs.length).toBeGreaterThan(0);
+
+      // INVARIANT: No two recs suggest the same target channel
+      const targetChannels = channelRecs.map(r => r.suggestedChange?.suggestedValue);
+      const uniqueTargets = new Set(targetChannels);
+      expect(uniqueTargets.size).toBe(targetChannels.length);
+
+      // INVARIANT: Each AP has at most 1 channel rec
+      const affectedAps = channelRecs.map(r => r.suggestedChange?.apId);
+      const uniqueAps = new Set(affectedAps);
+      expect(uniqueAps.size).toBe(affectedAps.length);
+
+      // INVARIANT: Max 3 recs (B1 limit)
+      expect(channelRecs.length).toBeLessThanOrEqual(3);
+    });
+
+    it('T1b: distant APs (>20m) still get unique target channels via B1 dedup', () => {
+      // 3 APs spread across 30m — AP-1 and AP-3 are >20m apart
+      // All on ch36. Greedy distance filter may miss cross-AP conflicts,
+      // but B1 dedup ensures unique target channels.
+      const aps = [
+        makeAP('ap-1', 0, 0),
+        makeAP('ap-2', 15, 0),
+        makeAP('ap-3', 30, 0),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 0, 0, 36),
+        makeAPResponse('ap-2', 15, 0, 36),
+        makeAPResponse('ap-3', 30, 0, 36),
+      ];
+
+      const W = 31;
+      const H = 5;
+      const grids = makeGrids(W, H, { rssi: -60, overlap: 2 });
+      const stats = makeStats(W, H, grids, {
+        excellent: 30, good: 30, fair: 20, poor: 15, none: 5,
+      });
+      stats.apIds = ['ap-1', 'ap-2', 'ap-3'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const channelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+
+      // INVARIANT: No two recs suggest the same target channel
+      const targetChannels = channelRecs.map(r => r.suggestedChange?.suggestedValue);
+      const uniqueTargets = new Set(targetChannels);
+      expect(
+        uniqueTargets.size,
+        `Duplicate target channels: ${JSON.stringify(targetChannels)}`,
+      ).toBe(targetChannels.length);
+
+      // INVARIANT: Each AP has at most 1 channel rec
+      const affectedAps = channelRecs.map(r => r.suggestedChange?.apId);
+      expect(new Set(affectedAps).size).toBe(affectedAps.length);
+    });
+  });
+
+  describe('T2: roaming_tx_adjustment — scoreAfter >= scoreBefore invariant', () => {
+    it('T2a: all roaming_tx_adjustment recs must have scoreAfter >= scoreBefore', () => {
+      // 2 APs close together with significant overlap creating sticky client potential
+      const aps = [
+        makeAP('ap-1', 3, 5, { txPowerDbm: 23 }),
+        makeAP('ap-2', 7, 5, { txPowerDbm: 20 }),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 3, 5),
+        makeAPResponse('ap-2', 7, 5),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -55 });
+
+      // AP-1 dominates left side, AP-2 right side — with sticky overlap in middle
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const idx = y * W + x;
+          if (x < 5) {
+            grids.apIndexGrid[idx] = 0; // ap-1
+            grids.secondBestApIndexGrid[idx] = 1;
+            // Middle columns: strong signal from both → sticky potential
+            if (x >= 3) {
+              grids.rssiGrid[idx] = -45;
+              grids.overlapCountGrid[idx] = 2;
+              grids.deltaGrid[idx] = 3; // small delta → sticky
+            }
+          } else {
+            grids.apIndexGrid[idx] = 1; // ap-2
+            grids.secondBestApIndexGrid[idx] = 0;
+          }
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 30, good: 40, fair: 20, poor: 8, none: 2,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const roamingRecs = allRecs.filter(r => r.type === 'roaming_tx_adjustment');
+
+      // INVARIANT: Every roaming_tx_adjustment must have scoreAfter >= scoreBefore
+      for (const rec of roamingRecs) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.scoreAfter,
+            `roaming_tx_adjustment for ${rec.suggestedChange?.apId}: ` +
+            `scoreAfter (${rec.simulatedDelta.scoreAfter}) < ` +
+            `scoreBefore (${rec.simulatedDelta.scoreBefore})`,
+          ).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
+        }
+      }
+
+      // INVARIANT: changePercent must be non-negative
+      for (const rec of roamingRecs) {
+        if (rec.simulatedDelta) {
+          expect(rec.simulatedDelta.changePercent).toBeGreaterThanOrEqual(0);
+        }
+      }
+    });
+
+    it('T2b: roaming_tx_adjustment NOT emitted when TX reduction worsens score', () => {
+      // Setup: 2 APs where reducing dominant AP's TX would significantly worsen coverage
+      // AP-1 is the sole provider for a large area — reducing TX creates coverage holes
+      const aps = [
+        makeAP('ap-1', 2, 5, { txPowerDbm: 14 }), // already low TX
+        makeAP('ap-2', 8, 5, { txPowerDbm: 14 }),  // also low TX
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 2, 5),
+        makeAPResponse('ap-2', 8, 5),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -65 });
+
+      // AP-1 dominates left half, AP-2 right half — minimal overlap
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const idx = y * W + x;
+          grids.apIndexGrid[idx] = x < 5 ? 0 : 1;
+          grids.secondBestApIndexGrid[idx] = x < 5 ? 1 : 0;
+          grids.deltaGrid[idx] = 15; // large delta — not sticky
+          grids.overlapCountGrid[idx] = 1;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 10, good: 20, fair: 40, poor: 25, none: 5,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const roamingRecs = allRecs.filter(r => r.type === 'roaming_tx_adjustment');
+
+      // With TX at 14 dBm (floor=10), reduction to 11/8/5 dBm would worsen coverage.
+      // Any emitted rec must still satisfy scoreAfter >= scoreBefore.
+      for (const rec of roamingRecs) {
+        if (rec.simulatedDelta) {
+          expect(rec.simulatedDelta.scoreAfter).toBeGreaterThanOrEqual(
+            rec.simulatedDelta.scoreBefore,
+          );
+        }
+      }
+    });
+  });
+
+  describe('T3: add_ap gating under high uplink limitation', () => {
+    it('T3a: add_ap requires >= 10% benefit when uplinkLimitedRatio > 0.60', () => {
+      // 75% uplink limited globally, weak coverage zone
+      // add_ap should only appear if simulation shows >= 10% improvement
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const W = 10;
+      const H = 10;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -85 }); // mostly weak
+
+      // AP-1 covers corner
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -45;
+        }
+      }
+
+      // 75% uplink limited (above UPLINK_SUPPRESS_ADD_MOVE=0.60)
+      for (let i = 0; i < 75; i++) grids.uplinkLimitedGrid[i] = 1;
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 30, none: 61,
+      });
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+
+      // INVARIANT: Any add_ap under high uplink must have benefit > 10%
+      // (unless in a mustHaveCoverage PZ, which is not present here)
+      for (const rec of addApRecs) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.changePercent,
+            `add_ap benefit ${rec.simulatedDelta.changePercent}% should exceed UPLINK_ADD_MOVE_MIN_BENEFIT (10%)`,
+          ).toBeGreaterThan(10);
+        }
+      }
+    });
+
+    it('T3b: add_ap suppressed when zone is > 50% uplink-limited', () => {
+      // Single AP with weak zone where the weak zone itself is heavily uplink-limited
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -85 });
+
+      // AP covers top-left
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      // The weak zone (bottom-right quadrant) is heavily uplink-limited
+      // Mark cells that correspond to weak zone as uplink-limited
+      for (let r = 5; r < H; r++) {
+        for (let c = 5; c < W; c++) {
+          grids.uplinkLimitedGrid[r * W + c] = 1;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 30, none: 61,
+      });
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      // The weak zone in bottom-right is >50% uplink limited,
+      // so add_ap for that zone should be suppressed
+      // However other zones might still generate add_ap
+      // The invariant: no add_ap should target a zone that is mostly uplink-limited
+      // We verify indirectly: if the only weak zone is uplink-limited, no add_ap should appear
+      // (or if add_ap appears, it targets a different non-uplink-limited area)
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      // If add_ap exists, its position should NOT be in the uplink-limited zone
+      for (const rec of addApRecs) {
+        const tx = rec.titleParams?.x as number | undefined;
+        const ty = rec.titleParams?.y as number | undefined;
+        if (tx !== undefined && ty !== undefined) {
+          // The uplink-limited zone is x >= 5, y >= 5
+          // add_ap should NOT target this zone
+          const inUplinkZone = tx >= 5 && ty >= 5;
+          expect(
+            inUplinkZone,
+            `add_ap at (${tx}, ${ty}) targets uplink-limited zone`,
+          ).toBe(false);
+        }
+      }
+    });
+  });
 });

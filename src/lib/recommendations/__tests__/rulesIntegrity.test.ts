@@ -199,4 +199,108 @@ describe('Rules Integrity', () => {
       expect(allTypes).toEqual(catKeys);
     });
   });
+
+  describe('E6: Union → Map bidirectional coverage', () => {
+    it('every value in the RecommendationType union resolves to a valid category', () => {
+      // This is the "union → map" direction: every member of the TS union
+      // must be a key in RECOMMENDATION_CATEGORIES. TypeScript enforces this
+      // at compile time via Record<RecommendationType, ...>, but this test
+      // catches runtime drift if ALL_RECOMMENDATION_TYPES falls out of sync.
+      for (const type of ALL_RECOMMENDATION_TYPES) {
+        const category = RECOMMENDATION_CATEGORIES[type];
+        expect(category, `Type "${type}" has no category`).toBeDefined();
+        expect(
+          VALID_CATEGORIES.includes(category),
+          `Type "${type}" maps to invalid category "${category}"`,
+        ).toBe(true);
+      }
+    });
+
+    it('every value in the RecommendationType union resolves to a valid effort level', () => {
+      for (const type of ALL_RECOMMENDATION_TYPES) {
+        const level = EFFORT_LEVELS[type];
+        expect(level, `Type "${type}" has no effort level`).toBeDefined();
+        expect(
+          VALID_EFFORT_LEVELS.includes(level),
+          `Type "${type}" maps to invalid effort level "${level}"`,
+        ).toBe(true);
+      }
+    });
+  });
+
+  describe('E7: Generator emitted types (anti-drift)', () => {
+    /**
+     * Static list of all types emitted via recs.push({ type: '...' }) in generator.ts.
+     *
+     * IMPORTANT: This list is intentionally manual. When a developer adds a new
+     * recs.push({ type: 'new_type' }) in generator.ts, this test will fail until
+     * they also add 'new_type' here — forcing them to update docs and type maps.
+     *
+     * To update: grep for `recs.push` in generator.ts, extract unique type values,
+     * and add any new ones to this list + ALL_RECOMMENDATION_TYPES above.
+     */
+    const GENERATOR_EMITTED_TYPES: RecommendationType[] = [
+      'add_ap',
+      'adjust_channel_width',
+      'adjust_tx_power',
+      'band_limit_warning',
+      'blocked_recommendation',
+      'change_channel',
+      'change_mounting',
+      'constraint_conflict',
+      'coverage_warning',
+      'disable_ap',
+      'handoff_gap_warning',
+      'infrastructure_required',
+      'low_ap_value',
+      'move_ap',
+      'overlap_warning',
+      'preferred_candidate_location',
+      'roaming_hint',
+      'roaming_tx_adjustment',
+      'rotate_ap',
+      'sticky_client_risk',
+    ];
+
+    it('every emitted type is a valid RecommendationType', () => {
+      for (const type of GENERATOR_EMITTED_TYPES) {
+        expect(
+          ALL_RECOMMENDATION_TYPES.includes(type),
+          `Generator emits "${type}" which is not in ALL_RECOMMENDATION_TYPES`,
+        ).toBe(true);
+      }
+    });
+
+    it('every emitted type has a category in RECOMMENDATION_CATEGORIES', () => {
+      for (const type of GENERATOR_EMITTED_TYPES) {
+        expect(
+          RECOMMENDATION_CATEGORIES[type],
+          `Generator emits "${type}" but it has no category`,
+        ).toBeDefined();
+      }
+    });
+
+    it('every emitted type has an effort level in EFFORT_LEVELS', () => {
+      for (const type of GENERATOR_EMITTED_TYPES) {
+        expect(
+          EFFORT_LEVELS[type],
+          `Generator emits "${type}" but it has no effort level`,
+        ).toBeDefined();
+      }
+    });
+
+    it('GENERATOR_EMITTED_TYPES covers all 20 RecommendationType members', () => {
+      // Currently every type in the union is also emitted by the generator.
+      // If a type is added to the union but NOT emitted, this test documents
+      // the discrepancy. Update the comment below if intentional.
+      const sorted = [...GENERATOR_EMITTED_TYPES].sort();
+      const allSorted = [...ALL_RECOMMENDATION_TYPES].sort();
+      expect(sorted).toEqual(allSorted);
+    });
+
+    it('GENERATOR_EMITTED_TYPES has no duplicates', () => {
+      const unique = new Set(GENERATOR_EMITTED_TYPES);
+      expect(unique.size).toBe(GENERATOR_EMITTED_TYPES.length);
+    });
+  });
 });

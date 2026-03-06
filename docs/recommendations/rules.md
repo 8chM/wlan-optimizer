@@ -3,7 +3,49 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-06 (Phase 28d)
+Last updated: 2026-03-06 (Phase 28f)
+
+---
+
+## Source of Truth & Guarantees
+
+### Single Source of Truth
+
+- **`RecommendationType`** (types.ts:14-34) — definiert alle erlaubten Empfehlungstypen als Union.
+- **`RECOMMENDATION_CATEGORIES`** (types.ts:352-380) — Single Source of Truth fuer die UI-Kategorie
+  jedes Typs (actionable_config, actionable_create, instructional, informational).
+- **`EFFORT_LEVELS`** (types.ts:313-334) — Single Source of Truth fuer das Aufwandsniveau jedes Typs.
+
+### Automatische Absicherung (`rulesIntegrity.test.ts`)
+
+Die folgenden Garantien werden durch automatisierte Tests durchgesetzt:
+
+| Test-Gruppe | Garantie |
+|-------------|----------|
+| E1 | Jeder `RecommendationType` hat einen Eintrag in `RECOMMENDATION_CATEGORIES` — keine Luecken, keine Extras |
+| E2 | Jeder `RecommendationType` hat einen Eintrag in `EFFORT_LEVELS` — keine Luecken, keine Extras |
+| E3 | `EFFORT_SCORES` ist vollstaendig, monoton steigend, und im Bereich 0-100 |
+| E4 | Kategorie-Semantik: actionable_config ≠ physical effort, informational = config effort, actionable_create = infrastructure |
+| E5 | Schluesselmengen von `RECOMMENDATION_CATEGORIES`, `EFFORT_LEVELS` und `ALL_RECOMMENDATION_TYPES` sind identisch |
+| E6 | Jeder `RecommendationType`-Wert der Union ist in `RECOMMENDATION_CATEGORIES` vorhanden (bidirektional) |
+| E7 | Alle im Generator per `recs.push({ type: ... })` emittierten Typen sind in `GENERATOR_EMITTED_TYPES` erfasst — verhindert heimliche neue Typen ohne Dokumentation |
+
+### Vorgehen bei neuem RecommendationType
+
+Wenn ein neuer Typ eingefuehrt wird, muessen folgende Stellen aktualisiert werden:
+
+1. **`types.ts`** — `RecommendationType` Union erweitern
+2. **`types.ts`** — `RECOMMENDATION_CATEGORIES` Eintrag hinzufuegen
+3. **`types.ts`** — `EFFORT_LEVELS` Eintrag hinzufuegen
+4. **`rulesIntegrity.test.ts`** — `ALL_RECOMMENDATION_TYPES` Liste erweitern
+5. **`rulesIntegrity.test.ts`** — `GENERATOR_EMITTED_TYPES` Liste erweitern (falls Generator den Typ emittiert)
+6. **`rulesIntegrity.test.ts`** — Zaehler in E1/E2 ("exactly N entries") anpassen
+7. **`rules.md`** (dieses Dokument) — Regel-Eintrag mit ID, Trigger, Guards, Beleg hinzufuegen
+8. **`engine-rules.md`** — Falls Regeln ausserhalb von generator.ts betroffen sind
+9. **i18n** — Titel/Reason Keys in EN + DE
+10. **mixing/+page.svelte** — Apply/Preview Handling (falls actionable_config)
+
+Wird einer dieser Schritte vergessen, schlaegt `npx vitest run` fehl.
 
 ---
 

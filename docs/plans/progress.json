@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28e-complete",
+  "currentPhase": "phase-28f-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -890,6 +890,17 @@
         "Block 2: rulesIntegrity.test.ts — 16 automatisierte Konsistenz-Tests (E1-E5)",
         "Block 3: adjust_channel_width Apply-Fix — channel_width Parameter in applyRecommendationToAP ergaenzt",
         "Block 4: Verifikation OK — 827 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28f": {
+      "name": "Regeln self-consistent — Anti-Drift Leitplanken",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Block 1: rules.md — Source of Truth & Guarantees Sektion mit Vorgehen bei neuem Type (10 Schritte)",
+        "Block 2: rulesIntegrity.test.ts — E6 (Union→Map bidirektional) + E7 (GENERATOR_EMITTED_TYPES anti-drift)",
+        "Block 3: Verifikation OK — 834 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

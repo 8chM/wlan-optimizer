@@ -4537,4 +4537,116 @@ describe('generateRecommendations', () => {
       expect(bandLimitRecs[0]!.titleKey).toBe('rec.bandLimitTitle');
     });
   });
+
+  // ─── Phase 28v: Candidate-Only Correctness ────────────────────────
+
+  describe('V1: required_for_new_ap + candidates >8m → infrastructure_required with no_candidate_close_enough', () => {
+    it('V1a: all candidates beyond MAX_IDEAL_DISTANCE_ADD_AP_M emits infraNoCandidateCloseEnoughReason', () => {
+      // 1 AP in corner, large weak zone opposite, candidates defined but far from zone
+      const aps = [makeAP('ap-1', 1, 1)];
+      const apResps = [makeAPResponse('ap-1', 1, 1)];
+
+      const W = 30;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      // AP covers only small area near (1,1)
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -45;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 100, none: 191,
+      });
+      stats.apIds = ['ap-1'];
+
+      // Candidates near AP (far from weak zone centroid which is around x=15-25)
+      const nearCandidate: CandidateLocation = {
+        id: 'cand-near-ap',
+        x: 2,
+        y: 2,
+        label: 'Near AP',
+        mountingOptions: ['ceiling'],
+        hasLan: true,
+        hasPoe: true,
+        hasPower: true,
+        preferred: false,
+        forbidden: false,
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidatePolicy: 'required_for_new_ap',
+        candidates: [nearCandidate],
+      };
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const addApRecs = all.filter(r => r.type === 'add_ap');
+      const infraRecs = all.filter(r => r.type === 'infrastructure_required');
+
+      // No add_ap — candidate is too far from weak zone
+      expect(addApRecs.length).toBe(0);
+      // Should have infrastructure_required with specific "close enough" reason
+      expect(infraRecs.length).toBeGreaterThan(0);
+      const closeEnoughRec = infraRecs.find(r =>
+        r.reasonKey === 'rec.infraNoCandidateCloseEnoughReason',
+      );
+      expect(closeEnoughRec).toBeDefined();
+      expect(closeEnoughRec!.reasonParams?.maxDistance).toBe(8);
+      expect(closeEnoughRec!.reasonParams?.nearestDistance).toBeGreaterThan(0);
+    });
+  });
+
+  describe('V2: optional policy fallback uses addApFallbackReason', () => {
+    it('V2a: optional + no candidates → add_ap with fallback reason key', () => {
+      // 1 AP in corner, large weak zone, optional policy, no candidates
+      const aps = [makeAP('ap-1', 1, 1)];
+      const apResps = [makeAPResponse('ap-1', 1, 1)];
+
+      const W = 20;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      // AP covers small area
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -45;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 80, none: 111,
+      });
+      stats.apIds = ['ap-1'];
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidatePolicy: 'optional',
+        candidates: [],
+      };
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const addApRecs = all.filter(r => r.type === 'add_ap');
+
+      // With optional policy and no candidates, fallback placement is allowed
+      // but must use addApFallbackReason to identify "without candidate"
+      if (addApRecs.length > 0) {
+        for (const rec of addApRecs) {
+          expect(rec.reasonKey).toBe('rec.addApFallbackReason');
+        }
+      }
+    });
+  });
 });

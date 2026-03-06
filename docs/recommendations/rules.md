@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-06 (Phase 28u — Add/Move-Realismus & Client-Advice)
+Last updated: 2026-03-06 (Phase 28v — Candidate-Only Korrektheit)
 
 ---
 
@@ -163,8 +163,9 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | AM-05 | Multi-zone top 3 | — | — | Process top 3 zones by cellCount × relevance | :435 |
 | AM-06 | RF-weighted target | — | — | computeWeightedTarget instead of geometric centroid | :453 |
 | AM-07 | Candidate matching + infrastructure | candidates available | Physical validation | Match to candidate, set infrastructure_required flag | :472-484 |
+| AM-07a2 | Candidate too far — specific reason | candidates.length > 0, all rejected as too_far | — | infrastructure_required with infraNoCandidateCloseEnoughReason (maxDistance + nearestDistance) | :621-658 |
 | AM-07b | Candidate policy gate (add_ap) | candidatePolicy !== 'optional' AND no candidates defined | — | Emit infrastructure_required with infraNoCandidatesDefinedReason | :455-465 |
-| AM-07c | Candidate policy fallback (add_ap) | candidatePolicy === 'optional' AND no candidates defined | — | Place at RF-weighted ideal position (no candidate matching) | :467-475 |
+| AM-07c | Candidate policy fallback (add_ap) | candidatePolicy === 'optional' AND no candidates defined | — | Place at RF-weighted ideal position with addApFallbackReason (marked as "ohne Kandidat") | :467-475 |
 | AM-07d | Zone quality filter (Coverage Impact First) | zone.avgRssi > -80 AND zone.cellCount/totalCells < 0.05 | — | Skip marginally weak small zones — only add AP for critically weak or significant zones | :523-527 |
 
 ### Move AP — `generateMoveApSuggestions()` (generator.ts:580-825)
@@ -204,6 +205,8 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 - **U1a: required_for_new_ap + no candidates → no add_ap, only infrastructure_required (Phase 28u)**
 - **U2a: required_for_move_and_new_ap + distant candidates → blocked_recommendation no_candidate_close_enough (Phase 28u)**
 - **U4a: marginally weak zone (avgRssi > -80, < 5% cells) skipped for add_ap (Phase 28u)**
+- **V1a: required_for_new_ap + candidates >8m → infraNoCandidateCloseEnoughReason (Phase 28v)**
+- **V2a: optional policy fallback → addApFallbackReason (Phase 28v)**
 
 ---
 

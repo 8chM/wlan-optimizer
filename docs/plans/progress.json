@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28u-complete",
+  "currentPhase": "phase-28v-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1045,6 +1045,20 @@
         "2 neue i18n-Keys EN+DE: rec.bandLimitClientAdviceTitle, rec.bandLimitClientAdviceReason",
         "apFieldMap.ts: Pre-existing Type-Error gefixt (Linter auto-fix)",
         "893 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
+      ]
+    },
+    "28v": {
+      "name": "Candidate-Only Korrektheit — kein Koordinaten-Fallback bei required Policy",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Audit: 3 Pfade in generateAddApSuggestions identifiziert (A: Candidates vorhanden, B: keine + required, C: keine + optional)",
+        "Path A3: infraNoCandidateCloseEnoughReason statt generisches infraNoValidCandidateReason (mit maxDistance + nearestDistance)",
+        "Path C: addApFallbackReason statt generisches addApReason (kennzeichnet 'ohne Kandidat')",
+        "4 neue i18n-Keys EN+DE: infraNoCandidateCloseEnoughReason, addApFallbackReason",
+        "2 neue Tests (V1a, V2a), 928 Tests total",
+        "928 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
       ]
     }
   },

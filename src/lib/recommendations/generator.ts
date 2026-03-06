@@ -624,6 +624,13 @@ function generateAddApSuggestions(
           ctx.candidates, idealX, idealY, walls, ctx.constraintZones, MAX_IDEAL_DISTANCE_ADD_AP_M,
         );
         const infraLabel = match.candidate?.label;
+
+        // Distinguish "all too far" from "other rejection reasons"
+        const allTooFar = rejectionReasons.length > 0 && rejectionReasons.every(r => r === 'too_far');
+        const nearestDist = ctx.candidates.length > 0
+          ? Math.min(...ctx.candidates.filter(c => !c.forbidden).map(c => Math.sqrt((c.x - idealX) ** 2 + (c.y - idealY) ** 2)))
+          : Infinity;
+
         recs.push({
           id: genId(),
           type: 'infrastructure_required',
@@ -635,12 +642,14 @@ function generateAddApSuggestions(
             y: Math.round(idealY * 10) / 10,
             ...(infraLabel ? { candidate: infraLabel } : {}),
           },
-          reasonKey: 'rec.infraNoValidCandidateReason',
+          reasonKey: allTooFar ? 'rec.infraNoCandidateCloseEnoughReason' : 'rec.infraNoValidCandidateReason',
           reasonParams: {
             cells: zone.cellCount,
             count: ctx.candidates.length,
             reasons: rejectionReasons.join(', ') || 'all_candidates_filtered',
             no_candidate_valid: 1,
+            maxDistance: MAX_IDEAL_DISTANCE_ADD_AP_M,
+            nearestDistance: Math.round(nearestDist * 10) / 10,
           },
           affectedApIds: [],
           affectedBand: band,
@@ -717,7 +726,7 @@ function generateAddApSuggestions(
           x: Math.round(idealX * 10) / 10,
           y: Math.round(idealY * 10) / 10,
         },
-        reasonKey: 'rec.addApReason',
+        reasonKey: 'rec.addApFallbackReason',
         reasonParams: {
           cells: zone.cellCount,
           avgRssi: Math.round(zone.avgRssi),

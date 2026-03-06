@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28b-complete",
+  "currentPhase": "phase-28d-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -851,6 +851,33 @@
         "Block 4: 2 neue i18n-Keys EN+DE (sixGhzChannelNoteTitle/Reason)",
         "Block 5: 6 neue Tests (D1-D6), 2 bestehende Tests angepasst (A2-Guard), 802 Tests total",
         "Verifikation: 802 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28c": {
+      "name": "Regelwerk-Audit: C1 3-Tier, B2 Doku, B1 Spam-Test, A3 Gap-Test",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "P0: C1 3-Tier bandLimitWarnings (>30% info, >60% warning, >80% critical) + add_ap/move_ap Uplink-Gating (>60% → min 10% Benefit, mustHaveCoverage-Ausnahme)",
+        "P1: B2 worstScore-Kommentar (channel conflict severity 0.0–1.0) + Test D4b (distant APs, low conflict)",
+        "P2: B1 Kanal-Spam-Test D4c (4 APs ch36 → max 3 Recs, unique Targets, min 2 verschiedene)",
+        "P3: A3 Gap-Priorisierung Test D7 (120 Handoff-Cells, 60% Gap → handoff_gap_warning + A1 Guard)",
+        "P0: D5a-D5d Boundary-Tests (0.59→info, 0.61→warning, 0.85→critical, add_ap Suppression)",
+        "Verifikation: 808 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
+      ]
+    },
+    "28d": {
+      "name": "Vollstaendiges Regelwerk + Absicherung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Block 1: docs/recommendations/rules.md — Vollstaendiger Regel-Katalog (64 Regeln in 14 Clustern)",
+        "Block 2: Test D8 — roaming_tx_adjustment bei hohem Uplink + Benefit >= 2% (Positiv-Fall C2)",
+        "Block 3: Test D9 — Channel Pool Exhaustion graceful degrade (5 APs, 4 Kanaele, max 3 Recs)",
+        "Block 4: Test D10 — mustHaveCoverage PZ Ausnahme (65% Uplink, add_ap nicht blockiert)",
+        "Block 5: Verifikation OK — 811 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

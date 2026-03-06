@@ -27,6 +27,7 @@
   import { updateAccessPoint } from '$lib/api/accessPoint';
   import { addApCommand, updateApCommand } from '$lib/stores/commands/apCommands';
   import { undoStore } from '$lib/stores/undoStore.svelte';
+  import { registerShortcuts } from '$lib/utils/keyboard';
   import { t } from '$lib/i18n';
   import type { Recommendation, RejectionReason, CandidateLocation, ConstraintZone, APCapabilities } from '$lib/recommendations/types';
   import { RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
@@ -34,6 +35,15 @@
   // Set page context for toolbar filtering
   $effect(() => {
     canvasStore.setPageContext('mixing');
+  });
+
+  // ─── Keyboard Shortcuts ────────────────────────────────────────
+
+  $effect(() => {
+    const cleanup = registerShortcuts({
+      heatmapToggle: () => { editorHeatmapStore.toggleVisible(); },
+    });
+    return cleanup;
   });
 
   // ─── Floor Data ─────────────────────────────────────────────────
@@ -123,6 +133,8 @@
     editorHeatmapStore.setVisible(true);
     return () => {
       // Don't reset heatmap visibility — EditorHeatmap is persistent in WorkspaceCanvas
+      // But clear signal probe state so it doesn't persist across pages
+      editorHeatmapStore.setProbeActive(false);
       workspaceStore.setForecastCanvas(null);
       workspaceStore.setForecastActive(false);
       workspaceStore.setDisplayApOverrides(new Map());
@@ -411,8 +423,8 @@
     changes={changesArray}
     forecastActive={mixingStore.forecastMode}
     band={editorHeatmapStore.band}
-    outputWidth={800}
-    outputHeight={600}
+    outputWidth={canvasStore.containerW}
+    outputHeight={canvasStore.containerH}
     {scalePxPerMeter}
     onCanvas={handleForecastCanvas}
     onStats={handleForecastStats}
@@ -541,7 +553,10 @@
 
   .mixing-overlays {
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 320px; /* Offset past .mixing-sidebar width */
     pointer-events: none;
     z-index: 10;
   }

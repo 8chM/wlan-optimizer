@@ -60,7 +60,7 @@
 
   function handleDragMove(e: MouseEvent): void {
     if (!dragging) return;
-    const parent = document.querySelector('.editor-heatmap-panel')?.parentElement;
+    const parent = document.querySelector('.workspace-canvas');
     if (!parent) return;
     const parentRect = parent.getBoundingClientRect();
     panelX = Math.max(0, Math.min(parentRect.width - 230, e.clientX - parentRect.left - dragOffsetX));
@@ -332,7 +332,7 @@
     border-radius: 8px;
     padding: 10px;
     backdrop-filter: blur(8px);
-    z-index: 20;
+    z-index: 30;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   }
 

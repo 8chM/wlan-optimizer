@@ -65,6 +65,8 @@ const STICKY_TRIGGER = 0.30;        // A4: Min stickyRatio for trigger
 const GAP_TRIGGER = 0.20;           // A4: Min gapRatio for trigger
 const GAP_RATIO_CRITICAL = 0.40;    // A3: Critical gap rate
 const UPLINK_BLOCK_ROAMING = 0.70;  // C2: Uplink block threshold
+const UPLINK_SUPPRESS_ADD_MOVE = 0.60; // C1: Suppress add_ap/move_ap unless large benefit
+const UPLINK_ADD_MOVE_MIN_BENEFIT = 10; // C1: Min changePercent for add/move under uplink suppression
 const ROAMING_TX_STEPS = [-3, -6, -9] as const;
 const ROAMING_TX_MIN_DBM = 10;
 
@@ -101,6 +103,16 @@ export function generateRecommendations(
 
   // Clear simulator cache at start of each analysis run
   clearSimulatorCache();
+
+  // C1: Compute global uplink-limited ratio once (used by add_ap/move_ap gating)
+  let uplinkLimitedRatio = 0;
+  if (stats.uplinkLimitedGrid && totalCells > 0) {
+    let uplinkCount = 0;
+    for (let i = 0; i < totalCells; i++) {
+      if (stats.uplinkLimitedGrid[i]) uplinkCount++;
+    }
+    uplinkLimitedRatio = uplinkCount / totalCells;
+  }
 
   // Channel analysis
   const analysisBand: AnalysisBand = band === '6ghz' ? '5ghz' : band as AnalysisBand;
@@ -161,7 +173,7 @@ export function generateRecommendations(
 
   // 5. Move AP suggestions (major physical) — with zone relevance
   generateMoveApSuggestions(
-    recommendations, apMetrics, weakZones, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx, apLabel, stats,
+    recommendations, apMetrics, weakZones, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx, apLabel, stats, uplinkLimitedRatio,
   );
 
   // 6. Change mounting suggestions (major physical)
@@ -171,7 +183,7 @@ export function generateRecommendations(
 
   // 7. Add AP suggestions (infrastructure) — with exhaustion check and stacking penalty
   generateAddApSuggestions(
-    recommendations, weakZones, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, stats, apMetrics,
+    recommendations, weakZones, aps, walls, bounds, band, rfConfig, weights, totalCells, gridStep, ctx, stats, apMetrics, uplinkLimitedRatio,
   );
 
   // 8a. Roaming TX power adjustments (actionable)
@@ -399,6 +411,7 @@ function generateAddApSuggestions(
   ctx: RecommendationContext,
   stats: HeatmapStats,
   apMetrics?: Map<string, APMetrics>,
+  uplinkLimitedRatio = 0,
 ): void {
   // Sort large zones by cellCount * zoneRelevance (relevance-weighted)
   const largeZones = weakZones
@@ -435,6 +448,7 @@ function generateAddApSuggestions(
       }
       if (uplinkCount / zone.cellIndices.length > 0.50) continue;
     }
+
     // RF-weighted target instead of geometric centroid
     const target = computeWeightedTarget(zone, stats, originX, originY, gridStep);
     const idealX = target.x;
@@ -448,6 +462,12 @@ function generateAddApSuggestions(
     if (matchingPZ && matchingPZ.targetBand !== 'either' && matchingPZ.targetBand !== band) {
       continue;
     }
+
+    // C1: When global uplink is heavily limited, require higher benefit for add_ap
+    // Exception: mustHaveCoverage PZ zones keep the normal 2% threshold
+    const hasMustHaveCoverage = matchingPZ?.mustHaveCoverage === true;
+    const uplinkMinBenefit = (!hasMustHaveCoverage && uplinkLimitedRatio > UPLINK_SUPPRESS_ADD_MOVE)
+      ? UPLINK_ADD_MOVE_MIN_BENEFIT : 2;
 
     // Try to find a candidate location if candidates are available
     if (ctx.candidates.length > 0) {
@@ -464,7 +484,7 @@ function generateAddApSuggestions(
           weights,
         );
 
-        if (delta.changePercent > 2) {
+        if (delta.changePercent > uplinkMinBenefit) {
           // Stacking penalty: 2nd add_ap gets severity -1, 3rd gets priority -1 too
           let stackPriority: 'high' | 'medium' | 'low' = 'medium';
           let stackSeverity: 'critical' | 'warning' | 'info' = match.requiresInfrastructure ? 'warning' : 'info';
@@ -560,7 +580,7 @@ function generateAddApSuggestions(
       weights,
     );
 
-    if (delta.changePercent > 2) {
+    if (delta.changePercent > uplinkMinBenefit) {
       // Stacking penalty for fallback path
       let stackPriority: 'high' | 'medium' | 'low' = 'medium';
       let stackSeverity: 'critical' | 'warning' | 'info' = 'warning';
@@ -617,6 +637,7 @@ function generateMoveApSuggestions(
   ctx: RecommendationContext,
   apLabel: (id: string) => string,
   stats: HeatmapStats = {} as HeatmapStats,
+  uplinkLimitedRatio = 0,
 ): void {
   if (weakZones.length === 0) return;
 
@@ -760,7 +781,11 @@ function generateMoveApSuggestions(
       }
     }
 
-    if (bestDelta && bestDelta.changePercent > 3) {
+    // C1: When uplink is heavily limited, require higher benefit for move_ap
+    const moveMinBenefit = uplinkLimitedRatio > UPLINK_SUPPRESS_ADD_MOVE
+      ? UPLINK_ADD_MOVE_MIN_BENEFIT : 3;
+
+    if (bestDelta && bestDelta.changePercent > moveMinBenefit) {
       const titleParams: Record<string, string | number> = {
         ap: apLabel(ap.id),
         x: Math.round(bestPos.x * 10) / 10,
@@ -1294,7 +1319,9 @@ function generateChannelRecommendations(
       c => (c.ap1Id === targetApId || c.ap2Id === targetApId) && c.score >= 0.3,
     );
 
-    // B2: Skip distant low-severity conflicts
+    // B2: Skip distant low-severity conflicts — worstScore is the channel conflict
+    // severity score (0.0–1.0, where 1.0 = co-channel at 0m). At >12m distance with
+    // worstScore < 0.5, the conflict is too mild to warrant a channel change.
     if (worstConflict && worstConflict.distanceM > 12 && change.worstScore < 0.5) continue;
 
     const otherApId = worstConflict
@@ -1869,13 +1896,18 @@ function generateBandLimitWarnings(
     if (stats.uplinkLimitedGrid[i]) limitedCount++;
   }
   const limitedPct = (limitedCount / totalCells) * 100;
+  const limitedRatio = limitedCount / totalCells;
 
+  // C1: Trigger at >30% (informational), escalate at >60% (high/warning), >80% (high/critical)
   if (limitedPct > 30) {
+    const priority = limitedRatio > 0.60 ? 'high' : 'medium';
+    const severity = limitedRatio > 0.80 ? 'critical' : limitedRatio > 0.60 ? 'warning' : 'info';
+
     recs.push({
       id: genId(),
       type: 'band_limit_warning',
-      priority: limitedPct > 50 ? 'high' : 'medium',
-      severity: limitedPct > 50 ? 'critical' : 'warning',
+      priority: priority as 'high' | 'medium' | 'low',
+      severity: severity as 'critical' | 'warning' | 'info',
       titleKey: 'rec.bandLimitTitle',
       titleParams: { percent: Math.round(limitedPct) },
       reasonKey: 'rec.bandLimitReason',

@@ -569,11 +569,6 @@
       onOffsetChange={(x, y) => canvasStore.setOffset(x, y)}
     />
 
-    <!-- Floating heatmap controls panel (editor + mixing pages) -->
-    {#if pageContext === 'editor' || pageContext === 'mixing'}
-      <EditorHeatmapPanel />
-    {/if}
-
     <!-- Measure tool result display -->
     {#if canvasStore.activeTool === 'measure' && measuredDistance !== null}
       <div class="measure-result">
@@ -591,6 +586,13 @@
     </div>
   {/if}
 </div>
+
+<!-- Floating heatmap controls panel OUTSIDE .workspace-canvas to avoid
+     WebKit stacking context issues (overflow:hidden + position:relative
+     can create a stacking context in WKWebView, trapping z-index inside) -->
+{#if (pageContext === 'editor' || pageContext === 'mixing') && floor}
+  <EditorHeatmapPanel />
+{/if}
 
 <style>
   .workspace-canvas {
@@ -624,7 +626,7 @@
     font-size: 0.85rem;
     font-family: 'SF Mono', 'Fira Code', monospace;
     backdrop-filter: blur(8px);
-    z-index: 20;
+    z-index: 25;
     display: flex;
     align-items: center;
     gap: 8px;

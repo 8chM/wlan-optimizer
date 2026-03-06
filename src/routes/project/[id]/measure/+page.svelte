@@ -11,6 +11,8 @@
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { measurementStore } from '$lib/stores/measurementStore.svelte';
   import { workspaceStore } from '$lib/stores/workspaceStore.svelte';
+  import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
+  import { registerShortcuts } from '$lib/utils/keyboard';
   import { safeInvoke } from '$lib/api/invoke';
   import { t } from '$lib/i18n';
 
@@ -41,6 +43,15 @@
     }
   });
 
+  // ─── Keyboard Shortcuts ────────────────────────────────────────
+
+  $effect(() => {
+    const cleanup = registerShortcuts({
+      heatmapToggle: () => { editorHeatmapStore.toggleVisible(); },
+    });
+    return cleanup;
+  });
+
   // ─── Register Click Handler ─────────────────────────────────────
 
   $effect(() => {
@@ -51,6 +62,7 @@
     return () => {
       workspaceStore.unregisterHandlers();
       workspaceStore.setCursorOverride(null);
+      editorHeatmapStore.setProbeActive(false);
     };
   });
 

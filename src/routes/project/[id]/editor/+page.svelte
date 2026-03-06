@@ -1395,6 +1395,8 @@ $effect(() => {
 $effect(() => {
   return () => {
     // Don't reset editorHeatmapStore — EditorHeatmap is persistent in WorkspaceCanvas
+    // But clear signal probe state so it doesn't persist across pages
+    editorHeatmapStore.setProbeActive(false);
     channelStore.reset();
     workspaceStore.unregisterEditorCallbacks();
     workspaceStore.setCursorOverride(null);
@@ -1412,15 +1414,20 @@ $effect(() => {
   <title>{t('nav.editor')} - {t('app.title')}</title>
 </svelte:head>
 
-<!-- Floating editor overlays (positioned over the canvas) -->
-<div class="editor-overlays"
-  oncontextmenu={(e) => {
+<!-- Context menu handler on window (captures right-clicks on the canvas area) -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<svelte:window oncontextmenu={(e) => {
+  const target = e.target as HTMLElement;
+  if (target.closest('.workspace-canvas') || target.closest('.editor-overlays')) {
     e.preventDefault();
     contextMenuX = e.clientX;
     contextMenuY = e.clientY;
     contextMenuVisible = true;
-  }}
->
+  }
+}} />
+
+<!-- Floating editor overlays (positioned over the canvas) -->
+<div class="editor-overlays">
   <!-- Text annotation input -->
   {#if textInputPosition}
     <div class="text-annotation-input" style="left: 50%; top: 50%; transform: translate(-50%, -50%);">
@@ -1583,7 +1590,7 @@ $effect(() => {
 
   .coverage-floating-panel {
     position: absolute;
-    bottom: 12px;
+    bottom: 240px;
     right: 12px;
     width: 200px;
     background: rgba(26, 26, 46, 0.92);

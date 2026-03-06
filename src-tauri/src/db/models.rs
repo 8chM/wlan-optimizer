@@ -699,8 +699,10 @@ pub struct UpdateAccessPointParams {
     pub mounting: Option<String>,
     pub tx_power_24ghz_dbm: Option<f64>,
     pub tx_power_5ghz_dbm: Option<f64>,
+    pub tx_power_6ghz_dbm: Option<f64>,
     pub channel_24ghz: Option<i32>,
     pub channel_5ghz: Option<i32>,
+    pub channel_6ghz: Option<i32>,
     pub channel_width: Option<String>,
     pub enabled: Option<bool>,
 }

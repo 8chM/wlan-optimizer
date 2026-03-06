@@ -813,11 +813,13 @@ async function handleApUpdate(
     label?: string;
     txPower24ghzDbm?: number;
     txPower5ghzDbm?: number;
+    txPower6ghzDbm?: number;
     enabled?: boolean;
     height_m?: number;
     mounting?: string;
     channel_24ghz?: number;
     channel_5ghz?: number;
+    channel_6ghz?: number;
     channel_width?: string;
     orientation_deg?: number;
   },
@@ -828,11 +830,13 @@ async function handleApUpdate(
   if (updates.label !== undefined) { oldValues.label = ap?.label; newValues.label = updates.label; }
   if (updates.txPower24ghzDbm !== undefined) { oldValues.tx_power_24ghz_dbm = ap?.tx_power_24ghz_dbm; newValues.tx_power_24ghz_dbm = updates.txPower24ghzDbm; }
   if (updates.txPower5ghzDbm !== undefined) { oldValues.tx_power_5ghz_dbm = ap?.tx_power_5ghz_dbm; newValues.tx_power_5ghz_dbm = updates.txPower5ghzDbm; }
+  if (updates.txPower6ghzDbm !== undefined) { oldValues.tx_power_6ghz_dbm = ap?.tx_power_6ghz_dbm; newValues.tx_power_6ghz_dbm = updates.txPower6ghzDbm; }
   if (updates.enabled !== undefined) { oldValues.enabled = ap?.enabled; newValues.enabled = updates.enabled; }
   if (updates.height_m !== undefined) { oldValues.height_m = ap?.height_m; newValues.height_m = updates.height_m; }
   if (updates.mounting !== undefined) { oldValues.mounting = ap?.mounting; newValues.mounting = updates.mounting; }
   if (updates.channel_24ghz !== undefined) { oldValues.channel_24ghz = ap?.channel_24ghz; newValues.channel_24ghz = updates.channel_24ghz; }
   if (updates.channel_5ghz !== undefined) { oldValues.channel_5ghz = ap?.channel_5ghz; newValues.channel_5ghz = updates.channel_5ghz; }
+  if (updates.channel_6ghz !== undefined) { oldValues.channel_6ghz = ap?.channel_6ghz; newValues.channel_6ghz = updates.channel_6ghz; }
   if (updates.channel_width !== undefined) { oldValues.channel_width = ap?.channel_width; newValues.channel_width = updates.channel_width; }
   if (updates.orientation_deg !== undefined) { oldValues.orientation_deg = ap?.orientation_deg; newValues.orientation_deg = updates.orientation_deg; }
 

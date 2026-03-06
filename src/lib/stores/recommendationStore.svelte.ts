@@ -24,6 +24,7 @@ import type {
   PriorityZone,
   RejectionReason,
   RecommendationRejection,
+  CandidatePolicy,
 } from '$lib/recommendations/types';
 import { generateRecommendations } from '$lib/recommendations/generator';
 import { applyRejection } from '$lib/recommendations/constraints';
@@ -40,6 +41,7 @@ function createRecommendationStore() {
   let ctxApCapabilities = $state<Map<string, APCapabilities>>(new Map());
   let ctxPriorityZones = $state<PriorityZone[]>([]);
   let ctxRejections = $state<RecommendationRejection[]>([]);
+  let ctxCandidatePolicy = $state<CandidatePolicy>('required_for_new_ap');
 
   // Cache last analysis params for re-run after rejection
   let lastAnalysisParams = $state<{
@@ -60,6 +62,7 @@ function createRecommendationStore() {
       apCapabilities: ctxApCapabilities,
       priorityZones: ctxPriorityZones,
       rejections: ctxRejections,
+      candidatePolicy: ctxCandidatePolicy,
     };
   }
 
@@ -69,6 +72,7 @@ function createRecommendationStore() {
     get profile() { return profile; },
     get selectedRecommendationId() { return selectedRecommendationId; },
     get context() { return buildContext(); },
+    get candidatePolicy() { return ctxCandidatePolicy; },
 
     setProfile(p: ExpertProfile): void {
       profile = p;
@@ -97,6 +101,10 @@ function createRecommendationStore() {
 
     setPriorityZones(zones: PriorityZone[]): void {
       ctxPriorityZones = zones;
+    },
+
+    setCandidatePolicy(policy: CandidatePolicy): void {
+      ctxCandidatePolicy = policy;
     },
 
     // ─── Rejection Workflow ──────────────────────────────
@@ -165,6 +173,7 @@ function createRecommendationStore() {
       ctxApCapabilities = new Map();
       ctxPriorityZones = [];
       ctxRejections = [];
+      ctxCandidatePolicy = 'required_for_new_ap';
     },
   };
 }

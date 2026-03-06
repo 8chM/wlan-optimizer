@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28m-complete",
+  "currentPhase": "phase-28p-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -994,6 +994,26 @@
         "T3: boost worsens score → skipped",
         "rules.md: 3 Roaming-Sub-Cluster (Down/Boost/Warnings), 71 Regeln total, 16 Cluster",
         "863 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 OK"
+      ]
+    },
+    "28p": {
+      "name": "Candidate-Only Mode als echtes Produkt-Feature (Context/Settings)",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "CandidatePolicy Type: 'optional' | 'required_for_new_ap' | 'required_for_move_and_new_ap' (types.ts)",
+        "RecommendationContext erweitert: candidatePolicy Feld (Default: required_for_new_ap)",
+        "Generator add_ap: Policy-basierte Logik — required + keine Candidates → infrastructure_required, optional → RF-weighted Fallback",
+        "Generator move_ap: Strategy 2 (Interpolation) blockiert bei required_for_move_and_new_ap",
+        "recommendationStore: ctxCandidatePolicy State, setCandidatePolicy() Setter, resetContext() erweitert",
+        "Settings-UI: Optimization-Sektion mit Select-Dropdown fuer 3 Policy-Optionen",
+        "constraints.ts: candidatePolicy in Return-Objekt ergaenzt (Linter-Fix)",
+        "1 neuer i18n-Key EN+DE: infraNoCandidatesDefinedReason, 5 Settings-Keys EN+DE",
+        "P1: required_for_new_ap + empty → infrastructure_required",
+        "P2: optional + empty → add_ap Fallback moeglich",
+        "P3: required_for_move_and_new_ap blockiert move_ap Interpolation",
+        "205 Rec-Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
       ]
     }
   },

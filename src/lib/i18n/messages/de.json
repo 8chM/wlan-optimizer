@@ -444,6 +444,11 @@
     "measurementDefaults": "Mess-Standardwerte",
     "iperfServer": "iPerf-Server-IP",
     "iperfPort": "iPerf-Port",
+    "optimization": "Optimierung",
+    "candidatePolicy": "AP-Platzierungsregel",
+    "candidatePolicyOptional": "Optional (freie Platzierung erlaubt)",
+    "candidatePolicyRequiredNew": "Pflicht fuer neue APs (Empfohlen)",
+    "candidatePolicyRequiredAll": "Pflicht fuer neue APs und Verschiebungen",
     "about": "Ueber",
     "version": "Version",
     "techStack": "Technologie-Stack",
@@ -477,6 +482,7 @@
     "infraRequiredAtCandidateTitle": "Neue Infrastruktur noetig bei \"{candidate}\"",
     "infraRequiredReason": "Kein geeigneter Installationspunkt fuer {cells} schwache Zellen. {reason}",
     "infraNoValidCandidateReason": "Kein gueltiger Kandidat fuer {cells} schwache Zellen. {count} Kandidaten geprueft — abgelehnt: {reasons}",
+    "infraNoCandidatesDefinedReason": "Schwachzone mit {cells} Zellen braucht einen AP, aber keine Kandidaten-Positionen definiert. Kandidaten im Editor hinzufuegen oder Platzierungsregel auf 'optional' setzen.",
     "addApCandidateReason": "Schwachzone ({cells} Zellen, avg {avgRssi} dBm). Bester Kandidat: {candidate} ({distance}m vom Ideal)",
     "blockedMoveTitle": "{ap} Verschiebung blockiert",
     "blockedMoveReason": "{ap} kann nicht verschoben werden: {reason}",
@@ -598,7 +604,9 @@
     "canChangeMounting": "Montage aenderbar",
     "canChangeTxPower24": "TX 2.4G aenderbar",
     "canChangeTxPower5": "TX 5G aenderbar",
+    "canChangeTxPower6": "TX 6G aenderbar",
     "canChangeChannel24": "Kanal 2.4G aenderbar",
-    "canChangeChannel5": "Kanal 5G aenderbar"
+    "canChangeChannel5": "Kanal 5G aenderbar",
+    "canChangeChannel6": "Kanal 6G aenderbar"
   }
 }

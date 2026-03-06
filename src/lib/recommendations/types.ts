@@ -104,8 +104,10 @@ export interface APCapabilities {
   canChangeMounting: boolean;
   canChangeTxPower24: boolean;
   canChangeTxPower5: boolean;
+  canChangeTxPower6: boolean;
   canChangeChannel24: boolean;
   canChangeChannel5: boolean;
+  canChangeChannel6: boolean;
 }
 
 /** Default capabilities: everything allowed */
@@ -115,8 +117,10 @@ export const DEFAULT_AP_CAPABILITIES: Omit<APCapabilities, 'apId'> = {
   canChangeMounting: true,
   canChangeTxPower24: true,
   canChangeTxPower5: true,
+  canChangeTxPower6: true,
   canChangeChannel24: true,
   canChangeChannel5: true,
+  canChangeChannel6: true,
 };
 
 // ─── Priority Zone Model ──────────────────────────────────────────
@@ -435,6 +439,9 @@ export interface AnalysisResult {
   band: FrequencyBand;
 }
 
+/** Controls when candidate locations are required for AP placement */
+export type CandidatePolicy = 'optional' | 'required_for_new_ap' | 'required_for_move_and_new_ap';
+
 /** Context passed to the generator with all constraint/candidate data */
 export interface RecommendationContext {
   candidates: CandidateLocation[];
@@ -442,6 +449,9 @@ export interface RecommendationContext {
   apCapabilities: Map<string, APCapabilities>;
   priorityZones: PriorityZone[];
   rejections: RecommendationRejection[];
+  /** Controls when candidate locations are required for AP placement.
+   *  Default: 'required_for_new_ap' (Heim-Setup: nur an definierten Kandidaten-Positionen) */
+  candidatePolicy: CandidatePolicy;
 }
 
 /** Empty context for backwards compatibility */
@@ -451,6 +461,7 @@ export const EMPTY_CONTEXT: RecommendationContext = {
   apCapabilities: new Map(),
   priorityZones: [],
   rejections: [],
+  candidatePolicy: 'required_for_new_ap',
 };
 
 // ─── Weak/Overlap Zones ───────────────────────────────────────────

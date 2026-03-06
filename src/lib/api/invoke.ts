@@ -195,8 +195,10 @@ export interface CommandMap {
         mounting?: string;
         tx_power_24ghz_dbm?: number;
         tx_power_5ghz_dbm?: number;
+        tx_power_6ghz_dbm?: number;
         channel_24ghz?: number;
         channel_5ghz?: number;
+        channel_6ghz?: number;
         channel_width?: string;
         enabled?: boolean;
       };

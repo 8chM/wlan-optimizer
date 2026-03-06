@@ -538,6 +538,9 @@ function generateAddApSuggestions(
     const uplinkMinBenefit = (!hasMustHaveCoverage && uplinkLimitedRatio > UPLINK_SUPPRESS_ADD_MOVE)
       ? UPLINK_ADD_MOVE_MIN_BENEFIT : 2;
 
+    const policy = ctx.candidatePolicy ?? 'required_for_new_ap';
+    const requireCandidates = policy !== 'optional';
+
     // Try to find a candidate location if candidates are available
     if (ctx.candidates.length > 0) {
       const match = findBestCandidate(idealX, idealY, ctx.candidates, ctx.constraintZones, undefined, MAX_IDEAL_DISTANCE_ADD_AP_M);
@@ -646,8 +649,88 @@ function generateAddApSuggestions(
       }
     }
 
-    // No candidate locations defined — skip add_ap.
-    // AP placement is only possible at user-defined candidate positions.
+    // No candidate locations defined
+    if (requireCandidates) {
+      // Policy requires candidates — emit infrastructure_required instead of placing freely
+      recs.push({
+        id: genId(),
+        type: 'infrastructure_required',
+        priority: 'medium',
+        severity: 'warning',
+        titleKey: 'rec.infraRequiredTitle',
+        titleParams: {
+          x: Math.round(idealX * 10) / 10,
+          y: Math.round(idealY * 10) / 10,
+        },
+        reasonKey: 'rec.infraNoCandidatesDefinedReason',
+        reasonParams: {
+          cells: zone.cellCount,
+          policy,
+        },
+        affectedApIds: [],
+        affectedBand: band,
+        evidence: {
+          metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi },
+          affectedCells: zone.cellIndices.slice(0, 2000),
+          gridStep,
+        },
+        confidence: 0.5,
+        idealTargetPosition: { x: idealX, y: idealY },
+        infrastructureRequired: true,
+        requiresUserDecision: true,
+      });
+      continue;
+    }
+
+    // Policy is 'optional' and no candidates — fallback: place at RF-weighted ideal position
+    if (!isMovementAllowed(idealX, idealY, ctx.constraintZones)) continue;
+    if (!isPhysicallyValidApPosition(idealX, idealY, walls)) continue;
+
+    const fallbackDelta = simulateAddAP(
+      aps, walls, bounds, band, rfConfig,
+      { x: idealX, y: idealY },
+      templateConfig,
+      weights,
+    );
+
+    if (fallbackDelta.changePercent > uplinkMinBenefit) {
+      let stackPriority: 'high' | 'medium' | 'low' = 'medium';
+      let stackSeverity: 'critical' | 'warning' | 'info' = 'warning';
+      if (addApCount >= 2) stackPriority = 'low';
+      if (addApCount >= 1) stackSeverity = 'info';
+      recs.push({
+        id: genId(),
+        type: 'add_ap',
+        priority: stackPriority,
+        severity: stackSeverity,
+        titleKey: 'rec.addApTitle',
+        titleParams: {
+          x: Math.round(idealX * 10) / 10,
+          y: Math.round(idealY * 10) / 10,
+        },
+        reasonKey: 'rec.addApReason',
+        reasonParams: {
+          cells: zone.cellCount,
+          avgRssi: Math.round(zone.avgRssi),
+        },
+        affectedApIds: [],
+        affectedBand: band,
+        suggestedChange: {
+          parameter: 'position',
+          currentValue: 'none',
+          suggestedValue: `(${idealX.toFixed(1)}, ${idealY.toFixed(1)})`,
+        },
+        evidence: {
+          metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi },
+          affectedCells: zone.cellIndices.slice(0, 2000),
+          gridStep,
+        },
+        simulatedDelta: fallbackDelta,
+        confidence: 0.6,
+        idealTargetPosition: { x: idealX, y: idealY },
+      });
+      addApCount++;
+    }
   }
 }
 
@@ -780,8 +863,10 @@ function generateMoveApSuggestions(
       }
 
       // Strategy 2: Fallback — interpolate towards RF-weighted target
-      // Only when no candidate locations are defined; with candidates, only candidate-based moves are allowed.
-      if (ctx.candidates.length === 0 && (!bestDelta || bestDelta.changePercent <= 3)) {
+      // Only when no candidate locations are defined AND policy allows free placement for moves.
+      const movePolicy = ctx.candidatePolicy ?? 'required_for_new_ap';
+      const moveFallbackAllowed = ctx.candidates.length === 0 && movePolicy !== 'required_for_move_and_new_ap';
+      if (moveFallbackAllowed && (!bestDelta || bestDelta.changePercent <= 3)) {
         const dx = target.x - ap.x;
         const dy = target.y - ap.y;
         const fractions = [0.25, 0.5, 0.75];
@@ -1353,7 +1438,7 @@ function generateChannelRecommendations(
   }
 
   // Emit recommendations
-  const channelParamName = band === '2.4ghz' ? 'channel_24ghz' : 'channel_5ghz';
+  const channelParamName = band === '2.4ghz' ? 'channel_24ghz' : band === '6ghz' ? 'channel_6ghz' : 'channel_5ghz';
 
   for (const [targetApId, change] of channelChanges) {
     // Find worst conflict involving this AP for evidence

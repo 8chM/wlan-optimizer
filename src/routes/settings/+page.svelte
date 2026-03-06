@@ -12,6 +12,8 @@ import Layout from '$lib/components/layout/Layout.svelte';
 import { t, type Locale, getLocale, setLocale } from '$lib/i18n';
 import { settingsStore } from '$lib/stores/settingsStore.svelte';
 import { type ThemePreference, themeStore } from '$lib/stores/themeStore.svelte';
+import { recommendationStore } from '$lib/stores/recommendationStore.svelte';
+import type { CandidatePolicy } from '$lib/recommendations/types';
 
 // ─── Load Settings on Mount ─────────────────────────────────────
 
@@ -26,6 +28,7 @@ $effect(() => {
 let currentLocale = $derived(getLocale());
 let currentTheme = $derived(themeStore.theme);
 let colorScheme = $derived(settingsStore.defaultColorScheme);
+let candidatePolicy = $derived(recommendationStore.candidatePolicy);
 let gridResolution = $derived(settingsStore.defaultGridResolutionM);
 let iperfIp = $derived(settingsStore.iperfServerIp ?? '');
 let iperfPort = $derived(settingsStore.iperfServerPort);
@@ -62,6 +65,11 @@ function handleIperfPortChange(event: Event): void {
   if (!isNaN(value) && value > 0 && value <= 65535) {
     settingsStore.updateSetting('iperf_server_port', value);
   }
+}
+
+function handleCandidatePolicyChange(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value as CandidatePolicy;
+  recommendationStore.setCandidatePolicy(value);
 }
 </script>
 
@@ -210,6 +218,25 @@ function handleIperfPortChange(event: Event): void {
             max="65535"
             class="field-input narrow"
           />
+        </div>
+      </section>
+
+      <!-- Optimization Section -->
+      <section class="settings-section">
+        <h3 class="section-title">{t('settings.optimization')}</h3>
+
+        <div class="field-row">
+          <label class="field-label" for="candidate-policy">{t('settings.candidatePolicy')}</label>
+          <select
+            id="candidate-policy"
+            value={candidatePolicy}
+            onchange={handleCandidatePolicyChange}
+            class="field-select"
+          >
+            <option value="required_for_new_ap">{t('settings.candidatePolicyRequiredNew')}</option>
+            <option value="required_for_move_and_new_ap">{t('settings.candidatePolicyRequiredAll')}</option>
+            <option value="optional">{t('settings.candidatePolicyOptional')}</option>
+          </select>
         </div>
       </section>
 

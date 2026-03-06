@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-06 (Phase 28m — Roaming TX Boost)
+Last updated: 2026-03-06 (Phase 28p — Candidate Policy)
 
 ---
 
@@ -163,6 +163,8 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | AM-05 | Multi-zone top 3 | — | — | Process top 3 zones by cellCount × relevance | :435 |
 | AM-06 | RF-weighted target | — | — | computeWeightedTarget instead of geometric centroid | :453 |
 | AM-07 | Candidate matching + infrastructure | candidates available | Physical validation | Match to candidate, set infrastructure_required flag | :472-484 |
+| AM-07b | Candidate policy gate (add_ap) | candidatePolicy !== 'optional' AND no candidates defined | — | Emit infrastructure_required with infraNoCandidatesDefinedReason | :455-465 |
+| AM-07c | Candidate policy fallback (add_ap) | candidatePolicy === 'optional' AND no candidates defined | — | Place at RF-weighted ideal position (no candidate matching) | :467-475 |
 
 ### Move AP — `generateMoveApSuggestions()` (generator.ts:580-825)
 
@@ -173,6 +175,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | AM-10 | Zone scoring | — | — | Score top 3 zones by distance + PZ weight + size × relevance | :695-702 |
 | AM-11 | Physical validation | — | isPhysicallyValidApPosition false | Skip position (inside wall) | :731 |
 | AM-12 | 2-strategy approach | — | ctx.candidates.length === 0 for Strategy 2 | Strategy 1: candidates only. Strategy 2: interpolation fallback (only when no candidates defined) | :672-735 |
+| AM-12b | Candidate policy gate (move_ap) | candidatePolicy === 'required_for_move_and_new_ap' | — | Block Strategy 2 interpolation fallback | :865-868 |
 
 ### Rotate AP — `generateRotateApSuggestions()` (generator.ts:875-938)
 
@@ -193,6 +196,9 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 - move_ap targetBand test (Phase 26d)
 - W1: move_ap coverage threshold 25% (Phase 27b)
 - B4: preferred_candidate uses selectTemplateAp (Phase 27b)
+- **P1: required_for_new_ap + empty candidates → infrastructure_required (Phase 28p)**
+- **P2: optional + empty candidates → add_ap fallback (Phase 28p)**
+- **P3: required_for_move_and_new_ap blocks move_ap interpolation (Phase 28p)**
 
 ---
 

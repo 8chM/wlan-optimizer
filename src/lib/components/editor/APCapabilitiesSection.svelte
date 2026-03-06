@@ -1,7 +1,7 @@
 <!--
   APCapabilitiesSection.svelte - Collapsible capabilities section for AP properties.
 
-  Shows 7 toggle switches for AP permission flags.
+  Shows 9 toggle switches for AP permission flags.
   Collapsed by default.
 -->
 <script lang="ts">
@@ -31,8 +31,10 @@
     { key: 'canChangeMounting', labelKey: 'capabilities.canChangeMounting' },
     { key: 'canChangeTxPower24', labelKey: 'capabilities.canChangeTxPower24' },
     { key: 'canChangeTxPower5', labelKey: 'capabilities.canChangeTxPower5' },
+    { key: 'canChangeTxPower6', labelKey: 'capabilities.canChangeTxPower6' },
     { key: 'canChangeChannel24', labelKey: 'capabilities.canChangeChannel24' },
     { key: 'canChangeChannel5', labelKey: 'capabilities.canChangeChannel5' },
+    { key: 'canChangeChannel6', labelKey: 'capabilities.canChangeChannel6' },
   ];
 
   function handleToggle(key: keyof Omit<APCapabilities, 'apId'>): void {

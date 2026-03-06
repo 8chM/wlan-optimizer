@@ -295,4 +295,73 @@ describe('getBlockingReasons', () => {
     const reasons = getBlockingReasons(rec, ctx);
     expect(reasons.length).toBe(0);
   });
+
+  it('should block 6GHz TX power when canChangeTxPower6=false', () => {
+    const caps: APCapabilities = {
+      apId: 'ap-1',
+      ...DEFAULT_AP_CAPABILITIES,
+      canChangeTxPower6: false,
+    };
+    const ctx = makeCtx({ apCapabilities: new Map([['ap-1', caps]]) });
+    const rec = makeRec('adjust_tx_power', { affectedBand: '6ghz' });
+
+    const reasons = getBlockingReasons(rec, ctx);
+    expect(reasons.length).toBe(1);
+    expect(reasons[0]).toContain('6 GHz');
+  });
+
+  it('should allow 5GHz TX power when only canChangeTxPower6=false', () => {
+    const caps: APCapabilities = {
+      apId: 'ap-1',
+      ...DEFAULT_AP_CAPABILITIES,
+      canChangeTxPower6: false,
+    };
+    const ctx = makeCtx({ apCapabilities: new Map([['ap-1', caps]]) });
+    const rec = makeRec('adjust_tx_power', { affectedBand: '5ghz' });
+
+    const reasons = getBlockingReasons(rec, ctx);
+    expect(reasons.length).toBe(0);
+  });
+
+  it('should block 6GHz channel change when canChangeChannel6=false', () => {
+    const caps: APCapabilities = {
+      apId: 'ap-1',
+      ...DEFAULT_AP_CAPABILITIES,
+      canChangeChannel6: false,
+    };
+    const ctx = makeCtx({ apCapabilities: new Map([['ap-1', caps]]) });
+    const rec = makeRec('change_channel', { affectedBand: '6ghz' });
+
+    const reasons = getBlockingReasons(rec, ctx);
+    expect(reasons.length).toBe(1);
+    expect(reasons[0]).toContain('6 GHz');
+  });
+});
+
+describe('isActionAllowed — 6GHz', () => {
+  it('should use canChangeTxPower6 for 6GHz band', () => {
+    const caps: APCapabilities = {
+      apId: 'ap-1',
+      ...DEFAULT_AP_CAPABILITIES,
+      canChangeTxPower5: true,
+      canChangeTxPower6: false,
+    };
+    const ctx = makeCtx({ apCapabilities: new Map([['ap-1', caps]]) });
+
+    expect(isActionAllowed('ap-1', 'adjust_tx_power', '6ghz', ctx)).toBe(false);
+    expect(isActionAllowed('ap-1', 'adjust_tx_power', '5ghz', ctx)).toBe(true);
+  });
+
+  it('should use canChangeChannel6 for 6GHz band', () => {
+    const caps: APCapabilities = {
+      apId: 'ap-1',
+      ...DEFAULT_AP_CAPABILITIES,
+      canChangeChannel5: true,
+      canChangeChannel6: false,
+    };
+    const ctx = makeCtx({ apCapabilities: new Map([['ap-1', caps]]) });
+
+    expect(isActionAllowed('ap-1', 'change_channel', '6ghz', ctx)).toBe(false);
+    expect(isActionAllowed('ap-1', 'change_channel', '5ghz', ctx)).toBe(true);
+  });
 });

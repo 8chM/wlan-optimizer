@@ -331,9 +331,9 @@
       mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
     } else if (parameter === 'channel') {
       const band = editorHeatmapStore.band;
-      const paramKey = band === '2.4ghz' ? 'channel_24ghz' : 'channel_5ghz';
+      const paramKey = band === '2.4ghz' ? 'channel_24ghz' : band === '6ghz' ? 'channel_6ghz' : 'channel_5ghz';
       mixingStore.applyChange(id, paramKey, String(currentValue ?? ''), String(suggestedValue));
-    } else if (parameter === 'channel_24ghz' || parameter === 'channel_5ghz') {
+    } else if (parameter === 'channel_24ghz' || parameter === 'channel_5ghz' || parameter === 'channel_6ghz') {
       mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
     } else {
       mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));

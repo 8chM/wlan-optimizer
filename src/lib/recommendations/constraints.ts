@@ -52,9 +52,13 @@ export function isActionAllowed(
     case 'change_mounting':
       return caps.canChangeMounting;
     case 'adjust_tx_power':
-      return band === '2.4ghz' ? caps.canChangeTxPower24 : caps.canChangeTxPower5;
+      return band === '2.4ghz' ? caps.canChangeTxPower24
+        : band === '6ghz' ? caps.canChangeTxPower6
+        : caps.canChangeTxPower5;
     case 'change_channel':
-      return band === '2.4ghz' ? caps.canChangeChannel24 : caps.canChangeChannel5;
+      return band === '2.4ghz' ? caps.canChangeChannel24
+        : band === '6ghz' ? caps.canChangeChannel6
+        : caps.canChangeChannel5;
     default:
       return true;
   }
@@ -422,6 +426,7 @@ export function applyRejection(
     apCapabilities: newCapabilities,
     priorityZones: ctx.priorityZones,
     rejections: [...ctx.rejections, rejectionWithDerived],
+    candidatePolicy: ctx.candidatePolicy,
   };
 }
 
@@ -452,8 +457,11 @@ export function getBlockingReasons(
       if (band === '2.4ghz' && !caps.canChangeTxPower24) {
         reasons.push(`AP ${apId}: TX power change (2.4 GHz) not allowed`);
       }
-      if ((band === '5ghz' || band === '6ghz') && !caps.canChangeTxPower5) {
+      if (band === '5ghz' && !caps.canChangeTxPower5) {
         reasons.push(`AP ${apId}: TX power change (5 GHz) not allowed`);
+      }
+      if (band === '6ghz' && !caps.canChangeTxPower6) {
+        reasons.push(`AP ${apId}: TX power change (6 GHz) not allowed`);
       }
     }
     if (rec.type === 'change_channel') {
@@ -461,8 +469,11 @@ export function getBlockingReasons(
       if (band === '2.4ghz' && !caps.canChangeChannel24) {
         reasons.push(`AP ${apId}: channel change (2.4 GHz) not allowed`);
       }
-      if ((band === '5ghz' || band === '6ghz') && !caps.canChangeChannel5) {
+      if (band === '5ghz' && !caps.canChangeChannel5) {
         reasons.push(`AP ${apId}: channel change (5 GHz) not allowed`);
+      }
+      if (band === '6ghz' && !caps.canChangeChannel6) {
+        reasons.push(`AP ${apId}: channel change (6 GHz) not allowed`);
       }
     }
   }

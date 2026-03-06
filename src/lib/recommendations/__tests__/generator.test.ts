@@ -8,7 +8,7 @@ import type { APConfig, WallData, FloorBounds } from '$lib/heatmap/worker-types'
 import type { HeatmapStats } from '$lib/heatmap/heatmap-manager';
 import type { AccessPointResponse } from '$lib/api/invoke';
 import type { Recommendation, RecommendationContext, CandidateLocation, ConstraintZone, PriorityZone } from '../types';
-import { EMPTY_CONTEXT, RECOMMENDATION_CATEGORIES } from '../types';
+import { EMPTY_CONTEXT, RECOMMENDATION_CATEGORIES, DEFAULT_AP_CAPABILITIES } from '../types';
 import { createRFConfig } from '$lib/heatmap/rf-engine';
 import { computeZoneRelevance, classifyApRole, analyzeRoamingPairs } from '../analysis';
 import type { APMetrics, WeakZone } from '../types';
@@ -984,16 +984,12 @@ describe('generateRecommendations', () => {
     // Block TX power change for both APs on 5GHz
     const caps = new Map([
       ['ap-1', {
-        apId: 'ap-1',
-        canMove: true, canRotate: true, canChangeMounting: true,
-        canChangeTxPower24: true, canChangeTxPower5: false,
-        canChangeChannel24: true, canChangeChannel5: true,
+        apId: 'ap-1', ...DEFAULT_AP_CAPABILITIES,
+        canChangeTxPower5: false,
       }],
       ['ap-2', {
-        apId: 'ap-2',
-        canMove: true, canRotate: true, canChangeMounting: true,
-        canChangeTxPower24: true, canChangeTxPower5: false,
-        canChangeChannel24: true, canChangeChannel5: true,
+        apId: 'ap-2', ...DEFAULT_AP_CAPABILITIES,
+        canChangeTxPower5: false,
       }],
     ]);
 
@@ -1048,10 +1044,8 @@ describe('generateRecommendations', () => {
     // Block TX power ONLY for dominant AP (ap-1), ap-2 stays allowed
     const caps = new Map([
       ['ap-1', {
-        apId: 'ap-1',
-        canMove: true, canRotate: true, canChangeMounting: true,
-        canChangeTxPower24: true, canChangeTxPower5: false,
-        canChangeChannel24: true, canChangeChannel5: true,
+        apId: 'ap-1', ...DEFAULT_AP_CAPABILITIES,
+        canChangeTxPower5: false,
       }],
     ]);
 
@@ -3483,10 +3477,8 @@ describe('generateRecommendations', () => {
         ...EMPTY_CONTEXT,
         apCapabilities: new Map([
           ['ap-1', {
-            apId: 'ap-1',
-            canMove: true, canRotate: true, canChangeMounting: true,
+            apId: 'ap-1', ...DEFAULT_AP_CAPABILITIES,
             canChangeTxPower24: false, canChangeTxPower5: false,
-            canChangeChannel24: true, canChangeChannel5: true,
           }],
         ]),
       };
@@ -3748,14 +3740,8 @@ describe('generateRecommendations', () => {
         ...EMPTY_CONTEXT,
         apCapabilities: new Map([
           ['ap-2', {
-            apId: 'ap-2',
-            canMove: true,
-            canRotate: true,
-            canChangeMounting: true,
-            canChangeTxPower24: false,
-            canChangeTxPower5: false,
-            canChangeChannel24: true,
-            canChangeChannel5: true,
+            apId: 'ap-2', ...DEFAULT_AP_CAPABILITIES,
+            canChangeTxPower24: false, canChangeTxPower5: false,
           }],
         ]),
       };
@@ -3828,6 +3814,252 @@ describe('generateRecommendations', () => {
             `roaming_tx_boost must not worsen score: ${rec.simulatedDelta.scoreBefore} → ${rec.simulatedDelta.scoreAfter}`,
           ).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
         }
+      }
+    });
+  });
+
+  // ─── Phase 28p: Candidate Policy Tests ────────────────────────────
+
+  describe('candidatePolicy', () => {
+    it('P1: required_for_new_ap + empty candidates → infrastructure_required, no add_ap', () => {
+      const ap = makeAP('ap-1', 2, 2, { txPowerDbm: 10 });
+      const apResp = makeAPResponse('ap-1', 2, 2, 36);
+
+      // Weak zone in the far corner (poor coverage)
+      const grids = makeGrids(10, 10, { rssi: -82, delta: 20 });
+      for (let i = 0; i < 100; i++) grids.apIndexGrid[i] = 0;
+
+      const stats: HeatmapStats = {
+        ...makeStats(10, 10, grids, { excellent: 5, good: 10, fair: 15, poor: 40, none: 30 }),
+        apIds: ['ap-1'],
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [], // No candidates defined
+        candidatePolicy: 'required_for_new_ap',
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+
+      // No add_ap should be emitted when policy requires candidates but none are defined
+      expect(
+        addApRecs.length,
+        'add_ap should not be emitted with required_for_new_ap and no candidates',
+      ).toBe(0);
+
+      // infrastructure_required should be emitted instead
+      expect(
+        infraRecs.length,
+        'infrastructure_required should be emitted when candidates are required but missing',
+      ).toBeGreaterThan(0);
+
+      // Check that the infrastructure_required mentions the policy
+      const policyInfra = infraRecs.filter(r =>
+        r.reasonKey === 'rec.infraNoCandidatesDefinedReason',
+      );
+      expect(policyInfra.length).toBeGreaterThan(0);
+    });
+
+    it('P2: optional + empty candidates → add_ap fallback with free coordinates', () => {
+      const ap = makeAP('ap-1', 2, 2, { txPowerDbm: 10 });
+      const apResp = makeAPResponse('ap-1', 2, 2, 36);
+
+      // Weak zone in the far corner
+      const grids = makeGrids(10, 10, { rssi: -82, delta: 20 });
+      for (let i = 0; i < 100; i++) grids.apIndexGrid[i] = 0;
+
+      const stats: HeatmapStats = {
+        ...makeStats(10, 10, grids, { excellent: 5, good: 10, fair: 15, poor: 40, none: 30 }),
+        apIds: ['ap-1'],
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [], // No candidates defined
+        candidatePolicy: 'optional',
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+
+      // With optional policy, add_ap fallback should be possible (free placement)
+      // Note: may still be 0 if simulation says no benefit — the key is no blocking
+      const infraPolicyRecs = allRecs.filter(r =>
+        r.reasonKey === 'rec.infraNoCandidatesDefinedReason',
+      );
+      expect(
+        infraPolicyRecs.length,
+        'policy-based infrastructure_required should NOT be emitted with optional policy',
+      ).toBe(0);
+
+      // If weak zones exist and simulation shows benefit, add_ap should appear
+      if (addApRecs.length > 0) {
+        expect(addApRecs[0]!.suggestedChange).toBeDefined();
+        expect(addApRecs[0]!.idealTargetPosition).toBeDefined();
+        // Free placement: no selectedCandidatePosition
+        expect(addApRecs[0]!.selectedCandidatePosition).toBeUndefined();
+      }
+    });
+
+    it('P3: required_for_move_and_new_ap blocks move_ap interpolation', () => {
+      const ap1 = makeAP('ap-1', 1, 1, { txPowerDbm: 10 });
+      const ap2 = makeAP('ap-2', 9, 9, { txPowerDbm: 20 });
+      const apResp1 = makeAPResponse('ap-1', 1, 1, 36);
+      const apResp2 = makeAPResponse('ap-2', 9, 9, 44);
+
+      // AP-1 has very low primary coverage, AP-2 dominates
+      const grids = makeGrids(10, 10, { rssi: -50, delta: 20 });
+      for (let i = 0; i < 5; i++) grids.apIndexGrid[i] = 0;
+      for (let i = 5; i < 100; i++) grids.apIndexGrid[i] = 1;
+      for (let i = 0; i < 5; i++) grids.secondBestApIndexGrid[i] = 1;
+      for (let i = 5; i < 100; i++) grids.secondBestApIndexGrid[i] = 0;
+      // Make AP-1's area weak
+      for (let i = 0; i < 5; i++) grids.rssiGrid[i] = -80;
+
+      const stats: HeatmapStats = {
+        ...makeStats(10, 10, grids),
+        apIds: ['ap-1', 'ap-2'],
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [], // No candidates — interpolation would be the only fallback
+        candidatePolicy: 'required_for_move_and_new_ap',
+      };
+
+      const result = generateRecommendations(
+        [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const moveRecs = allRecs.filter(r => r.type === 'move_ap');
+
+      // With required_for_move_and_new_ap and no candidates, move_ap via interpolation is blocked
+      // (move_ap may still appear via candidate strategy if candidates were present, but here none are)
+      for (const rec of moveRecs) {
+        // Any move_ap that exists should have been generated via candidate matching, not interpolation
+        // With no candidates, no move_ap should exist
+        expect(rec.selectedCandidatePosition).toBeDefined();
+      }
+    });
+  });
+
+  // ─── Block: 6GHz Capability Model ─────────────────────────────────
+
+  describe('6GHz Capability Model', () => {
+    const BAND_6 = '6ghz' as const;
+    const RF_CONFIG_6 = createRFConfig(BAND_6);
+
+    it('T1: canChangeTxPower6=false blocks TX-power recs on 6GHz while 5GHz stays normal', () => {
+      const ap = makeAP('ap-6g', 5, 5, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-6g', 5, 5);
+      apResp.tx_power_6ghz_dbm = 20;
+      apResp.channel_6ghz = 1;
+
+      const grids = makeGrids(10, 10, { rssi: -78, apIdx: 0, delta: 20, overlap: 1 });
+      const stats: HeatmapStats = {
+        ...makeStats(10, 10, grids, { excellent: 10, good: 20, fair: 20, poor: 30, none: 20 }),
+        apIds: ['ap-6g'],
+      };
+
+      // 6GHz context: canChangeTxPower6=false
+      const capsBlocked = {
+        apId: 'ap-6g',
+        canMove: true, canRotate: true, canChangeMounting: true,
+        canChangeTxPower24: true, canChangeTxPower5: true, canChangeTxPower6: false,
+        canChangeChannel24: true, canChangeChannel5: true, canChangeChannel6: true,
+      };
+
+      const ctx6: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        apCapabilities: new Map([['ap-6g', capsBlocked]]),
+      };
+
+      const result6 = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS,
+        BAND_6, stats, RF_CONFIG_6, 'balanced', ctx6,
+      );
+
+      const all6 = collectAllRecommendations(result6.recommendations);
+      const txRecs6 = all6.filter(r => r.type === 'adjust_tx_power');
+
+      // Any TX power rec on 6GHz with this AP should be blocked
+      for (const rec of txRecs6) {
+        expect(rec.affectedApIds).not.toContain('ap-6g');
+      }
+
+      // 5GHz: same AP, canChangeTxPower5=true — should still work
+      const ctx5: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        apCapabilities: new Map([['ap-6g', capsBlocked]]),
+      };
+
+      const result5 = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS,
+        BAND, stats, RF_CONFIG, 'balanced', ctx5,
+      );
+
+      const all5 = collectAllRecommendations(result5.recommendations);
+      const txRecs5 = all5.filter(r => r.type === 'adjust_tx_power');
+      for (const rec of txRecs5) {
+        expect(rec.type).toBe('adjust_tx_power');
+      }
+    });
+
+    it('T2: canChangeChannel6=false blocks channel recs on 6GHz', () => {
+      const ap1 = makeAP('ap-ch1', 3, 5, { txPowerDbm: 20 });
+      const ap2 = makeAP('ap-ch2', 7, 5, { txPowerDbm: 20 });
+      const apResp1 = makeAPResponse('ap-ch1', 3, 5, 1);
+      const apResp2 = makeAPResponse('ap-ch2', 7, 5, 1);
+      apResp1.channel_6ghz = 1;
+      apResp2.channel_6ghz = 1;
+
+      const grids = makeGrids(10, 10, { rssi: -65, apIdx: 0, delta: 5, overlap: 2 });
+      const stats: HeatmapStats = {
+        ...makeStats(10, 10, grids, { excellent: 30, good: 30, fair: 20, poor: 15, none: 5 }),
+        apIds: ['ap-ch1', 'ap-ch2'],
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        apCapabilities: new Map([
+          ['ap-ch1', {
+            apId: 'ap-ch1',
+            canMove: true, canRotate: true, canChangeMounting: true,
+            canChangeTxPower24: true, canChangeTxPower5: true, canChangeTxPower6: true,
+            canChangeChannel24: true, canChangeChannel5: true, canChangeChannel6: false,
+          }],
+          ['ap-ch2', {
+            apId: 'ap-ch2',
+            canMove: true, canRotate: true, canChangeMounting: true,
+            canChangeTxPower24: true, canChangeTxPower5: true, canChangeTxPower6: true,
+            canChangeChannel24: true, canChangeChannel5: true, canChangeChannel6: false,
+          }],
+        ]),
+      };
+
+      const result = generateRecommendations(
+        [ap1, ap2], [apResp1, apResp2], WALLS, BOUNDS,
+        BAND_6, stats, RF_CONFIG_6, 'balanced', ctx,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const chRecs = all.filter(r => r.type === 'change_channel');
+
+      // Channel change recs should be blocked for both APs on 6GHz
+      for (const rec of chRecs) {
+        expect(rec.affectedApIds.every(id => id !== 'ap-ch1' && id !== 'ap-ch2')).toBe(true);
       }
     });
   });

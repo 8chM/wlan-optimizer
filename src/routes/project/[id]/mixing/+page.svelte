@@ -11,6 +11,7 @@
   import AssistSteps from '$lib/components/mixing/AssistSteps.svelte';
   import ForecastHeatmap from '$lib/components/mixing/ForecastHeatmap.svelte';
   import HeatmapComparison from '$lib/components/comparison/HeatmapComparison.svelte';
+  import EditorHeatmapPanel from '$lib/components/editor/EditorHeatmapPanel.svelte';
   import OptimierungTabs from '$lib/components/optimierung/OptimierungTabs.svelte';
   import OptimierungHeader from '$lib/components/optimierung/OptimierungHeader.svelte';
   import RecommendationWizard from '$lib/components/optimierung/RecommendationWizard.svelte';
@@ -101,7 +102,11 @@
   });
 
   $effect(() => {
-    workspaceStore.setForecastActive(mixingStore.forecastMode && forecastCanvas !== null);
+    // Only show forecast when there are actual mixing changes — otherwise
+    // show the base heatmap so panel controls (band, colorScheme) work directly
+    workspaceStore.setForecastActive(
+      mixingStore.forecastMode && forecastCanvas !== null && changesArray.length > 0,
+    );
   });
 
   // Display AP overrides for preview
@@ -241,6 +246,8 @@
       updates.channel_24ghz = Number(suggestedValue);
     } else if (parameter === 'channel_5ghz') {
       updates.channel_5ghz = Number(suggestedValue);
+    } else if (parameter === 'channel_width') {
+      updates.channel_width = String(suggestedValue);
     }
 
     if (Object.keys(updates).length > 0) {
@@ -423,6 +430,11 @@
     changes={changesArray}
     forecastActive={mixingStore.forecastMode}
     band={editorHeatmapStore.band}
+    colorScheme={editorHeatmapStore.colorScheme}
+    calibratedN={editorHeatmapStore.calibratedN}
+    receiverGainDbi={editorHeatmapStore.receiverGainDbi}
+    backSectorPenalty={editorHeatmapStore.backSectorPenalty}
+    sideSectorPenalty={editorHeatmapStore.sideSectorPenalty}
     outputWidth={canvasStore.containerW}
     outputHeight={canvasStore.containerH}
     {scalePxPerMeter}
@@ -519,6 +531,9 @@
   <!-- Heatmap Comparison Panel -->
   <HeatmapComparison visible={comparisonStore.isActive} />
 </div>
+
+<!-- Floating Heatmap Controls Panel -->
+<EditorHeatmapPanel />
 
 <style>
   .mixing-sidebar {

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28d-complete",
+  "currentPhase": "phase-28e-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -878,6 +878,18 @@
         "Block 3: Test D9 — Channel Pool Exhaustion graceful degrade (5 APs, 4 Kanaele, max 3 Recs)",
         "Block 4: Test D10 — mustHaveCoverage PZ Ausnahme (65% Uplink, add_ap nicht blockiert)",
         "Block 5: Verifikation OK — 811 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28e": {
+      "name": "Engine-Rules Dokumentation + Integrity Tests + channel_width Fix",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Block 1: docs/recommendations/engine-rules.md — 48 Regeln aus analysis/constraints/simulator/convert/types/UI",
+        "Block 2: rulesIntegrity.test.ts — 16 automatisierte Konsistenz-Tests (E1-E5)",
+        "Block 3: adjust_channel_width Apply-Fix — channel_width Parameter in applyRecommendationToAP ergaenzt",
+        "Block 4: Verifikation OK — 827 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

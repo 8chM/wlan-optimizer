@@ -40,6 +40,12 @@
     scalePxPerMeter?: number;
     /** Calibrated path loss exponent */
     calibratedN?: number;
+    /** Receiver gain in dBi */
+    receiverGainDbi?: number;
+    /** Wall-mount back sector penalty in dB */
+    backSectorPenalty?: number;
+    /** Wall-mount side sector penalty in dB */
+    sideSectorPenalty?: number;
     /** Callback when forecast canvas is updated */
     onCanvas?: (canvas: HTMLCanvasElement | null) => void;
     /** Callback with heatmap statistics */
@@ -58,6 +64,9 @@
     outputHeight = 600,
     scalePxPerMeter = 50,
     calibratedN = undefined,
+    receiverGainDbi = undefined,
+    backSectorPenalty = undefined,
+    sideSectorPenalty = undefined,
     onCanvas,
     onStats,
   }: ForecastHeatmapProps = $props();
@@ -95,6 +104,9 @@
     {outputWidth}
     {outputHeight}
     {calibratedN}
+    {receiverGainDbi}
+    {backSectorPenalty}
+    {sideSectorPenalty}
     {onCanvas}
     {onStats}
   />

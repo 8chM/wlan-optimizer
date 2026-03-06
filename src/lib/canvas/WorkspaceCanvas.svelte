@@ -22,7 +22,6 @@
   import CanvasScrollbars from '$lib/canvas/CanvasScrollbars.svelte';
   import SignalProbeMarker from '$lib/canvas/SignalProbeMarker.svelte';
   import EditorHeatmap from '$lib/components/editor/EditorHeatmap.svelte';
-  import EditorHeatmapPanel from '$lib/components/editor/EditorHeatmapPanel.svelte';
   import EditorCanvasLayers from '$lib/canvas/EditorCanvasLayers.svelte';
   import MeasureCanvasLayers from '$lib/canvas/MeasureCanvasLayers.svelte';
   import MixingCanvasLayers from '$lib/canvas/MixingCanvasLayers.svelte';
@@ -587,12 +586,6 @@
   {/if}
 </div>
 
-<!-- Floating heatmap controls panel OUTSIDE .workspace-canvas to avoid
-     WebKit stacking context issues (overflow:hidden + position:relative
-     can create a stacking context in WKWebView, trapping z-index inside) -->
-{#if (pageContext === 'editor' || pageContext === 'mixing') && floor}
-  <EditorHeatmapPanel />
-{/if}
 
 <style>
   .workspace-canvas {

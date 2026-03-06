@@ -18,6 +18,7 @@ import CoverageStatsPanel from '$lib/components/editor/CoverageStatsPanel.svelte
 import MaterialPicker from '$lib/components/editor/MaterialPicker.svelte';
 import ContextMenu from '$lib/components/editor/ContextMenu.svelte';
 import PropertiesPanel from '$lib/components/editor/PropertiesPanel.svelte';
+import EditorHeatmapPanel from '$lib/components/editor/EditorHeatmapPanel.svelte';
 import PointInspectorOverlay from '$lib/components/editor/PointInspectorOverlay.svelte';
 import {
   type CoverageStats,
@@ -1550,6 +1551,9 @@ $effect(() => {
     onClose={() => { contextMenuVisible = false; }}
   />
 </div>
+
+<!-- Floating Heatmap Controls Panel -->
+<EditorHeatmapPanel />
 
 <ShortcutHelp bind:open={shortcutHelpOpen} />
 

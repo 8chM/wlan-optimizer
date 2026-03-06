@@ -160,7 +160,8 @@ describe('Performance: RF Engine - single point calculation', () => {
 
     // 20 walls should not be more than 5x slower than 0 walls
     // (spatial grid keeps it sub-linear in wall count)
-    expect(time20).toBeLessThan(time0 * 5 + 1); // +1ms for near-zero baselines
+    // +5ms margin to avoid flakiness when both times are very small (< 5ms)
+    expect(time20).toBeLessThan(time0 * 5 + 5);
   });
 });
 

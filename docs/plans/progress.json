@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28i-complete",
+  "currentPhase": "phase-28j-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -941,6 +941,21 @@
         "T3: move_ap candidate-only → kein interpolation-based move bei vorhandenen Candidates",
         "T4: move_ap Fallback erlaubt wenn keine Candidates definiert",
         "844 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28j": {
+      "name": "Regelwerk-Audit: Anti-Drift, Candidate-Only, Channel/Roaming/Uplink Invarianten",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Block A: rulesIntegrity.test.ts — E8 (i18n title key coverage) + E9 (category-effort cross-constraints), 27 Integrity-Tests",
+        "Block B: Test T5 — 0-candidates edge case (leere candidates → kein add_ap)",
+        "Block C: Test C1 — max 1 channel-rec per AP Invariante, max 3 total, unique targets",
+        "Block D: Tests D-tiny (tiny handoff zone → no roaming) + D-cap (canChangeTxPower false → blocked_recommendation)",
+        "Block E: Test E-tiers — band_limit_warning 3-Tier Severity-Verifikation (35%→info, 65%→warning, 85%→critical)",
+        "Block F: rules.md vollstaendig auditiert — alle 64 Regeln mit korrekten Zeilennummern, Nicht-modelliert Sektion, Candidate-Only Doku",
+        "Block G: 852 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

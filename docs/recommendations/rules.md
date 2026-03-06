@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-06 (Phase 28f)
+Last updated: 2026-03-06 (Phase 28j — Full Audit)
 
 ---
 
@@ -29,6 +29,8 @@ Die folgenden Garantien werden durch automatisierte Tests durchgesetzt:
 | E5 | Schluesselmengen von `RECOMMENDATION_CATEGORIES`, `EFFORT_LEVELS` und `ALL_RECOMMENDATION_TYPES` sind identisch |
 | E6 | Jeder `RecommendationType`-Wert der Union ist in `RECOMMENDATION_CATEGORIES` vorhanden (bidirektional) |
 | E7 | Alle im Generator per `recs.push({ type: ... })` emittierten Typen sind in `GENERATOR_EMITTED_TYPES` erfasst — verhindert heimliche neue Typen ohne Dokumentation |
+| E8 | Jeder `RecommendationType` hat einen dokumentierten i18n Title Key (TYPE_TO_TITLE_KEY Map) |
+| E9 | Kategorie-Effort Kreuz-Constraints: instructional → physical/infra effort, actionable_config ≠ infrastructure |
 
 ### Vorgehen bei neuem RecommendationType
 
@@ -51,7 +53,7 @@ Wird einer dieser Schritte vergessen, schlaegt `npx vitest run` fehl.
 
 ## 1. Channel Rules
 
-Generator: `generateChannelRecommendations()` (generator.ts:1194-1389)
+Generator: `generateChannelRecommendations()` (generator.ts:1149-1345)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -73,7 +75,7 @@ Generator: `generateChannelRecommendations()` (generator.ts:1194-1389)
 
 ## 2. TX-Power Rules
 
-Generator: `generateTxPowerSuggestions()` (generator.ts:1071-1183)
+Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -94,8 +96,8 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1071-1183)
 
 ## 3. Roaming Rules
 
-Generator: `generateRoamingTxAdjustments()` (generator.ts:1439-1598)
-Also: `generateStickyClientWarnings()` (:1601-1646), `generateHandoffGapWarnings()` (:1649-1694)
+Generator: `generateRoamingTxAdjustments()` (generator.ts:1394-1554)
+Also: `generateStickyClientWarnings()` (:1556-1602), `generateHandoffGapWarnings()` (:1604-1649)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -130,7 +132,7 @@ Also: `generateStickyClientWarnings()` (:1601-1646), `generateHandoffGapWarnings
 
 ## 4. Add/Move/Rotate/Mounting Rules
 
-### Add AP — `generateAddApSuggestions()` (generator.ts:400-623)
+### Add AP — `generateAddApSuggestions()` (generator.ts:400-578)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -142,7 +144,7 @@ Also: `generateStickyClientWarnings()` (:1601-1646), `generateHandoffGapWarnings
 | AM-06 | RF-weighted target | — | — | computeWeightedTarget instead of geometric centroid | :453 |
 | AM-07 | Candidate matching + infrastructure | candidates available | Physical validation | Match to candidate, set infrastructure_required flag | :472-484 |
 
-### Move AP — `generateMoveApSuggestions()` (generator.ts:626-870)
+### Move AP — `generateMoveApSuggestions()` (generator.ts:580-825)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -150,16 +152,16 @@ Also: `generateStickyClientWarnings()` (:1601-1646), `generateHandoffGapWarnings
 | AM-09 | No-move zone | isInNoMoveZone returns true | — | Emit blocked_recommendation | :650 |
 | AM-10 | Zone scoring | — | — | Score top 3 zones by distance + PZ weight + size × relevance | :695-702 |
 | AM-11 | Physical validation | — | isPhysicallyValidApPosition false | Skip position (inside wall) | :731 |
-| AM-12 | 2-strategy approach | — | — | Strategy 1: candidates, Strategy 2: interpolation fallback | :718-781 |
+| AM-12 | 2-strategy approach | — | ctx.candidates.length === 0 for Strategy 2 | Strategy 1: candidates only. Strategy 2: interpolation fallback (only when no candidates defined) | :672-735 |
 
-### Rotate AP — `generateRotateApSuggestions()` (generator.ts:920-983)
+### Rotate AP — `generateRotateApSuggestions()` (generator.ts:875-938)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
 | AM-13 | Wall-mount only | ap.mounting !== 'wall' | — | Skip (ceiling APs have no orientation effect) | :933 |
 | AM-14 | Improvement threshold | changePercent <= 3 | hasWallInFrontSector skip | Require >3% improvement | :959 |
 
-### Mounting — `generateMountingSuggestions()` (generator.ts:985-1068)
+### Mounting — `generateMountingSuggestions()` (generator.ts:940-1024)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -178,9 +180,13 @@ Also: `generateStickyClientWarnings()` (:1601-1646), `generateHandoffGapWarnings
 
 Constants: `UPLINK_SUPPRESS_ADD_MOVE=0.60`, `UPLINK_ADD_MOVE_MIN_BENEFIT=10`, `UPLINK_BLOCK_ROAMING=0.70` (generator.ts:68-69)
 
+Generator: `generateBandLimitWarnings()` (generator.ts:1841-1878)
+
+**What is `uplinkLimitedGrid`?** A per-cell boolean array indicating whether a cell is uplink-limited (device antenna placement limits effective throughput regardless of AP signal strength). The ratio of limited cells to total cells determines `uplinkLimitedRatio`.
+
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| UL-01 | Band limit warning | limitedPct > 30 | — | 3-tier: >30% info, >60% warning, >80% critical | :1901-1904 |
+| UL-01 | Band limit warning | limitedPct > 30 | — | 3-tier: >30% info, >60% warning, >80% critical | :1857-1859 |
 | UL-02 | Suppress add_ap | uplinkLimitedRatio > 0.60 | mustHaveCoverage PZ exception | Require min 10% benefit | :466-470 |
 | UL-03 | Suppress move_ap | uplinkLimitedRatio > 0.60 | — | Require min 10% benefit | :785-788 |
 | UL-04 | mustHaveCoverage exception | PZ.mustHaveCoverage === true | — | Keep normal 2% threshold | :468-470 |
@@ -196,13 +202,13 @@ Constants: `UPLINK_SUPPRESS_ADD_MOVE=0.60`, `UPLINK_ADD_MOVE_MIN_BENEFIT=10`, `U
 
 ## 6. Disable AP Rules
 
-Generator: `generateDisableApSuggestions()` (generator.ts:1818-1884)
+Generator: `generateDisableApSuggestions()` (generator.ts:1773-1839)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| DA-01 | Low primary coverage | primaryCoverageRatio < 0.05 | — | Consider disabling AP | :1831 |
-| DA-02 | Presence check | secondBestCoverageCells/totalCells >= 0.05 | — | Require AP is "present but not best" | :1834-1835 |
-| DA-03 | Simulation guard | changePercent >= -2 | — | Only suggest if coverage drop <= 2% | :1848 |
+| DA-01 | Low primary coverage | primaryCoverageRatio < 0.05 | — | Consider disabling AP | :1786 |
+| DA-02 | Presence check | secondBestCoverageCells/totalCells >= 0.05 | — | Require AP is "present but not best" | :1789-1790 |
+| DA-03 | Simulation guard | changePercent >= -2 | — | Only suggest if coverage drop <= 2% | :1803 |
 | DA-04 | low_ap_value suppression | disable_ap exists for this AP | — | Suppress low_ap_value warning | :212-216 |
 
 ### Tests
@@ -213,15 +219,16 @@ Generator: `generateDisableApSuggestions()` (generator.ts:1818-1884)
 
 ## 7. Constraint/Blocked Rules
 
-Generator: `generateConstraintConflictWarnings()` (generator.ts:1925-2050)
+Generator: `generateConstraintConflictWarnings()` (generator.ts:1880-2005)
+Also: `generatePreferredCandidateSuggestions()` (generator.ts:2007-2086)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| CB-01 | Forbidden zone | AP in forbidden zone | — | high/critical constraint_conflict | :1937-1941 |
-| CB-02 | Discouraged zone | AP in discouraged zone | — | medium/warning constraint_conflict | :1937-1942 |
-| CB-03 | mustHaveCoverage violation | violationRatio > 0.30 | RSSI grid available | constraint_conflict with coverage details | :2022 |
+| CB-01 | Forbidden zone | AP in forbidden zone | — | high/critical constraint_conflict | :1892-1916 |
+| CB-02 | Discouraged zone | AP in discouraged zone | — | medium/warning constraint_conflict | :1892-1916 |
+| CB-03 | mustHaveCoverage violation | violationRatio > 0.30 | RSSI grid available | constraint_conflict with coverage details | :1977-2003 |
 | CB-04 | Blocked recommendation | Capability violation (move, TX, channel) | — | Emit blocked_recommendation with reason | :1492-1515, :650-677 |
-| CB-05 | Preferred candidate | candidate.preferred && !candidate.forbidden | Physical validation, distance check | Emit preferred_candidate_location or infrastructure_required | :2063-2131 |
+| CB-05 | Preferred candidate | candidate.preferred && !candidate.forbidden | Physical validation, distance check | Emit preferred_candidate_location or infrastructure_required | :2018-2086 |
 
 ### Tests
 - constraint_conflict score=0 test (Phase 26g)
@@ -250,14 +257,14 @@ Location: `generateRecommendations()` sort block (generator.ts:247-272)
 
 ## 9. Deduplication Rules
 
-Function: `deduplicateRecommendations()` (generator.ts:2135-2182)
+Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| DD-01 | Group by AP | Multiple recs for same AP | — | Max 1 primary rec per AP group | :2136-2149 |
-| DD-02 | Effort-first sort | — | — | config < minor < major < infra | :2160-2173 |
-| DD-03 | Dominance override | Higher-effort has 3× improvement AND >10% absolute | — | Prefer higher-effort rec | :2166-2168 |
-| DD-04 | Alternatives | Remaining recs in group | — | Stored in alternativeRecommendations | :2177 |
+| DD-01 | Group by AP | Multiple recs for same AP | — | Max 1 primary rec per AP group | :2092-2104 |
+| DD-02 | Effort-first sort | — | — | config < minor < major < infra | :2115-2128 |
+| DD-03 | Dominance override | Higher-effort has 3× improvement AND >10% absolute | — | Prefer higher-effort rec | :2122-2123 |
+| DD-04 | Alternatives | Remaining recs in group | — | Stored in alternativeRecommendations | :2132 |
 
 ### Tests
 - Dedup tests in generator.test.ts (Phase 26)
@@ -266,35 +273,35 @@ Function: `deduplicateRecommendations()` (generator.ts:2135-2182)
 
 ## Additional Rules
 
-### Channel Width — `generateChannelWidthRecommendations()` (generator.ts:2194-2263)
+### Channel Width — `generateChannelWidthRecommendations()` (generator.ts:2149-2218)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| CW-01 | Width reduction | nearbyCount >= 2 + width >= 80 → suggest 40; veryCloseCount >= 3 + width > 20 → suggest 20 | band !== '2.4ghz' | Emit reduce_channel_width | :2228-2232 |
+| CW-01 | Width reduction | nearbyCount >= 2 + width >= 80 → suggest 40; veryCloseCount >= 3 + width > 20 → suggest 20 | band !== '2.4ghz' | Emit adjust_channel_width | :2183-2187 |
 
-### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1726-1758)
+### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1681-1713)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| OV-01 | Overlap warning | overlapPercent > 20 | — | medium/warning overlap_warning | :1738 |
+| OV-01 | Overlap warning | overlapPercent > 20 | — | medium/warning overlap_warning | :1693 |
 
 ### Coverage Warning — `generateCoverageWarnings()` (generator.ts:331-366)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| CV-01 | Coverage warning | weakPercent > 10 | — | >30% → high/critical, else medium/warning | :344-348 |
+| CV-01 | Coverage warning | weakPercent > 10 | — | >30% → high/critical, else medium/warning | :344-349 |
 
-### Low-Value AP — `generateLowValueWarnings()` (generator.ts:1696-1724)
-
-| ID | Description | Trigger | Guards | Action | Reference |
-|----|-------------|---------|--------|--------|-----------|
-| LV-01 | Low-value AP | AP in lowValueApIds list | Not in disabledApIds | low/info low_ap_value warning | :1703-1723 |
-
-### Roaming Hints — `generateRoamingHints()` (referenced at :204-206)
+### Low-Value AP — `generateLowValueWarnings()` (generator.ts:1651-1679)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| RH-01 | Roaming hint | No specific roaming warnings exist | sticky/gap/roaming_tx absent | Informational roaming hint | :200-206 |
+| LV-01 | Low-value AP | AP in lowValueApIds list | Not in disabledApIds | low/info low_ap_value warning | :1658-1678 |
+
+### Roaming Hints — `generateRoamingHints()` (generator.ts:1347-1390)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| RH-01 | Roaming hint | lowDeltaPercent > 15 | No specific roaming warnings exist (sticky/gap/roaming_tx absent, checked at :201-206) | Informational roaming hint | :1368-1389 |
 
 ---
 
@@ -302,21 +309,42 @@ Function: `deduplicateRecommendations()` (generator.ts:2135-2182)
 
 | Cluster | Rules | Generator Function | Lines |
 |---------|-------|--------------------|-------|
-| Channel | CH-01..CH-07 | generateChannelRecommendations | 1194-1389 |
-| TX-Power | TX-01..TX-08 | generateTxPowerSuggestions | 1071-1183 |
-| Roaming | RM-01..RM-13 | generateRoamingTxAdjustments + Sticky + Gap | 1439-1694 |
-| Add/Move/Rotate/Mount | AM-01..AM-15 | 4 generators | 400-1068 |
-| Uplink | UL-01..UL-04 | generateBandLimitWarnings + gating | 1886-1923, :68-69 |
-| Disable AP | DA-01..DA-04 | generateDisableApSuggestions | 1818-1884 |
-| Constraint/Blocked | CB-01..CB-05 | generateConstraintConflictWarnings + Preferred | 1925-2131 |
+| Channel | CH-01..CH-07 | generateChannelRecommendations | 1149-1345 |
+| TX-Power | TX-01..TX-08 | generateTxPowerSuggestions | 1026-1147 |
+| Roaming | RM-01..RM-13 | generateRoamingTxAdjustments + Sticky + Gap | 1394-1649 |
+| Add/Move/Rotate/Mount | AM-01..AM-15 | 4 generators | 400-1024 |
+| Uplink | UL-01..UL-04 | generateBandLimitWarnings + gating | 1841-1878, :68-69 |
+| Disable AP | DA-01..DA-04 | generateDisableApSuggestions | 1773-1839 |
+| Constraint/Blocked | CB-01..CB-05 | generateConstraintConflictWarnings + Preferred | 1880-2086 |
 | Sorting | SO-01..SO-05 | sort block in main function | 247-272 |
-| Dedup | DD-01..DD-04 | deduplicateRecommendations | 2135-2182 |
-| Channel Width | CW-01 | generateChannelWidthRecommendations | 2194-2263 |
-| Overlap | OV-01 | generateOverlapWarnings | 1726-1758 |
+| Dedup | DD-01..DD-04 | deduplicateRecommendations | 2090-2137 |
+| Channel Width | CW-01 | generateChannelWidthRecommendations | 2149-2218 |
+| Overlap | OV-01 | generateOverlapWarnings | 1681-1713 |
 | Coverage | CV-01 | generateCoverageWarnings | 331-366 |
-| Low-Value | LV-01 | generateLowValueWarnings | 1696-1724 |
-| Roaming Hint | RH-01 | generateRoamingHints | 200-206 |
+| Low-Value | LV-01 | generateLowValueWarnings | 1651-1679 |
+| Roaming Hint | RH-01 | generateRoamingHints | 1347-1390 |
 
 **Total: 64 rules across 14 clusters.**
 
 All rules have code references. No "not implemented" rules identified — every documented rule has a corresponding code path.
+
+---
+
+## Was die Engine bewusst NICHT weiss
+
+Die folgenden Aspekte sind **nicht modelliert** und werden bewusst nicht beruecksichtigt:
+
+| Aspekt | Grund | Auswirkung |
+|--------|-------|------------|
+| **Externe Nachbar-WLANs** | Kein WLAN-Scan, nur lokale AP-Konfiguration bekannt | Channel-Empfehlungen basieren nur auf eigenen APs; in der Praxis kann der reale Co-Channel-Conflict hoeher sein |
+| **Echte Client-Roaming-Hysterese** | Roaming-Verhalten ist client-spezifisch (IEEE 802.11k/v/r Unterstuetzung variiert) | Sticky-Client- und Handoff-Gap-Warnungen sind heuristisch, nicht gemessen |
+| **Multi-AP Global Optimization** | Kein globaler Solver (z.B. ILP); Empfehlungen werden pro AP generiert | Optimierung eines APs kann die Situation eines anderen verschlechtern; Dedup mildert dies teilweise |
+| **Reale Messdaten** | Engine arbeitet mit ITU-R P.1238 Modell, nicht mit Messungen | Modell-Vorhersagen koennen von realen Bedingungen abweichen (Moebel, Reflexionen, Menschen) |
+| **DFS-Radar-Events** | Kanaele im DFS-Bereich werden empfohlen, aber Radar-Events nicht simuliert | AP kann nach Channel-Wechsel durch DFS gezwungen werden, erneut zu wechseln |
+| **Band Steering** | Client-seitige Bandwahl (2.4/5/6 GHz) wird nicht modelliert | Empfehlungen gehen von Einzelband-Nutzung aus; dual-band Clients verteilen sich anders |
+
+### Candidate-Only Gating (implizit)
+
+Die Engine kennt kein explizites `placementMode` Flag. Stattdessen wird Candidate-Only-Verhalten implizit ueber `ctx.candidates.length > 0` gesteuert:
+- **add_ap**: Wenn Candidates definiert sind, werden nur Candidate-Positionen verwendet. Ohne Candidates wird `add_ap` uebersprungen (generator.ts:575-577).
+- **move_ap**: Strategy 2 (Interpolation-Fallback) wird nur ausgefuehrt, wenn `ctx.candidates.length === 0` (generator.ts:708-709).

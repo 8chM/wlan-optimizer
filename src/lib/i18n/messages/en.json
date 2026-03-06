@@ -454,7 +454,7 @@
     "coverageWarningTitle": "{percent}% weak coverage",
     "coverageWarningReason": "{zones} weak zones covering {percent}% of the area",
     "addApTitle": "Add AP at ({x}, {y})",
-    "addApReason": "Weak zone with {cells} cells (avg {avgRssi} dBm)",
+    "addApAtCandidateTitle": "Add AP at \"{candidate}\"",
     "moveApTitle": "Move {ap} to ({x}, {y})",
     "moveApToCandidateTitle": "Move {ap} to \"{candidate}\" ({x}, {y})",
     "moveApReason": "Current coverage only {coverage}%, improvement +{improvement}%",
@@ -474,6 +474,7 @@
     "overlapWarningTitle": "{percent}% excessive overlap",
     "overlapWarningReason": "{percent}% of area has 3+ APs competing ({zones} zones)",
     "infraRequiredTitle": "New infrastructure needed near ({x}, {y})",
+    "infraRequiredAtCandidateTitle": "New infrastructure needed at \"{candidate}\"",
     "infraRequiredReason": "No suitable installation point for {cells} weak cells. {reason}",
     "addApCandidateReason": "Weak zone ({cells} cells, avg {avgRssi} dBm). Best candidate: {candidate} ({distance}m from ideal)",
     "blockedMoveTitle": "{ap} movement blocked",
@@ -517,7 +518,6 @@
     "adjustChannelWidthTitle": "Reduce channel width to {width} MHz: {ap}",
     "adjustChannelWidthReason": "AP uses {currentWidth} MHz with {nearbyCount} nearby APs — reducing to {suggestedWidth} MHz reduces co-channel interference and improves stability.",
     "changeChannelTxAlternativeReason": "{type} conflict with {otherAp} ({distance}m apart). Consider reducing TX power as alternative to channel change.",
-    "addApStackingReason": "Additional AP for weak zone ({cells} cells, avg {avgRssi} dBm). Existing adjustments may reduce need.",
     "addApCandidateStackingReason": "Additional AP for weak zone ({cells} cells, avg {avgRssi} dBm). Best candidate: {candidate} ({distance}m from ideal). Existing adjustments may reduce need."
   },
   "candidate": {

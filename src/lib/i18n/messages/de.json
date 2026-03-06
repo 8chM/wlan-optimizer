@@ -454,7 +454,7 @@
     "coverageWarningTitle": "{percent}% schwache Abdeckung",
     "coverageWarningReason": "{zones} Schwachzonen in {percent}% der Flaeche",
     "addApTitle": "AP bei ({x}, {y}) hinzufuegen",
-    "addApReason": "Schwachzone mit {cells} Zellen (Ø {avgRssi} dBm)",
+    "addApAtCandidateTitle": "AP bei \"{candidate}\" hinzufuegen",
     "moveApTitle": "{ap} nach ({x}, {y}) verschieben",
     "moveApToCandidateTitle": "{ap} nach \"{candidate}\" ({x}, {y}) verschieben",
     "moveApReason": "Aktuelle Abdeckung nur {coverage}%, Verbesserung +{improvement}%",
@@ -474,6 +474,7 @@
     "overlapWarningTitle": "{percent}% ueberlappende Abdeckung",
     "overlapWarningReason": "{percent}% der Flaeche hat 3+ konkurrierende APs ({zones} Zonen)",
     "infraRequiredTitle": "Neue Infrastruktur noetig bei ({x}, {y})",
+    "infraRequiredAtCandidateTitle": "Neue Infrastruktur noetig bei \"{candidate}\"",
     "infraRequiredReason": "Kein geeigneter Installationspunkt fuer {cells} schwache Zellen. {reason}",
     "addApCandidateReason": "Schwachzone ({cells} Zellen, avg {avgRssi} dBm). Bester Kandidat: {candidate} ({distance}m vom Ideal)",
     "blockedMoveTitle": "{ap} Verschiebung blockiert",
@@ -517,7 +518,6 @@
     "adjustChannelWidthTitle": "Kanalbreite auf {width} MHz reduzieren: {ap}",
     "adjustChannelWidthReason": "AP nutzt {currentWidth} MHz bei {nearbyCount} APs in Reichweite — Reduktion auf {suggestedWidth} MHz verringert Interferenz und verbessert Stabilitaet.",
     "changeChannelTxAlternativeReason": "{type}-Konflikt mit {otherAp} ({distance}m Abstand). TX-Power-Reduktion als Alternative zum Kanalwechsel erwaegen.",
-    "addApStackingReason": "Zusaetzlicher AP fuer Schwachzone ({cells} Zellen, Ø {avgRssi} dBm). Bestehende Anpassungen koennten Bedarf reduzieren.",
     "addApCandidateStackingReason": "Zusaetzlicher AP fuer Schwachzone ({cells} Zellen, Ø {avgRssi} dBm). Bester Kandidat: {candidate} ({distance}m vom Ideal). Bestehende Anpassungen koennten Bedarf reduzieren."
   },
   "candidate": {

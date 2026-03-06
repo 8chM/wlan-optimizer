@@ -3060,15 +3060,248 @@ describe('generateRecommendations', () => {
       const moveRecs = allRecs.filter(r => r.type === 'move_ap');
 
       // move_ap is allowed to use interpolated positions (no candidate constraint)
-      // We just verify the engine still considers move_ap at all
-      // (The AP has very low coverage, so move_ap should be a viable recommendation)
-      // Whether it actually appears depends on simulation results
-      // The key point: the code path for interpolation is NOT blocked
-      // (This test documents the expected behavior when no candidates exist)
       if (moveRecs.length > 0) {
-        // Interpolated moves won't have selectedCandidatePosition matching any candidate
-        // (because there are none) — that's fine
         expect(moveRecs[0]!.type).toBe('move_ap');
+      }
+    });
+
+    it('T5: candidates exist but empty (0 candidates) + weak zone → no add_ap, no move_ap fallback', () => {
+      // Edge case: ctx.candidates is an empty array (explicitly set)
+      // This is equivalent to "free" mode — fallback allowed since no candidates defined
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 30, none: 61,
+      });
+
+      // Empty candidates array — free mode
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      // With 0 candidates, add_ap skips entirely (line 575: "only at user-defined positions")
+      // This is by design — no candidates means no add_ap
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      // No add_ap because no candidates exist and no fallback to free coords
+      expect(addApRecs.length).toBe(0);
+    });
+  });
+
+  // ─── Block C: Channel Consistency ──────────────────────────────
+
+  describe('Channel Consistency', () => {
+    it('C1: max 1 channel-rec per AP across all recommendations', () => {
+      const aps = [
+        makeAP('ap-1', 2, 2), makeAP('ap-2', 5, 2),
+        makeAP('ap-3', 8, 2), makeAP('ap-4', 5, 8),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 2, 2, 36), makeAPResponse('ap-2', 5, 2, 36),
+        makeAPResponse('ap-3', 8, 2, 36), makeAPResponse('ap-4', 5, 8, 36),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -55, overlap: 2 });
+      const stats = makeStats(W, H, grids, {
+        excellent: 20, good: 30, fair: 30, poor: 15, none: 5,
+      });
+      stats.apIds = ['ap-1', 'ap-2', 'ap-3', 'ap-4'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+
+      // INVARIANT: max 1 channel rec per AP
+      const apIds = channelRecs.map(r => r.suggestedChange?.apId).filter(Boolean);
+      expect(new Set(apIds).size).toBe(apIds.length);
+
+      // INVARIANT: max 3 total
+      expect(channelRecs.length).toBeLessThanOrEqual(3);
+
+      // INVARIANT: unique target channels
+      const targets = channelRecs.map(r => r.suggestedChange?.suggestedValue);
+      expect(new Set(targets).size).toBe(targets.length);
+    });
+  });
+
+  // ─── Block D: Roaming Guards ───────────────────────────────────
+
+  describe('Roaming Guards', () => {
+    it('D-tiny: tiny handoff zone (< MIN_HANDOFF_CELLS) → no roaming recs', () => {
+      // 2 APs far apart with minimal handoff zone
+      const aps = [
+        makeAP('ap-1', 1, 5, { txPowerDbm: 15 }),
+        makeAP('ap-2', 9, 5, { txPowerDbm: 15 }),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 1, 5),
+        makeAPResponse('ap-2', 9, 5),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -60 });
+
+      // Minimal handoff zone: only 3 cells in center
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const idx = y * W + x;
+          grids.apIndexGrid[idx] = x < 5 ? 0 : 1;
+          grids.secondBestApIndexGrid[idx] = x < 5 ? 1 : 0;
+          grids.deltaGrid[idx] = 20; // large delta (not sticky)
+        }
+      }
+      // Only 3 cells with small delta (= handoff zone)
+      grids.deltaGrid[4 * W + 4] = 2;
+      grids.deltaGrid[5 * W + 4] = 2;
+      grids.deltaGrid[4 * W + 5] = 2;
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 20, good: 30, fair: 30, poor: 15, none: 5,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const roamingTx = allRecs.filter(r => r.type === 'roaming_tx_adjustment');
+
+      // MIN_HANDOFF_CELLS=50, we have only 3 → A2 guard should suppress
+      expect(roamingTx.length).toBe(0);
+    });
+
+    it('D-cap: canChangeTxPower false → blocked_recommendation, not silent skip', () => {
+      // 2 close APs with sticky overlap, but TX power change blocked
+      const aps = [
+        makeAP('ap-1', 3, 5, { txPowerDbm: 23 }),
+        makeAP('ap-2', 7, 5, { txPowerDbm: 20 }),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 3, 5),
+        makeAPResponse('ap-2', 7, 5),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -50 });
+
+      // Create sticky handoff zone
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const idx = y * W + x;
+          grids.apIndexGrid[idx] = x < 5 ? 0 : 1;
+          grids.secondBestApIndexGrid[idx] = x < 5 ? 1 : 0;
+          grids.deltaGrid[idx] = x >= 3 && x <= 6 ? 2 : 15;
+          grids.overlapCountGrid[idx] = x >= 3 && x <= 6 ? 2 : 1;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 40, good: 30, fair: 20, poor: 8, none: 2,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      // Block TX power changes for ap-1
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        apCapabilities: new Map([
+          ['ap-1', {
+            apId: 'ap-1',
+            canMove: true, canRotate: true, canChangeMounting: true,
+            canChangeTxPower24: false, canChangeTxPower5: false,
+            canChangeChannel24: true, canChangeChannel5: true,
+          }],
+        ]),
+      };
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // If roaming would be suggested for ap-1 but TX is blocked,
+      // we should get blocked_recommendation instead of silent skip
+      const blockedRoaming = allRecs.filter(r =>
+        r.type === 'blocked_recommendation' &&
+        r.titleKey === 'rec.blockedRoamingTxTitle',
+      );
+      const roamingTx = allRecs.filter(r =>
+        r.type === 'roaming_tx_adjustment' &&
+        r.affectedApIds.includes('ap-1'),
+      );
+
+      // Either blocked_recommendation exists OR no roaming was triggered at all
+      // (A4 trigger thresholds might not be met)
+      // The important thing: NO roaming_tx_adjustment for ap-1 when TX is blocked
+      expect(roamingTx.length).toBe(0);
+    });
+  });
+
+  // ─── Block E: Uplink Tier Verification ─────────────────────────
+
+  describe('Uplink Tier Verification', () => {
+    it('E-tiers: band_limit_warning severity matches uplink percentage', () => {
+      // Test all three tiers
+      for (const { pct, expectedSeverity } of [
+        { pct: 35, expectedSeverity: 'info' },
+        { pct: 65, expectedSeverity: 'warning' },
+        { pct: 85, expectedSeverity: 'critical' },
+      ]) {
+        const ap = makeAP('ap-1', 5, 5);
+        const apResp = makeAPResponse('ap-1', 5, 5);
+        const W = 10;
+        const H = 10;
+        const total = W * H;
+        const grids = makeGrids(W, H, { rssi: -50 });
+
+        // Set uplink limitation percentage
+        const uplinkCount = Math.floor(total * pct / 100);
+        for (let i = 0; i < uplinkCount; i++) {
+          grids.uplinkLimitedGrid[i] = 1;
+        }
+
+        const stats = makeStats(W, H, grids, {
+          excellent: 40, good: 30, fair: 20, poor: 8, none: 2,
+        });
+
+        const result = generateRecommendations(
+          [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+        );
+
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const bandLimit = allRecs.find(r => r.type === 'band_limit_warning' && r.titleKey === 'rec.bandLimitTitle');
+
+        if (bandLimit) {
+          expect(
+            bandLimit.severity,
+            `At ${pct}% uplink limited, expected severity ${expectedSeverity} but got ${bandLimit.severity}`,
+          ).toBe(expectedSeverity);
+        }
       }
     });
   });

@@ -95,17 +95,22 @@
 
   let changesArray = $derived(mixingStore.getChangeSummary());
 
-  // ─── Sync forecast to workspaceStore ────────────────────────────
+  // ─── Sync forecast to workspaceStore (atomic — canvas + active in one effect) ──
 
   $effect(() => {
     workspaceStore.setForecastCanvas(forecastCanvas);
-  });
-
-  $effect(() => {
-    // Only show forecast when there are actual mixing changes — otherwise
-    // show the base heatmap so panel controls (band, colorScheme) work directly
+    // Show forecast heatmap ONLY when there are unapplied (pending) changes.
+    // loadPlan() populates apChanges with plan steps that may already be applied —
+    // those should NOT trigger forecast mode since the base heatmap already reflects them.
+    // Also show forecast during recommendation preview (previewRec !== null).
+    // On the Empfehlungen tab without preview, always show base heatmap so overlay
+    // modes (AP Zones, Delta) and all panel controls work correctly.
+    const hasPendingChanges = mixingStore.pendingChanges.length > 0;
     workspaceStore.setForecastActive(
-      mixingStore.forecastMode && forecastCanvas !== null && changesArray.length > 0,
+      mixingStore.forecastMode &&
+      forecastCanvas !== null &&
+      hasPendingChanges &&
+      (optimierungStore.activeTab === 'manuell' || previewRec !== null),
     );
   });
 
@@ -421,20 +426,21 @@
   <title>{t('nav.optimize')} - {t('app.title')}</title>
 </svelte:head>
 
-<!-- Headless forecast heatmap renderer -->
+<!-- Headless forecast heatmap renderer — only when there are unapplied changes -->
 {#if floor}
   <ForecastHeatmap
     {accessPoints}
     walls={floor.walls ?? []}
     bounds={floorBounds}
     changes={changesArray}
-    forecastActive={mixingStore.forecastMode}
+    forecastActive={mixingStore.forecastMode && mixingStore.pendingChanges.length > 0 && (optimierungStore.activeTab === 'manuell' || previewRec !== null)}
     band={editorHeatmapStore.band}
     colorScheme={editorHeatmapStore.colorScheme}
     calibratedN={editorHeatmapStore.calibratedN}
     receiverGainDbi={editorHeatmapStore.receiverGainDbi}
     backSectorPenalty={editorHeatmapStore.backSectorPenalty}
     sideSectorPenalty={editorHeatmapStore.sideSectorPenalty}
+    apFilter={editorHeatmapStore.apFilter ?? undefined}
     outputWidth={canvasStore.containerW}
     outputHeight={canvasStore.containerH}
     {scalePxPerMeter}

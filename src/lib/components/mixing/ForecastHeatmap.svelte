@@ -46,6 +46,8 @@
     backSectorPenalty?: number;
     /** Wall-mount side sector penalty in dB */
     sideSectorPenalty?: number;
+    /** Optional: only calculate for a single AP (filter) */
+    apFilter?: string;
     /** Callback when forecast canvas is updated */
     onCanvas?: (canvas: HTMLCanvasElement | null) => void;
     /** Callback with heatmap statistics */
@@ -67,6 +69,7 @@
     receiverGainDbi = undefined,
     backSectorPenalty = undefined,
     sideSectorPenalty = undefined,
+    apFilter = undefined,
     onCanvas,
     onStats,
   }: ForecastHeatmapProps = $props();
@@ -107,6 +110,7 @@
     {receiverGainDbi}
     {backSectorPenalty}
     {sideSectorPenalty}
+    {apFilter}
     {onCanvas}
     {onStats}
   />

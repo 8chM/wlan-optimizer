@@ -303,4 +303,79 @@ describe('Rules Integrity', () => {
       expect(unique.size).toBe(GENERATOR_EMITTED_TYPES.length);
     });
   });
+
+  describe('E8: i18n key coverage', () => {
+    /**
+     * Mapping of each RecommendationType to its expected i18n title key suffix.
+     * E.g., 'move_ap' → 'moveApTitle' (used as 'rec.moveApTitle' in generator).
+     *
+     * Info-only types (blocked_recommendation) may reuse generic keys, so they
+     * are listed with their actual key suffix used in the generator.
+     */
+    const TYPE_TO_TITLE_KEY: Record<RecommendationType, string> = {
+      move_ap: 'moveApTitle',
+      rotate_ap: 'rotateApTitle',
+      change_mounting: 'changeMountingTitle',
+      adjust_tx_power: 'adjustTxPowerTitle',
+      change_channel: 'changeChannelTitle',
+      add_ap: 'addApTitle',
+      disable_ap: 'disableApTitle',
+      roaming_hint: 'roamingHintTitle',
+      band_limit_warning: 'bandLimitTitle',
+      low_ap_value: 'lowApValueTitle',
+      coverage_warning: 'coverageWarningTitle',
+      overlap_warning: 'overlapWarningTitle',
+      constraint_conflict: 'constraintConflictTitle',
+      infrastructure_required: 'infraRequiredTitle',
+      preferred_candidate_location: 'preferredCandidateTitle',
+      blocked_recommendation: 'blockedMoveTitle', // uses generic blocked keys
+      roaming_tx_adjustment: 'roamingTxTitle',
+      sticky_client_risk: 'stickyClientTitle',
+      handoff_gap_warning: 'handoffGapTitle',
+      adjust_channel_width: 'adjustChannelWidthTitle',
+    };
+
+    it('every RecommendationType has a documented title key', () => {
+      for (const type of ALL_RECOMMENDATION_TYPES) {
+        expect(
+          TYPE_TO_TITLE_KEY[type],
+          `Missing title key mapping for "${type}"`,
+        ).toBeDefined();
+        expect(TYPE_TO_TITLE_KEY[type].length).toBeGreaterThan(0);
+      }
+    });
+
+    it('TYPE_TO_TITLE_KEY covers exactly the same types as ALL_RECOMMENDATION_TYPES', () => {
+      const mapKeys = Object.keys(TYPE_TO_TITLE_KEY).sort();
+      const allTypes = [...ALL_RECOMMENDATION_TYPES].sort();
+      expect(mapKeys).toEqual(allTypes);
+    });
+  });
+
+  describe('E9: Category-effort cross-constraints', () => {
+    it('instructional types must have minor_physical or major_physical effort', () => {
+      const instructionalTypes = ALL_RECOMMENDATION_TYPES.filter(
+        t => RECOMMENDATION_CATEGORIES[t] === 'instructional',
+      );
+      const validEfforts: EffortLevel[] = ['minor_physical', 'major_physical', 'infrastructure'];
+      for (const type of instructionalTypes) {
+        expect(
+          validEfforts.includes(EFFORT_LEVELS[type]),
+          `instructional type "${type}" has unexpected effort level "${EFFORT_LEVELS[type]}" — expected physical or infrastructure`,
+        ).toBe(true);
+      }
+    });
+
+    it('no type has both actionable_config category and infrastructure effort', () => {
+      const configTypes = ALL_RECOMMENDATION_TYPES.filter(
+        t => RECOMMENDATION_CATEGORIES[t] === 'actionable_config',
+      );
+      for (const type of configTypes) {
+        expect(
+          EFFORT_LEVELS[type],
+          `actionable_config type "${type}" should not have infrastructure effort`,
+        ).not.toBe('infrastructure');
+      }
+    });
+  });
 });

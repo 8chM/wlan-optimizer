@@ -45,7 +45,12 @@
 
   function handleCanvas(canvas: HTMLCanvasElement | null): void {
     signalCanvas = canvas;
-    updateOverlayCanvas();
+    // Don't call updateOverlayCanvas() here — handleStats will call it
+    // after latestStats is set. Calling here causes a flash where ap-zones/delta
+    // falls back to signal because latestStats hasn't been updated yet.
+    if (editorHeatmapStore.overlayMode === 'signal') {
+      editorHeatmapStore.setCanvas(canvas);
+    }
   }
 
   function handleStats(stats: HeatmapStats | null): void {

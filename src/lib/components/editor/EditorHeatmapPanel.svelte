@@ -8,6 +8,7 @@
   import HeatmapControls from './HeatmapControls.svelte';
   import { t } from '$lib/i18n';
   import { editorHeatmapStore, type HeatmapOverlayMode } from '$lib/stores/editorHeatmapStore.svelte';
+  import { workspaceStore } from '$lib/stores/workspaceStore.svelte';
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import type { FrequencyBand, ColorScheme } from '$lib/heatmap';
   import { PATH_LOSS_EXPONENTS, DEFAULT_RECEIVER_GAIN_DBI } from '$lib/heatmap/rf-engine';
@@ -144,8 +145,8 @@
       </div>
     {/if}
 
-    <!-- Overlay mode toggle (Signal / AP Zones / Delta) -->
-    {#if editorHeatmapStore.visible}
+    <!-- Overlay mode toggle (Signal / AP Zones / Delta) — hidden during forecast -->
+    {#if editorHeatmapStore.visible && !workspaceStore.forecastActive}
       <div class="overlay-mode">
         <span class="section-label">{t('heatmap.overlayMode')}</span>
         <div class="overlay-mode-buttons">

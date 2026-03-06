@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28v-complete",
+  "currentPhase": "phase-28w-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1059,6 +1059,19 @@
         "4 neue i18n-Keys EN+DE: infraNoCandidateCloseEnoughReason, addApFallbackReason",
         "2 neue Tests (V1a, V2a), 928 Tests total",
         "928 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
+      ]
+    },
+    "28w": {
+      "name": "Verifikation-Konsistenz + Single Source of Truth Reporting",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Vollverifikation auf main: 928 Tests (27 Dateien), svelte-check 0 Errors 2 Warnings, Build OK [2b68ba6]",
+        "Diskrepanz 893 vs 928 erklaert: apFieldMap.test.ts (33 Tests) kompilierte nicht waehrend 28u-vitest (Typ-Fehler in apFieldMap.ts, erst durch Linter auto-gefixt). 893 + 33 + 2 = 928",
+        "scripts/report-integrity.sh: POSIX-kompatibel (macOS+Linux), svelte-check VOR vitest, maschinenlesbare + menschenlesbare Ausgabe",
+        "scripts/.last-report.txt: 928 Tests pass (27 files), svelte-check 0 Errors 2 Warnings, Build OK [2b68ba6]",
+        "Ursache: Linter-Timing — svelte-check auto-fixes muessen VOR vitest laufen, sonst koennen Dateien mit Typ-Fehlern nicht kompilieren und deren Tests fehlen in der Zaehlung"
       ]
     }
   },

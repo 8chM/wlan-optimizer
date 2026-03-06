@@ -55,6 +55,8 @@ import type {
   CoverageBinPercents,
   SimulatedDelta,
   ApRole,
+  CandidateLocation,
+  ConstraintZone,
 } from './types';
 import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES, RECOMMENDATION_CATEGORIES } from './types';
 
@@ -69,6 +71,14 @@ const UPLINK_SUPPRESS_ADD_MOVE = 0.60; // C1: Suppress add_ap/move_ap unless lar
 const UPLINK_ADD_MOVE_MIN_BENEFIT = 10; // C1: Min changePercent for add/move under uplink suppression
 const ROAMING_TX_STEPS = [-3, -6, -9] as const;
 const ROAMING_TX_MIN_DBM = 10;
+
+// ─── Candidate Distance Guards ──────────────────────────────────
+/** Max distance (m) from ideal target to candidate for add_ap recommendations */
+const MAX_IDEAL_DISTANCE_ADD_AP_M = 8;
+/** Max distance (m) from ideal target to candidate for preferred_candidate recommendations */
+const MAX_IDEAL_DISTANCE_PREFERRED_CAND_M = 6;
+/** Max distance (m) from ideal target to candidate for move_ap recommendations */
+const MAX_IDEAL_DISTANCE_MOVE_AP_M = 8;
 
 let nextRecId = 0;
 function genId(): string {
@@ -326,6 +336,56 @@ function annotateBlockedRecommendations(recs: Recommendation[], ctx: Recommendat
   }
 }
 
+// ─── Candidate Rejection Analysis ─────────────────────────────────
+
+/**
+ * Analyze why candidates were rejected for a given ideal target position.
+ * Checks each candidate against hard filters (forbidden, zone, wall, distance)
+ * and returns top-3 rejection reasons sorted by frequency.
+ */
+function collectCandidateRejectionReasons(
+  candidates: CandidateLocation[],
+  idealX: number,
+  idealY: number,
+  walls: WallData[],
+  constraintZones: ConstraintZone[],
+  maxDistance: number,
+): string[] {
+  const counts = new Map<string, number>();
+
+  for (const c of candidates) {
+    if (c.forbidden) {
+      counts.set('forbidden', (counts.get('forbidden') ?? 0) + 1);
+      continue;
+    }
+
+    const zones = getConstraintsAtPoint(c.x, c.y, constraintZones);
+    if (zones.some(z => z.type === 'forbidden' || z.type === 'no_new_ap')) {
+      counts.set('forbidden', (counts.get('forbidden') ?? 0) + 1);
+      continue;
+    }
+
+    if (!isPhysicallyValidApPosition(c.x, c.y, walls)) {
+      counts.set('wall_invalid', (counts.get('wall_invalid') ?? 0) + 1);
+      continue;
+    }
+
+    const dist = Math.sqrt((c.x - idealX) ** 2 + (c.y - idealY) ** 2);
+    if (dist > maxDistance) {
+      counts.set('too_far', (counts.get('too_far') ?? 0) + 1);
+      continue;
+    }
+
+    // Candidate passed all hard filters — should have been usable
+    // (only reaches here if sim benefit was too low, handled separately)
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([reason]) => reason);
+}
+
 // ─── Recommendation Generators ────────────────────────────────────
 
 function generateCoverageWarnings(
@@ -471,7 +531,7 @@ function generateAddApSuggestions(
 
     // Try to find a candidate location if candidates are available
     if (ctx.candidates.length > 0) {
-      const match = findBestCandidate(idealX, idealY, ctx.candidates, ctx.constraintZones);
+      const match = findBestCandidate(idealX, idealY, ctx.candidates, ctx.constraintZones, undefined, MAX_IDEAL_DISTANCE_ADD_AP_M);
 
       if (match.candidate && isPhysicallyValidApPosition(match.candidate.x, match.candidate.y, walls)) {
         const delta = simulateAddAP(
@@ -538,7 +598,10 @@ function generateAddApSuggestions(
         // with arbitrary coordinates when user has defined candidate positions
         continue;
       } else {
-        // No valid candidate — infrastructure_required recommendation
+        // No usable candidate — analyze rejection reasons across all candidates
+        const rejectionReasons = collectCandidateRejectionReasons(
+          ctx.candidates, idealX, idealY, walls, ctx.constraintZones, MAX_IDEAL_DISTANCE_ADD_AP_M,
+        );
         const infraLabel = match.candidate?.label;
         recs.push({
           id: genId(),
@@ -551,10 +614,12 @@ function generateAddApSuggestions(
             y: Math.round(idealY * 10) / 10,
             ...(infraLabel ? { candidate: infraLabel } : {}),
           },
-          reasonKey: 'rec.infraRequiredReason',
+          reasonKey: 'rec.infraNoValidCandidateReason',
           reasonParams: {
             cells: zone.cellCount,
-            reason: match.selectedBecause,
+            count: ctx.candidates.length,
+            reasons: rejectionReasons.join(', ') || 'all_candidates_filtered',
+            no_candidate_valid: 1,
           },
           affectedApIds: [],
           affectedBand: band,
@@ -674,6 +739,7 @@ function generateMoveApSuggestions(
         const match = findBestCandidate(
           target.x, target.y,
           ctx.candidates, ctx.constraintZones,
+          undefined, MAX_IDEAL_DISTANCE_MOVE_AP_M,
         );
 
         if (match.candidate) {
@@ -2019,11 +2085,13 @@ function generatePreferredCandidateSuggestions(
   if (preferredCandidates.length === 0) return;
 
   const templateAp = selectTemplateAp(aps);
+  let anyAccepted = false;
 
   for (const cand of preferredCandidates) {
     // Physical validation: skip candidates inside walls
     if (!isPhysicallyValidApPosition(cand.x, cand.y, walls)) continue;
 
+    // Skip candidates too far from any existing AP's coverage gap
     const nearestApDist = aps.length > 0
       ? Math.min(...aps.map(a => Math.sqrt((a.x - cand.x) ** 2 + (a.y - cand.y) ** 2)))
       : Infinity;
@@ -2048,9 +2116,11 @@ function generatePreferredCandidateSuggestions(
         type: requiresInfra ? 'infrastructure_required' : 'preferred_candidate_location',
         priority: 'medium',
         severity: requiresInfra ? 'warning' : 'info',
-        titleKey: requiresInfra ? 'rec.infraRequiredTitle' : 'rec.preferredCandidateTitle',
+        titleKey: requiresInfra
+          ? (cand.label ? 'rec.infraRequiredAtCandidateTitle' : 'rec.infraRequiredTitle')
+          : 'rec.preferredCandidateTitle',
         titleParams: requiresInfra
-          ? { x: Math.round(cand.x * 10) / 10, y: Math.round(cand.y * 10) / 10 }
+          ? { x: Math.round(cand.x * 10) / 10, y: Math.round(cand.y * 10) / 10, ...(cand.label ? { candidate: cand.label } : {}) }
           : { candidate: cand.label },
         reasonKey: 'rec.preferredCandidateReason',
         reasonParams: {
@@ -2081,7 +2151,33 @@ function generatePreferredCandidateSuggestions(
         selectedBecause: `user_preferred${cand.hasLan ? ', has_lan' : ''}${cand.hasPoe ? ', has_poe' : ''}`,
         infrastructureRequired: requiresInfra,
       });
+      anyAccepted = true;
     }
+  }
+
+  // If no preferred candidate produced a recommendation, inform the user
+  if (!anyAccepted) {
+    recs.push({
+      id: genId(),
+      type: 'infrastructure_required',
+      priority: 'low',
+      severity: 'info',
+      titleKey: 'rec.infraRequiredTitle',
+      titleParams: { x: 0, y: 0 },
+      reasonKey: 'rec.infraNoValidCandidateReason',
+      reasonParams: {
+        cells: 0,
+        count: preferredCandidates.length,
+        reasons: 'preferred_candidates_unsuitable',
+        no_candidate_valid: 1,
+      },
+      affectedApIds: [],
+      affectedBand: band,
+      evidence: { metrics: {} },
+      confidence: 0.4,
+      infrastructureRequired: true,
+      requiresUserDecision: true,
+    });
   }
 }
 

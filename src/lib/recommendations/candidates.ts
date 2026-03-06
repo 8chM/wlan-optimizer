@@ -52,6 +52,8 @@ export function findBestCandidate(
   candidates: CandidateLocation[],
   constraintZones: ConstraintZone[],
   requiredMounting?: 'wall' | 'ceiling',
+  /** Hard distance limit — candidates farther than this are excluded */
+  maxDistance?: number,
 ): CandidateMatch {
   if (candidates.length === 0) {
     return {
@@ -78,6 +80,9 @@ export function findBestCandidate(
     if (zoneConstraints.some(z => z.type === 'forbidden' || z.type === 'no_new_ap')) continue;
 
     const distance = Math.sqrt((c.x - idealX) ** 2 + (c.y - idealY) ** 2);
+
+    // Hard distance guard: skip candidates too far from ideal target
+    if (maxDistance !== undefined && distance > maxDistance) continue;
     const reasons: string[] = [];
     let score = 100;
 

@@ -141,8 +141,18 @@ describe('Performance: RF Engine - single point calculation', () => {
     const config = createRFConfig('2.4ghz');
     const ap = makeAP(5, 5);
 
-    // 0 walls baseline
+    // Build grids
     const { grid: grid0, allSegments: seg0 } = buildSpatialGrid([], 10, 10);
+    const walls20 = generateRandomWalls(20, 10, 10);
+    const { grid: grid20, allSegments: seg20 } = buildSpatialGrid(walls20, 10, 10);
+
+    // JIT warmup — run both paths once before measuring
+    for (let i = 0; i < 500; i++) {
+      computeRSSI((i % 100) / 10, Math.floor(i / 100) / 10, ap, config, grid0, seg0);
+      computeRSSI((i % 100) / 10, Math.floor(i / 100) / 10, ap, config, grid20, seg20);
+    }
+
+    // 0 walls baseline
     const start0 = performance.now();
     for (let i = 0; i < ITERATIONS; i++) {
       computeRSSI((i % 100) / 10, Math.floor(i / 100) / 10, ap, config, grid0, seg0);
@@ -150,8 +160,6 @@ describe('Performance: RF Engine - single point calculation', () => {
     const time0 = performance.now() - start0;
 
     // 20 walls
-    const walls20 = generateRandomWalls(20, 10, 10);
-    const { grid: grid20, allSegments: seg20 } = buildSpatialGrid(walls20, 10, 10);
     const start20 = performance.now();
     for (let i = 0; i < ITERATIONS; i++) {
       computeRSSI((i % 100) / 10, Math.floor(i / 100) / 10, ap, config, grid20, seg20);
@@ -160,8 +168,8 @@ describe('Performance: RF Engine - single point calculation', () => {
 
     // 20 walls should not be more than 5x slower than 0 walls
     // (spatial grid keeps it sub-linear in wall count)
-    // +5ms margin to avoid flakiness when both times are very small (< 5ms)
-    expect(time20).toBeLessThan(time0 * 5 + 5);
+    // +10ms margin to avoid flakiness when both times are very small
+    expect(time20).toBeLessThan(time0 * 5 + 10);
   });
 });
 

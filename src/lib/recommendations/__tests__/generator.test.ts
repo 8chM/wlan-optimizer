@@ -2924,6 +2924,11 @@ describe('generateRecommendations', () => {
       // Should have infrastructure_required instead
       const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
       expect(infraRecs.length).toBeGreaterThan(0);
+
+      // Phase 28k: Verify rejection analysis in reasonParams
+      const withFlag = infraRecs.filter(r => r.reasonParams?.no_candidate_valid === 1);
+      expect(withFlag.length, 'infrastructure_required should have no_candidate_valid: 1').toBeGreaterThan(0);
+      expect(withFlag[0]!.reasonParams.reasons).toContain('forbidden');
     });
 
     it('T2: add_ap uses candidate — valid candidate → add_ap has selectedCandidatePosition', () => {
@@ -3100,6 +3105,254 @@ describe('generateRecommendations', () => {
       const addApRecs = allRecs.filter(r => r.type === 'add_ap');
       // No add_ap because no candidates exist and no fallback to free coords
       expect(addApRecs.length).toBe(0);
+    });
+
+    it('T6: all candidates wall-invalid → no add_ap, infrastructure_required with wall_invalid reason', () => {
+      // Single AP in corner, large weak zone, but all candidates are inside walls
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 }); // mostly weak
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 30, none: 61,
+      });
+
+      // Walls that make candidate positions invalid (wall segments pass through candidates)
+      const wallsWithBarrier: WallData[] = [
+        {
+          attenuationDb: 15,
+          baseThicknessCm: 20,
+          actualThicknessCm: 20,
+          segments: [
+            { x1: 6.9, y1: 0, x2: 6.9, y2: 10 }, // vertical wall at x=6.9
+            { x1: 0, y1: 7.9, x2: 10, y2: 7.9 }, // horizontal wall at y=7.9
+          ],
+        },
+      ];
+
+      // Candidates at (7, 7) and (7, 8) — both within 0.3m of walls → wall-invalid
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [
+          makeCandidate('c-wall-1', 7, 7),
+          makeCandidate('c-wall-2', 7, 8),
+        ],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], wallsWithBarrier, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'no add_ap when all candidates are wall-invalid').toBe(0);
+
+      const infraRecs = allRecs.filter(r =>
+        r.type === 'infrastructure_required' && r.reasonParams?.no_candidate_valid === 1,
+      );
+      expect(infraRecs.length, 'should emit infrastructure_required with no_candidate_valid').toBeGreaterThan(0);
+      expect(String(infraRecs[0]!.reasonParams.reasons)).toContain('wall_invalid');
+    });
+
+    it('T7: all candidates too far (> MAX_IDEAL_DISTANCE) → no add_ap, infrastructure_required with too_far reason', () => {
+      // Single AP in corner, weak zone at ~(7,7), but candidates are 50m away
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 30, none: 61,
+      });
+
+      // Candidates far away — distance from ideal (~7,7) to (50,50) is ~60m >> 8m MAX
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [
+          makeCandidate('c-far-1', 50, 50),
+          makeCandidate('c-far-2', 60, 60),
+        ],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'no add_ap when all candidates are too far').toBe(0);
+
+      const infraRecs = allRecs.filter(r =>
+        r.type === 'infrastructure_required' && r.reasonParams?.no_candidate_valid === 1,
+      );
+      expect(infraRecs.length, 'should emit infrastructure_required with no_candidate_valid').toBeGreaterThan(0);
+      expect(String(infraRecs[0]!.reasonParams.reasons)).toContain('too_far');
+    });
+  });
+
+  // ─── Block B2: Candidate Distance Guards ───────────────────────
+
+  describe('Candidate Distance Guards', () => {
+    function makeCandidate2(
+      id: string, x: number, y: number,
+      overrides?: Partial<CandidateLocation>,
+    ): CandidateLocation {
+      return {
+        id, x, y,
+        label: id,
+        mountingOptions: ['ceiling', 'wall'],
+        hasLan: true, hasPoe: true, hasPower: true,
+        preferred: false, forbidden: false,
+        ...overrides,
+      } as CandidateLocation;
+    }
+
+    it('T1: candidate 20m away is rejected by distance guard', () => {
+      // AP at corner, weak zone far away, candidate 20m from ideal target
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      // Use a larger floor (30x30) to have a candidate 20m away
+      const bigBounds: FloorBounds = { width: 30, height: 30, originX: 0, originY: 0 };
+      const W = 30;
+      const H = 30;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      // AP covers only nearby cells
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 200, none: 691,
+      });
+
+      // Candidate at (25, 25) — about 20m from weak zone centroid (~15,15)
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [makeCandidate2('c-far', 25, 25)],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, bigBounds, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // Candidate too far → no add_ap at that position
+      const addApWithFarCandidate = allRecs.filter(
+        r => r.type === 'add_ap' && r.selectedCandidatePosition?.x === 25,
+      );
+      expect(addApWithFarCandidate.length).toBe(0);
+
+      // Should get infrastructure_required instead (no suitable candidate within range)
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+      expect(infraRecs.length).toBeGreaterThan(0);
+    });
+
+    it('T2: candidate at 7m — within add_ap limit (8m) but outside preferred_candidate limit (6m)', () => {
+      // AP at origin, weak zone at (7, 0), candidate at (7, 0)
+      const ap = makeAP('ap-1', 0, 5, { txPowerDbm: 15 });
+      const apResp = makeAPResponse('ap-1', 0, 5);
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -85 });
+      // AP covers only leftmost cells
+      for (let r = 0; r < H; r++) {
+        grids.rssiGrid[r * W + 0] = -40;
+        grids.rssiGrid[r * W + 1] = -50;
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 10, good: 10, fair: 0, poor: 30, none: 50,
+      });
+
+      // Candidate at (7, 5) — 7m from AP, roughly 7m from ideal
+      // This is within MAX_IDEAL_DISTANCE_ADD_AP_M (8) but could exceed
+      // MAX_IDEAL_DISTANCE_PREFERRED_CAND_M (6) for preferred_candidate
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [
+          makeCandidate2('c-7m', 7, 5),
+        ],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+
+      // add_ap may use this candidate (within 8m limit)
+      // The key invariant: if add_ap exists, it must reference the candidate
+      for (const rec of addApRecs) {
+        if (rec.selectedCandidatePosition) {
+          expect(rec.selectedCandidatePosition.x).toBe(7);
+          expect(rec.selectedCandidatePosition.y).toBe(5);
+        }
+      }
+    });
+
+    it('T3: candidate just over add_ap distance limit yields infrastructure_required', () => {
+      // Large floor: AP at corner, weak zone far away, candidate > 8m from weak zone centroid
+      const ap = makeAP('ap-1', 0, 0, { txPowerDbm: 20 });
+      const apResp = makeAPResponse('ap-1', 0, 0);
+
+      const bigBounds: FloorBounds = { width: 20, height: 20, originX: 0, originY: 0 };
+      const W = 20;
+      const H = 20;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      // AP covers corner only (top-left 3x3)
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          grids.rssiGrid[r * W + c] = -40;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 100, none: 291,
+      });
+
+      // Weak zone centroid is roughly at (10-12, 10-12) on a 20x20 floor
+      // Place candidate at (0, 1) — about 14m from centroid, clearly > 8m
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [
+          makeCandidate2('c-too-far', 0, 1),
+        ],
+      };
+
+      const result = generateRecommendations(
+        [ap], [apResp], WALLS, bigBounds, BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // No add_ap should use the too-far candidate
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'No add_ap when only candidate is out of range').toBe(0);
+
+      // When the only candidate is out of range, infrastructure_required should appear
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+      expect(infraRecs.length).toBeGreaterThan(0);
     });
   });
 

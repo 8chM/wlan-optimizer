@@ -346,5 +346,14 @@ Die folgenden Aspekte sind **nicht modelliert** und werden bewusst nicht berueck
 ### Candidate-Only Gating (implizit)
 
 Die Engine kennt kein explizites `placementMode` Flag. Stattdessen wird Candidate-Only-Verhalten implizit ueber `ctx.candidates.length > 0` gesteuert:
-- **add_ap**: Wenn Candidates definiert sind, werden nur Candidate-Positionen verwendet. Ohne Candidates wird `add_ap` uebersprungen (generator.ts:575-577).
-- **move_ap**: Strategy 2 (Interpolation-Fallback) wird nur ausgefuehrt, wenn `ctx.candidates.length === 0` (generator.ts:708-709).
+- **add_ap**: Wenn Candidates definiert sind, werden nur Candidate-Positionen verwendet. Ohne Candidates wird `add_ap` uebersprungen (generator.ts:637-639).
+- **move_ap**: Strategy 2 (Interpolation-Fallback) wird nur ausgefuehrt, wenn `ctx.candidates.length === 0` (generator.ts:770-771).
+
+### Candidate Rejection Analysis (Phase 28k)
+
+Wenn kein Candidate die Hard-Filter besteht, analysiert `collectCandidateRejectionReasons()` (generator.ts:346-386) alle Candidates und liefert Top-3 Ablehnungsgruende:
+- `forbidden` — Candidate hat `forbidden: true` oder liegt in forbidden/no_new_ap Zone
+- `wall_invalid` — Candidate liegt in einer Wand (isPhysicallyValidApPosition false)
+- `too_far` — Candidate ist > MAX_IDEAL_DISTANCE_ADD_AP_M (8m) vom RF-Ziel entfernt
+
+Das Ergebnis wird als `infrastructure_required` mit `reasonParams.no_candidate_valid: 1` und `reasonParams.reasons` emittiert.

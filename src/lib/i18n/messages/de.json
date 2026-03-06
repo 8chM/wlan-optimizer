@@ -476,6 +476,7 @@
     "infraRequiredTitle": "Neue Infrastruktur noetig bei ({x}, {y})",
     "infraRequiredAtCandidateTitle": "Neue Infrastruktur noetig bei \"{candidate}\"",
     "infraRequiredReason": "Kein geeigneter Installationspunkt fuer {cells} schwache Zellen. {reason}",
+    "infraNoValidCandidateReason": "Kein gueltiger Kandidat fuer {cells} schwache Zellen. {count} Kandidaten geprueft — abgelehnt: {reasons}",
     "addApCandidateReason": "Schwachzone ({cells} Zellen, avg {avgRssi} dBm). Bester Kandidat: {candidate} ({distance}m vom Ideal)",
     "blockedMoveTitle": "{ap} Verschiebung blockiert",
     "blockedMoveReason": "{ap} kann nicht verschoben werden: {reason}",

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28j-complete",
+  "currentPhase": "phase-28k-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -956,6 +956,23 @@
         "Block E: Test E-tiers — band_limit_warning 3-Tier Severity-Verifikation (35%→info, 65%→warning, 85%→critical)",
         "Block F: rules.md vollstaendig auditiert — alle 64 Regeln mit korrekten Zeilennummern, Nicht-modelliert Sektion, Candidate-Only Doku",
         "Block G: 852 Tests pass, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28k": {
+      "name": "Candidate-only korrekt erzwingen — kein Freiplatzieren",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "collectCandidateRejectionReasons() Helper — analysiert alle Candidates gegen Hard-Filter (forbidden, zone, wall_invalid, too_far) und liefert Top-3 Gruende",
+        "generateAddApSuggestions: Rejection-Pfad nutzt collectCandidateRejectionReasons mit no_candidate_valid:1 + detaillierten Gruenden in reasonParams",
+        "generatePreferredCandidateSuggestions: Emit infrastructure_required wenn kein preferred Candidate Empfehlung produziert",
+        "2 neue i18n-Keys EN+DE: infraNoValidCandidateReason",
+        "T1 erweitert: forbidden → infrastructure_required + no_candidate_valid:1 + reasons enthält 'forbidden'",
+        "T6: wall-invalid Candidates → infrastructure_required + reasons enthält 'wall_invalid'",
+        "T7: too-far Candidates → infrastructure_required + reasons enthält 'too_far'",
+        "T4: bestehender T5 (leere Candidates → kein add_ap) bleibt unverändert",
+        "858 Tests pass, svelte-check 0 Errors, Build OK"
       ]
     }
   },

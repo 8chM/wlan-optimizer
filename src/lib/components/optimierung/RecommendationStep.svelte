@@ -69,6 +69,7 @@
   let isDone = $derived(stepState === 'applied' || stepState === 'skipped');
   let category = $derived(RECOMMENDATION_CATEGORIES[rec.type] ?? 'informational');
   let isApplyable = $derived(category === 'actionable_config' || category === 'actionable_create');
+  let isInstructional = $derived(category === 'instructional');
   let isInformational = $derived(category === 'informational');
 
   const ROAMING_DETAIL_TYPES = new Set(['roaming_tx_adjustment', 'roaming_tx_boost', 'sticky_client_risk', 'handoff_gap_warning']);
@@ -195,7 +196,7 @@
     {#if isBlocked}
       <p class="blocked-reason">{rec.blockedByConstraints?.[0] ?? ''}</p>
     {:else if stepState === 'applied'}
-      <span class="state-label applied">{t('opt.applied')}</span>
+      <span class="state-label applied">{isInstructional ? t('opt.instructionDone') : t('opt.applied')}</span>
     {:else if stepState === 'skipped'}
       <span class="state-label skipped">{t('opt.skipped')}</span>
     {:else}
@@ -214,9 +215,9 @@
           <button class="action-btn apply" disabled={previewActive} onclick={(e) => { e.stopPropagation(); onApply(rec); }}>
             {t('opt.apply')}
           </button>
-        {:else}
+        {:else if isInstructional}
           <button class="action-btn instruction" disabled={previewActive} onclick={(e) => { e.stopPropagation(); onApply(rec); }}>
-            {t('opt.instructionOnly')}
+            {t('opt.markDone')}
           </button>
         {/if}
         {#if !isInformational}

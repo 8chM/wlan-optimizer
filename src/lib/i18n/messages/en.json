@@ -591,6 +591,8 @@
     "effortInfra": "Infra",
     "profileLabel": "Profile",
     "instructionOnly": "Follow the instruction manually",
+    "markDone": "Mark as done",
+    "instructionDone": "Instruction completed",
     "preview": "Preview",
     "previewActive": "Preview active",
     "cancel": "Cancel",

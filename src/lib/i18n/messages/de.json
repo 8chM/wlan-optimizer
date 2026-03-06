@@ -591,6 +591,8 @@
     "effortInfra": "Infra",
     "profileLabel": "Profil",
     "instructionOnly": "Anweisung manuell ausfuehren",
+    "markDone": "Als erledigt markieren",
+    "instructionDone": "Anweisung umgesetzt",
     "preview": "Vorschau",
     "previewActive": "Vorschau aktiv",
     "cancel": "Abbrechen",

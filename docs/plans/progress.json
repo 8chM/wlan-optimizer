@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28p-complete",
+  "currentPhase": "phase-28r-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1014,6 +1014,21 @@
         "P2: optional + empty → add_ap Fallback moeglich",
         "P3: required_for_move_and_new_ap blockiert move_ap Interpolation",
         "205 Rec-Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
+      ]
+    },
+    "28r": {
+      "name": "Instructional Empfehlungen — kein Apply vortaeuschen",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "optimierungStore: doneInstructional Set + markInstructionalDone/isInstructionalDone + stableKey + Serialisierung",
+        "RecommendationStep: Button 'Als erledigt markieren' statt 'instructionOnly', State-Label 'Anweisung umgesetzt' statt 'Applied'",
+        "mixing/+page.svelte: Instructional Apply markDone ohne stale, Preview-Banner-Label, Auto-Restore nach Analyse",
+        "localStorage-Persistenz: wlan-opt:instructional-done:{floorId}",
+        "2 neue i18n-Keys EN+DE: opt.markDone, opt.instructionDone",
+        "10 neue Store-Tests: stableKey, markDone, isDone, clearDone, Serialisierung, stale-Interaktion",
+        "885 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
       ]
     }
   },

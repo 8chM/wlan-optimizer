@@ -153,7 +153,7 @@
     };
   });
 
-  // ─── Load candidates/zones/capabilities from localStorage ──────
+  // ─── Load candidates/zones/capabilities/done-states from localStorage ──
 
   $effect(() => {
     if (!floorId) return;
@@ -174,6 +174,12 @@
         recommendationStore.setAPCapabilities(arr);
       }
     } catch { /* ignore */ }
+    try {
+      const stored = localStorage.getItem(`wlan-opt:instructional-done:${floorId}`);
+      if (stored) {
+        optimierungStore.loadDoneKeys(JSON.parse(stored));
+      }
+    } catch { /* ignore */ }
   });
 
   // ─── Load existing plan on mount ────────────────────────────────
@@ -190,6 +196,27 @@
   });
 
   // ─── Recommendation Analysis ────────────────────────────────────
+
+  function saveDoneState(): void {
+    if (!floorId) return;
+    try {
+      localStorage.setItem(
+        `wlan-opt:instructional-done:${floorId}`,
+        JSON.stringify(optimierungStore.getDoneKeys()),
+      );
+    } catch { /* ignore */ }
+  }
+
+  /** Auto-restore done states for instructional recs after analysis */
+  function restoreDoneInstructionalStates(): void {
+    const recs = recommendationStore.result?.recommendations ?? [];
+    for (const rec of recs) {
+      const cat = RECOMMENDATION_CATEGORIES[rec.type];
+      if (cat === 'instructional' && optimierungStore.isInstructionalDone(rec)) {
+        optimierungStore.setStepState(rec.id, 'applied');
+      }
+    }
+  }
 
   function runOptimierungAnalysis(): void {
     const stats = editorHeatmapStore.stats;
@@ -209,6 +236,7 @@
 
     recommendationStore.analyze(apConfigs, aps, wallData, floorBounds, band, stats, rfConfig);
     optimierungStore.setStale(false);
+    restoreDoneInstructionalStates();
   }
 
   function handleProfileChange(profile: import('$lib/recommendations/types').ExpertProfile): void {
@@ -266,6 +294,18 @@
   const AP_CREATION_TYPES = new Set(['add_ap', 'preferred_candidate_location']);
 
   async function handleStepApply(rec: Recommendation): Promise<void> {
+    const cat = RECOMMENDATION_CATEGORIES[rec.type];
+
+    if (cat === 'instructional') {
+      // Instructional: mark as done (user performed the physical action)
+      // Do NOT apply suggestedChange — user must update the floor plan manually
+      optimierungStore.markInstructionalDone(rec);
+      saveDoneState();
+      optimierungStore.setStepState(rec.id, 'applied');
+      // No stale — instructional actions don't change the heatmap model
+      return;
+    }
+
     if (rec.type === 'disable_ap' && rec.affectedApIds[0]) {
       const cmd = updateApCommand(
         rec.affectedApIds[0],
@@ -285,7 +325,6 @@
       await applyRecommendationToAP(rec.suggestedChange);
     }
     optimierungStore.setStepState(rec.id, 'applied');
-    const cat = RECOMMENDATION_CATEGORIES[rec.type];
     if (cat === 'actionable_config' || cat === 'actionable_create') {
       optimierungStore.setStale(true);
     }
@@ -342,14 +381,23 @@
 
   async function handlePreviewApply(): Promise<void> {
     if (!previewRec) return;
-    if (previewRec.suggestedChange?.apId) {
-      await applyRecommendationToAP(previewRec.suggestedChange);
-    }
-    optimierungStore.setStepState(previewRec.id, 'applied');
     const cat = RECOMMENDATION_CATEGORIES[previewRec.type];
-    if (cat === 'actionable_config' || cat === 'actionable_create') {
-      optimierungStore.setStale(true);
+
+    if (cat === 'instructional') {
+      // Instructional preview confirm: mark as done, no actual AP change
+      optimierungStore.markInstructionalDone(previewRec);
+      saveDoneState();
+      optimierungStore.setStepState(previewRec.id, 'applied');
+    } else {
+      if (previewRec.suggestedChange?.apId) {
+        await applyRecommendationToAP(previewRec.suggestedChange);
+      }
+      optimierungStore.setStepState(previewRec.id, 'applied');
+      if (cat === 'actionable_config' || cat === 'actionable_create') {
+        optimierungStore.setStale(true);
+      }
     }
+
     mixingStore.resetAll();
     forecastCanvas = null;
     forecastStats = null;
@@ -515,7 +563,11 @@
   {#if previewRec}
     <div class="preview-banner">
       <span class="preview-label">{t('opt.previewActive')}</span>
-      <button class="preview-btn apply" onclick={handlePreviewApply}>{t('opt.apply')}</button>
+      {#if RECOMMENDATION_CATEGORIES[previewRec.type] === 'instructional'}
+        <button class="preview-btn apply" onclick={handlePreviewApply}>{t('opt.markDone')}</button>
+      {:else}
+        <button class="preview-btn apply" onclick={handlePreviewApply}>{t('opt.apply')}</button>
+      {/if}
       <button class="preview-btn cancel" onclick={handlePreviewCancel}>{t('opt.cancel')}</button>
     </div>
   {/if}

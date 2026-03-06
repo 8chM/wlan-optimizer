@@ -9,10 +9,16 @@
 export type OptimierungTab = 'empfehlungen' | 'manuell';
 export type StepState = 'pending' | 'applied' | 'skipped';
 
+/** Stable key for identifying a recommendation across re-analyses */
+export function instructionalStableKey(rec: { type: string; affectedApIds: string[] }): string {
+  return `${rec.type}:${[...rec.affectedApIds].sort().join(',')}`;
+}
+
 function createOptimierungStore() {
   let activeTab = $state<OptimierungTab>('empfehlungen');
   let stepStates = $state<Map<string, StepState>>(new Map());
   let stale = $state(false);
+  let doneInstructional = $state<Set<string>>(new Set());
 
   return {
     get activeTab() { return activeTab; },
@@ -47,6 +53,37 @@ function createOptimierungStore() {
       }
       return { completed, total };
     },
+
+    // ─── Instructional Done Tracking ──────────────────────────
+
+    /** Mark an instructional recommendation as done (user performed the physical action) */
+    markInstructionalDone(rec: { type: string; affectedApIds: string[] }): void {
+      const next = new Set(doneInstructional);
+      next.add(instructionalStableKey(rec));
+      doneInstructional = next;
+    },
+
+    /** Check if an instructional recommendation was previously marked as done */
+    isInstructionalDone(rec: { type: string; affectedApIds: string[] }): boolean {
+      return doneInstructional.has(instructionalStableKey(rec));
+    },
+
+    /** Get serializable done keys for localStorage persistence */
+    getDoneKeys(): string[] {
+      return [...doneInstructional];
+    },
+
+    /** Load done keys from serialized data */
+    loadDoneKeys(keys: string[]): void {
+      doneInstructional = new Set(keys);
+    },
+
+    /** Clear all done states */
+    clearDone(): void {
+      doneInstructional = new Set();
+    },
+
+    get doneCount() { return doneInstructional.size; },
   };
 }
 

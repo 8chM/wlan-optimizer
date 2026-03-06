@@ -13,6 +13,7 @@ import type { FrequencyBand } from './color-schemes';
  * Converts AccessPointResponse[] into APConfig[] for heatmap calculation.
  *
  * Optionally applies AP parameter overrides (e.g., from the mixing console).
+ * Override keys consumed here must match those produced by apFieldMap.ts toOverrides().
  * Only enabled APs are included.
  */
 export function convertApsToConfig(

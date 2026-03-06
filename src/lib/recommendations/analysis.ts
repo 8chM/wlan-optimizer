@@ -465,6 +465,8 @@ export function findOverlapZones(stats: HeatmapStats, originX = 0, originY = 0):
 export interface RoamingPairMetrics {
   ap1Id: string;
   ap2Id: string;
+  /** Total cells where both APs are visible (best + second-best) */
+  totalPairCells: number;
   /** Cells in the handoff zone (delta < handoffThreshold) */
   handoffZoneCells: number;
   /** Ratio of handoff zone to total multi-AP cells */
@@ -609,6 +611,7 @@ export function analyzeRoamingPairs(
     results.push({
       ap1Id: acc.ap1Id,
       ap2Id: acc.ap2Id,
+      totalPairCells: acc.totalPairCells,
       handoffZoneCells: acc.handoffCells,
       handoffZoneRatio: acc.handoffCells / acc.totalPairCells,
       avgDeltaInZone: acc.handoffCells > 0 ? acc.handoffDeltaSum / acc.handoffCells : 0,

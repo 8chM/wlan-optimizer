@@ -26,6 +26,7 @@
   import { convertApsToConfig, convertWallsToData } from '$lib/heatmap/convert';
   import { createRFConfig } from '$lib/heatmap/rf-engine';
   import { updateAccessPoint } from '$lib/api/accessPoint';
+  import { mapSuggestedChangeToApUpdate, mapSuggestedChangeToOverrides } from '$lib/recommendations/apFieldMap';
   import { addApCommand, updateApCommand } from '$lib/stores/commands/apCommands';
   import { undoStore } from '$lib/stores/undoStore.svelte';
   import { registerShortcuts } from '$lib/utils/keyboard';
@@ -251,38 +252,7 @@
   async function applyRecommendationToAP(change: NonNullable<Recommendation['suggestedChange']>): Promise<void> {
     const { apId, parameter, suggestedValue } = change;
     if (!apId) return;
-    const updates: Record<string, number | string> = {};
-
-    if (parameter === 'position') {
-      const m = String(suggestedValue).match(/\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*\)?/);
-      if (m) { updates.x = parseFloat(m[1]!); updates.y = parseFloat(m[2]!); }
-    } else if (parameter === 'orientationDeg') {
-      updates.orientation_deg = Number(suggestedValue);
-    } else if (parameter === 'mounting') {
-      updates.mounting = String(suggestedValue);
-    } else if (parameter === 'txPowerDbm') {
-      const band = editorHeatmapStore.band;
-      if (band === '2.4ghz') updates.tx_power_24ghz_dbm = Number(suggestedValue);
-      else if (band === '6ghz') updates.tx_power_6ghz_dbm = Number(suggestedValue);
-      else updates.tx_power_5ghz_dbm = Number(suggestedValue);
-    } else if (parameter === 'tx_power_24ghz') {
-      updates.tx_power_24ghz_dbm = Number(suggestedValue);
-    } else if (parameter === 'tx_power_5ghz') {
-      updates.tx_power_5ghz_dbm = Number(suggestedValue);
-    } else if (parameter === 'tx_power_6ghz') {
-      updates.tx_power_6ghz_dbm = Number(suggestedValue);
-    } else if (parameter === 'channel') {
-      const band = editorHeatmapStore.band;
-      if (band === '2.4ghz') updates.channel_24ghz = Number(suggestedValue);
-      else updates.channel_5ghz = Number(suggestedValue);
-    } else if (parameter === 'channel_24ghz') {
-      updates.channel_24ghz = Number(suggestedValue);
-    } else if (parameter === 'channel_5ghz') {
-      updates.channel_5ghz = Number(suggestedValue);
-    } else if (parameter === 'channel_width') {
-      updates.channel_width = String(suggestedValue);
-    }
-
+    const updates = mapSuggestedChangeToApUpdate(parameter, suggestedValue);
     if (Object.keys(updates).length > 0) {
       await updateAccessPoint(apId, updates);
       await projectStore.refreshFloorData();
@@ -354,28 +324,11 @@
     previewRec = rec;
     const { apId, parameter, currentValue, suggestedValue } = rec.suggestedChange;
     const id = apId!;
-
-    if (parameter === 'position') {
-      const match = String(suggestedValue).match(/\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*\)?/);
-      if (match) {
-        const oldMatch = String(currentValue).match(/\(?\s*([\d.]+)\s*,\s*([\d.]+)\s*\)?/);
-        mixingStore.applyChange(id, 'position_x', oldMatch?.[1] ?? null, match[1]!);
-        mixingStore.applyChange(id, 'position_y', oldMatch?.[2] ?? null, match[2]!);
-      }
-    } else if (parameter === 'txPowerDbm') {
-      const band = editorHeatmapStore.band;
-      const paramKey = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
-      mixingStore.applyChange(id, paramKey, String(currentValue ?? ''), String(suggestedValue));
-    } else if (parameter === 'tx_power_24ghz' || parameter === 'tx_power_5ghz' || parameter === 'tx_power_6ghz') {
-      mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
-    } else if (parameter === 'channel') {
-      const band = editorHeatmapStore.band;
-      const paramKey = band === '2.4ghz' ? 'channel_24ghz' : band === '6ghz' ? 'channel_6ghz' : 'channel_5ghz';
-      mixingStore.applyChange(id, paramKey, String(currentValue ?? ''), String(suggestedValue));
-    } else if (parameter === 'channel_24ghz' || parameter === 'channel_5ghz' || parameter === 'channel_6ghz') {
-      mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
-    } else {
-      mixingStore.applyChange(id, parameter, String(currentValue ?? ''), String(suggestedValue));
+    const oldOverrides = currentValue != null
+      ? mapSuggestedChangeToOverrides(parameter, currentValue) : [];
+    const newOverrides = mapSuggestedChangeToOverrides(parameter, suggestedValue);
+    for (let i = 0; i < newOverrides.length; i++) {
+      mixingStore.applyChange(id, newOverrides[i]!.key, oldOverrides[i]?.value ?? null, newOverrides[i]!.value);
     }
   }
 

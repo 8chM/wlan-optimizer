@@ -60,6 +60,10 @@ import type {
 } from './types';
 import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES, RECOMMENDATION_CATEGORIES } from './types';
 
+// ─── Roaming Pair Relevance Guards ───────────────────────────────
+const MIN_PAIR_CELLS = 80;          // Q1: Min totalPairCells to avoid noise
+const MIN_PAIR_RATIO = 0.02;        // Q1: Min pair-to-total-cells ratio
+
 // ─── Roaming TX Constants ────────────────────────────────────────
 const MIN_HANDOFF_CELLS = 50;       // A2: Minimum handoff zone cells
 const MIN_HANDOFF_RATIO = 0.01;     // A2: Minimum handoff zone ratio
@@ -207,14 +211,14 @@ export function generateRecommendations(
 
   // 8a2. Roaming TX boost — weaker AP up (when gap is high)
   generateRoamingTxBoosts(
-    recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel,
+    recommendations, roamingPairs, apMetrics, aps, walls, bounds, band, rfConfig, weights, ctx, apLabel, stats,
   );
 
   // 8b. Sticky-client risk warnings (informational)
   generateStickyClientWarnings(recommendations, roamingPairs, totalCells, band, apLabel);
 
   // 8c. Handoff gap warnings (informational)
-  generateHandoffGapWarnings(recommendations, roamingPairs, band, apLabel);
+  generateHandoffGapWarnings(recommendations, roamingPairs, totalCells, band, apLabel);
 
   // 8d. Roaming hints — only if no specific roaming warnings were generated
   const hasSpecificRoamingWarnings = recommendations.some(
@@ -517,6 +521,11 @@ function generateAddApSuggestions(
       }
       if (uplinkCount / zone.cellIndices.length > 0.50) continue;
     }
+
+    // Coverage Impact First: skip marginally weak zones that are small.
+    // Only add AP for zones that are critically weak (avgRssi <= -80)
+    // OR contribute significantly (>= 5% of total cells).
+    if (zone.avgRssi > -80 && totalCells > 0 && (zone.cellCount / totalCells) < 0.05) continue;
 
     // RF-weighted target instead of geometric centroid
     const target = computeWeightedTarget(zone, stats, originX, originY, gridStep);
@@ -822,6 +831,8 @@ function generateMoveApSuggestions(
     const ox = bounds.originX ?? 0;
     const oy = bounds.originY ?? 0;
 
+    const movePolicy = ctx.candidatePolicy ?? 'required_for_new_ap';
+
     for (const { zone } of topZones) {
       // RF-weighted target instead of geometric centroid (Task 5)
       const target = computeWeightedTarget(zone, stats, ox, oy, gridStep);
@@ -864,7 +875,6 @@ function generateMoveApSuggestions(
 
       // Strategy 2: Fallback — interpolate towards RF-weighted target
       // Only when no candidate locations are defined AND policy allows free placement for moves.
-      const movePolicy = ctx.candidatePolicy ?? 'required_for_new_ap';
       const moveFallbackAllowed = ctx.candidates.length === 0 && movePolicy !== 'required_for_move_and_new_ap';
       if (moveFallbackAllowed && (!bestDelta || bestDelta.changePercent <= 3)) {
         const dx = target.x - ap.x;
@@ -894,6 +904,32 @@ function generateMoveApSuggestions(
           }
         }
       }
+    }
+
+    // When policy requires candidate positions for moves, but no candidate produced a useful position → blocked
+    if (!bestDelta && ctx.candidates.length > 0 && movePolicy === 'required_for_move_and_new_ap') {
+      recs.push({
+        id: genId(),
+        type: 'blocked_recommendation',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.blockedMoveTitle',
+        titleParams: { ap: apLabel(ap.id) },
+        reasonKey: 'rec.blockedMoveReason',
+        reasonParams: {
+          ap: apLabel(ap.id),
+          reason: 'no_candidate_close_enough',
+        },
+        affectedApIds: [ap.id],
+        affectedBand: band,
+        evidence: {
+          metrics: { currentCoverage: metrics.primaryCoverageRatio },
+          gridStep,
+        },
+        confidence: 0.5,
+        blockedByConstraints: [`No candidate within ${MAX_IDEAL_DISTANCE_MOVE_AP_M}m of target zone`],
+      });
+      continue;
     }
 
     // C1: When uplink is heavily limited, require higher benefit for move_ap
@@ -1328,108 +1364,156 @@ function generateChannelRecommendations(
 ): void {
   const analysisBand: AnalysisBand = band === '6ghz' ? '5ghz' : band as AnalysisBand;
   const pool = ALLOWED_CHANNELS[analysisBand];
+  const range = analysisBand === '2.4ghz' ? 35 : 20;
 
-  // Collect APs with meaningful conflicts
-  const conflictApIds = new Set<string>();
+  // ── Step 1: Build conflict graph ───────────────────────────────
+  // Nodes = APs with meaningful conflicts, Edges = conflict score ≥ 0.3
+  const CONFLICT_EDGE_MIN = 0.3;
+  const adjacency = new Map<string, Map<string, number>>(); // apId → Map<neighborId, score>
+
   for (const conflict of channelAnalysis.conflicts) {
-    if (conflict.score < 0.3) continue;
-    conflictApIds.add(conflict.ap1Id);
-    conflictApIds.add(conflict.ap2Id);
+    if (conflict.score < CONFLICT_EDGE_MIN) continue;
+    if (!adjacency.has(conflict.ap1Id)) adjacency.set(conflict.ap1Id, new Map());
+    if (!adjacency.has(conflict.ap2Id)) adjacency.set(conflict.ap2Id, new Map());
+    const existing1 = adjacency.get(conflict.ap1Id)!.get(conflict.ap2Id) ?? 0;
+    adjacency.get(conflict.ap1Id)!.set(conflict.ap2Id, Math.max(existing1, conflict.score));
+    const existing2 = adjacency.get(conflict.ap2Id)!.get(conflict.ap1Id) ?? 0;
+    adjacency.get(conflict.ap2Id)!.set(conflict.ap1Id, Math.max(existing2, conflict.score));
   }
 
-  if (conflictApIds.size === 0) return;
+  if (adjacency.size === 0) return;
 
-  // Sort APs by total conflict severity (worst first → gets best channel choice)
-  const apsBySeverity = [...conflictApIds]
-    .map(id => {
-      const summary = channelAnalysis.apSummaries.find(s => s.apId === id);
-      return { id, worstScore: summary?.worstScore ?? 0, totalConflicts: summary?.totalConflicts ?? 0 };
-    })
-    .sort((a, b) => b.worstScore - a.worstScore || b.totalConflicts - a.totalConflicts);
+  // ── Step 2: Find connected components (BFS) ───────────────────
+  const visited = new Set<string>();
+  const components: string[][] = [];
 
-  // Track assigned channels: apId → channel (starts with current assignments)
-  const assignedChannels = new Map<string, number>();
+  for (const nodeId of adjacency.keys()) {
+    if (visited.has(nodeId)) continue;
+    const component: string[] = [];
+    const queue = [nodeId];
+    visited.add(nodeId);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      component.push(current);
+      for (const neighbor of adjacency.get(current)?.keys() ?? []) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+    components.push(component);
+  }
+
+  // ── Step 3: Graph-coloring per component ───────────────────────
+  // Current channel assignments (baseline)
+  const currentChannels = new Map<string, number>();
   for (const ap of accessPoints) {
     if (!ap.enabled) continue;
     const ch = analysisBand === '2.4ghz' ? ap.channel_24ghz : ap.channel_5ghz;
-    if (ch != null) assignedChannels.set(ap.id, ch);
+    if (ch != null) currentChannels.set(ap.id, ch);
   }
 
-  // Greedy assignment
-  const channelChanges = new Map<string, { from: number; to: number; worstScore: number }>();
+  // New assignments after coloring
+  const coloredChannels = new Map<string, number>(currentChannels);
+  const exhaustedComponents: string[][] = [];
 
-  for (const { id: targetApId, worstScore } of apsBySeverity) {
-    if (!isActionAllowed(targetApId, 'change_channel', band, ctx)) continue;
+  for (const component of components) {
+    // Sort by degree (most neighbors first) → greedy coloring priority
+    const sorted = component
+      .map(id => ({ id, degree: adjacency.get(id)?.size ?? 0 }))
+      .sort((a, b) => b.degree - a.degree);
 
-    const targetAp = accessPoints.find(a => a.id === targetApId);
-    if (!targetAp) continue;
+    for (const { id: targetApId } of sorted) {
+      if (!isActionAllowed(targetApId, 'change_channel', band, ctx)) continue;
 
-    // Score each candidate channel against all OTHER APs' assigned channels
-    const channelScores = pool.map(ch => {
-      let totalConflictScore = 0;
+      const targetAp = accessPoints.find(a => a.id === targetApId);
+      if (!targetAp) continue;
 
-      for (const other of accessPoints) {
-        if (other.id === targetApId || !other.enabled) continue;
-        const otherCh = assignedChannels.get(other.id);
-        if (otherCh == null) continue;
+      // Score each pool channel against NEIGHBORS' colored assignments
+      const channelScores = pool.map(ch => {
+        let conflictScore = 0;
 
-        const dx = targetAp.x - other.x;
-        const dy = targetAp.y - other.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const range = 20; // 5 GHz conservative range
-        if (analysisBand === '2.4ghz') {
-          const r = 35; // 2.4 GHz conservative range
-          if (distance > r) continue;
-          const distanceFactor = 1 - (distance / r);
-          const channelDiff = Math.abs(ch - otherCh);
-          if (channelDiff === 0) {
-            totalConflictScore += 1.0 * distanceFactor;
-          } else if (channelDiff <= 4) {
-            totalConflictScore += 0.5 * (1 - channelDiff / 5) * distanceFactor;
-          }
-        } else {
-          if (distance > range) continue;
-          const distanceFactor = 1 - (distance / range);
-          if (ch === otherCh) {
-            totalConflictScore += 1.0 * distanceFactor;
+        // Score against graph neighbors (in-component, nearby)
+        for (const [neighborId, edgeScore] of adjacency.get(targetApId) ?? []) {
+          const neighborCh = coloredChannels.get(neighborId);
+          if (neighborCh == null) continue;
+
+          if (analysisBand === '2.4ghz') {
+            const channelDiff = Math.abs(ch - neighborCh);
+            if (channelDiff === 0) {
+              conflictScore += edgeScore;
+            } else if (channelDiff <= 4) {
+              conflictScore += edgeScore * 0.5 * (1 - channelDiff / 5);
+            }
+          } else {
+            if (ch === neighborCh) conflictScore += edgeScore;
           }
         }
+
+        // Also score against non-graph APs that are within range (passive conflicts)
+        for (const other of accessPoints) {
+          if (other.id === targetApId || !other.enabled) continue;
+          if (adjacency.get(targetApId)?.has(other.id)) continue; // Already counted
+          const otherCh = coloredChannels.get(other.id);
+          if (otherCh == null) continue;
+
+          const dx = targetAp.x - other.x;
+          const dy = targetAp.y - other.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance > range) continue;
+
+          const distanceFactor = 1 - (distance / range);
+          if (analysisBand === '2.4ghz') {
+            const channelDiff = Math.abs(ch - otherCh);
+            if (channelDiff === 0) conflictScore += 0.3 * distanceFactor;
+            else if (channelDiff <= 4) conflictScore += 0.15 * (1 - channelDiff / 5) * distanceFactor;
+          } else {
+            if (ch === otherCh) conflictScore += 0.3 * distanceFactor;
+          }
+        }
+
+        return { channel: ch, score: conflictScore };
+      });
+
+      channelScores.sort((a, b) => a.score - b.score);
+      coloredChannels.set(targetApId, channelScores[0]!.channel);
+    }
+
+    // Check exhaustion: if component has more APs than pool size, some share channels
+    if (component.length > pool.length) {
+      // Check if any neighbors actually share the same channel after coloring
+      let hasCollision = false;
+      for (const apId of component) {
+        for (const neighborId of adjacency.get(apId)?.keys() ?? []) {
+          if (coloredChannels.get(apId) === coloredChannels.get(neighborId)) {
+            hasCollision = true;
+            break;
+          }
+        }
+        if (hasCollision) break;
       }
-
-      return { channel: ch, score: totalConflictScore };
-    });
-
-    channelScores.sort((a, b) => a.score - b.score);
-
-    const bestChannel = channelScores[0]!.channel;
-    const currentChannel = assignedChannels.get(targetApId);
-
-    // Update assigned channel map (even if same — prevents re-processing)
-    assignedChannels.set(targetApId, bestChannel);
-
-    if (currentChannel != null && bestChannel !== currentChannel) {
-      channelChanges.set(targetApId, { from: currentChannel, to: bestChannel, worstScore });
+      if (hasCollision) exhaustedComponents.push(component);
     }
   }
 
-  // B1: Max 3 recommendations, deduplicate target channels (keep best worstScore)
-  const targetChannelBest = new Map<number, { apId: string; worstScore: number }>();
-  for (const [apId, change] of channelChanges) {
-    const existing = targetChannelBest.get(change.to);
-    if (!existing || change.worstScore > existing.worstScore) {
-      targetChannelBest.set(change.to, { apId, worstScore: change.worstScore });
-    }
+  // ── Step 4: Collect channel changes ────────────────────────────
+  const channelChanges = new Map<string, { from: number; to: number; worstScore: number }>();
+
+  for (const [apId, newCh] of coloredChannels) {
+    const oldCh = currentChannels.get(apId);
+    if (oldCh == null || oldCh === newCh) continue;
+    if (!adjacency.has(apId)) continue; // Not in conflict graph
+
+    const summary = channelAnalysis.apSummaries.find(s => s.apId === apId);
+    channelChanges.set(apId, { from: oldCh, to: newCh, worstScore: summary?.worstScore ?? 0 });
   }
-  const dedupedKeep = new Set([...targetChannelBest.values()].map(v => v.apId));
-  // Remove APs that lost the target-channel dedup
-  for (const [apId] of channelChanges) {
-    if (!dedupedKeep.has(apId)) channelChanges.delete(apId);
-  }
-  // Limit to top 3 by worstScore
-  if (channelChanges.size > 3) {
+
+  // Limit to top 5 by worstScore (graph-coloring already diversifies channels)
+  if (channelChanges.size > 5) {
     const sorted = [...channelChanges.entries()]
       .sort((a, b) => b[1].worstScore - a[1].worstScore)
-      .slice(0, 3)
+      .slice(0, 5)
       .map(([id]) => id);
     const keepSet = new Set(sorted);
     for (const [apId] of [...channelChanges]) {
@@ -1437,25 +1521,21 @@ function generateChannelRecommendations(
     }
   }
 
-  // Emit recommendations
+  // ── Step 5: Emit recommendations ───────────────────────────────
   const channelParamName = band === '2.4ghz' ? 'channel_24ghz' : band === '6ghz' ? 'channel_6ghz' : 'channel_5ghz';
 
   for (const [targetApId, change] of channelChanges) {
-    // Find worst conflict involving this AP for evidence
     const worstConflict = channelAnalysis.conflicts.find(
-      c => (c.ap1Id === targetApId || c.ap2Id === targetApId) && c.score >= 0.3,
+      c => (c.ap1Id === targetApId || c.ap2Id === targetApId) && c.score >= CONFLICT_EDGE_MIN,
     );
 
-    // B2: Skip distant low-severity conflicts — worstScore is the channel conflict
-    // severity score (0.0–1.0, where 1.0 = co-channel at 0m). At >12m distance with
-    // worstScore < 0.5, the conflict is too mild to warrant a channel change.
+    // B2: Skip distant low-severity conflicts
     if (worstConflict && worstConflict.distanceM > 12 && change.worstScore < 0.5) continue;
 
     const otherApId = worstConflict
       ? (worstConflict.ap1Id === targetApId ? worstConflict.ap2Id : worstConflict.ap1Id)
       : undefined;
 
-    // TX-as-cause annotation: if both conflicting APs have high overlap (>20%)
     let reasonKey = 'rec.changeChannelReason';
     if (otherApId && worstConflict) {
       const targetSummary = channelAnalysis.apSummaries.find(s => s.apId === targetApId);
@@ -1494,6 +1574,34 @@ function generateChannelRecommendations(
         },
       },
       confidence: 0.85,
+    });
+  }
+
+  // ── Step 6: Channel exhaustion warning ─────────────────────────
+  if (exhaustedComponents.length > 0) {
+    const biggestComponent = exhaustedComponents.sort((a, b) => b.length - a.length)[0]!;
+    recs.push({
+      id: genId(),
+      type: 'overlap_warning',
+      priority: 'medium',
+      severity: 'warning',
+      titleKey: 'rec.channelExhaustionTitle',
+      titleParams: { count: biggestComponent.length, poolSize: pool.length },
+      reasonKey: 'rec.channelExhaustionReason',
+      reasonParams: {
+        count: biggestComponent.length,
+        poolSize: pool.length,
+        band: analysisBand,
+      },
+      affectedApIds: biggestComponent,
+      affectedBand: band,
+      evidence: {
+        metrics: {
+          componentSize: biggestComponent.length,
+          poolSize: pool.length,
+        },
+      },
+      confidence: 0.9,
     });
   }
 
@@ -1595,6 +1703,10 @@ function generateRoamingTxAdjustments(
   const uplinkLimitedRatio = totalCells > 0 ? uplinkLimitedCount / totalCells : 0;
 
   for (const pair of pairs) {
+    // Q1: Pair relevance filter — skip noisy small pairs
+    if (pair.totalPairCells < MIN_PAIR_CELLS
+        && (totalCells === 0 || pair.totalPairCells / totalCells < MIN_PAIR_RATIO)) continue;
+
     // A2: Skip when handoff zone is too small (trivial pair)
     if (pair.handoffZoneCells < MIN_HANDOFF_CELLS && pair.handoffZoneRatio < MIN_HANDOFF_RATIO) continue;
 
@@ -1740,6 +1852,7 @@ function generateRoamingTxBoosts(
   weights: ScoringWeights,
   ctx: RecommendationContext,
   apLabel: (id: string) => string,
+  stats: HeatmapStats,
 ): void {
   const txParamName = band === '2.4ghz' ? 'tx_power_24ghz' : band === '6ghz' ? 'tx_power_6ghz' : 'tx_power_5ghz';
 
@@ -1748,7 +1861,13 @@ function generateRoamingTxBoosts(
     recs.filter(r => r.type === 'adjust_tx_power' || r.type === 'roaming_tx_adjustment').flatMap(r => r.affectedApIds),
   );
 
+  const totalCells = stats.totalCells ?? 0;
+
   for (const pair of pairs) {
+    // Q1: Pair relevance filter — skip noisy small pairs
+    if (pair.totalPairCells < MIN_PAIR_CELLS
+        && (totalCells === 0 || pair.totalPairCells / totalCells < MIN_PAIR_RATIO)) continue;
+
     // Only trigger for high gap ratio with sufficient handoff zone
     const gapRatio = pair.gapCells / Math.max(pair.handoffZoneCells, 1);
     if (gapRatio < GAP_BOOST_TRIGGER) continue;
@@ -1876,6 +1995,10 @@ function generateStickyClientWarnings(
   );
 
   for (const pair of pairs) {
+    // Q1: Pair relevance filter — skip noisy small pairs
+    if (pair.totalPairCells < MIN_PAIR_CELLS
+        && (totalCells === 0 || pair.totalPairCells / totalCells < MIN_PAIR_RATIO)) continue;
+
     if (pair.stickyRatio <= 0.50) continue;
     // Only warn if handoff zone is very small (<5% of pair cells)
     if (totalCells > 0 && pair.handoffZoneCells / totalCells >= 0.05) continue;
@@ -1913,12 +2036,17 @@ function generateStickyClientWarnings(
 function generateHandoffGapWarnings(
   recs: Recommendation[],
   pairs: RoamingPairMetrics[],
+  totalCells: number,
   band: FrequencyBand,
   apLabel: (id: string) => string,
 ): void {
   const thresholds = BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz'];
 
   for (const pair of pairs) {
+    // Q1: Pair relevance filter — skip noisy small pairs
+    if (pair.totalPairCells < MIN_PAIR_CELLS
+        && (totalCells === 0 || pair.totalPairCells / totalCells < MIN_PAIR_RATIO)) continue;
+
     // Suppress very small gap zones
     if (pair.gapCells < 5) continue;
     if (pair.gapCells <= 10) continue;
@@ -2183,6 +2311,27 @@ function generateBandLimitWarnings(
       },
       confidence: 0.8,
     });
+
+    // Client-side advice: when limitation is significant (severity >= warning),
+    // emit additional informational note with device-side mitigation advice
+    if (limitedRatio > 0.60) {
+      recs.push({
+        id: genId(),
+        type: 'band_limit_warning',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.bandLimitClientAdviceTitle',
+        titleParams: { percent: Math.round(limitedPct) },
+        reasonKey: 'rec.bandLimitClientAdviceReason',
+        reasonParams: { percent: Math.round(limitedPct), band },
+        affectedApIds: [],
+        affectedBand: band,
+        evidence: {
+          metrics: { uplinkLimitedPercent: limitedPct, limitedCells: limitedCount },
+        },
+        confidence: 0.7,
+      });
+    }
   }
 }
 

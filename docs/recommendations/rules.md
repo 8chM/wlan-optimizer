@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-06 (Phase 28p — Candidate Policy)
+Last updated: 2026-03-06 (Phase 28u — Add/Move-Realismus & Client-Advice)
 
 ---
 
@@ -165,6 +165,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | AM-07 | Candidate matching + infrastructure | candidates available | Physical validation | Match to candidate, set infrastructure_required flag | :472-484 |
 | AM-07b | Candidate policy gate (add_ap) | candidatePolicy !== 'optional' AND no candidates defined | — | Emit infrastructure_required with infraNoCandidatesDefinedReason | :455-465 |
 | AM-07c | Candidate policy fallback (add_ap) | candidatePolicy === 'optional' AND no candidates defined | — | Place at RF-weighted ideal position (no candidate matching) | :467-475 |
+| AM-07d | Zone quality filter (Coverage Impact First) | zone.avgRssi > -80 AND zone.cellCount/totalCells < 0.05 | — | Skip marginally weak small zones — only add AP for critically weak or significant zones | :523-527 |
 
 ### Move AP — `generateMoveApSuggestions()` (generator.ts:580-825)
 
@@ -176,6 +177,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | AM-11 | Physical validation | — | isPhysicallyValidApPosition false | Skip position (inside wall) | :731 |
 | AM-12 | 2-strategy approach | — | ctx.candidates.length === 0 for Strategy 2 | Strategy 1: candidates only. Strategy 2: interpolation fallback (only when no candidates defined) | :672-735 |
 | AM-12b | Candidate policy gate (move_ap) | candidatePolicy === 'required_for_move_and_new_ap' | — | Block Strategy 2 interpolation fallback | :865-868 |
+| AM-12c | Move blocked — no candidate close enough | bestDelta === null AND candidates.length > 0 AND movePolicy === 'required_for_move_and_new_ap' | — | Emit blocked_recommendation with reason 'no_candidate_close_enough' | :909-928 |
 
 ### Rotate AP — `generateRotateApSuggestions()` (generator.ts:875-938)
 
@@ -199,6 +201,9 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 - **P1: required_for_new_ap + empty candidates → infrastructure_required (Phase 28p)**
 - **P2: optional + empty candidates → add_ap fallback (Phase 28p)**
 - **P3: required_for_move_and_new_ap blocks move_ap interpolation (Phase 28p)**
+- **U1a: required_for_new_ap + no candidates → no add_ap, only infrastructure_required (Phase 28u)**
+- **U2a: required_for_move_and_new_ap + distant candidates → blocked_recommendation no_candidate_close_enough (Phase 28u)**
+- **U4a: marginally weak zone (avgRssi > -80, < 5% cells) skipped for add_ap (Phase 28u)**
 
 ---
 
@@ -216,6 +221,7 @@ Generator: `generateBandLimitWarnings()` (generator.ts:1841-1878)
 | UL-02 | Suppress add_ap | uplinkLimitedRatio > 0.60 | mustHaveCoverage PZ exception | Require min 10% benefit | :466-470 |
 | UL-03 | Suppress move_ap | uplinkLimitedRatio > 0.60 | — | Require min 10% benefit | :785-788 |
 | UL-04 | mustHaveCoverage exception | PZ.mustHaveCoverage === true | — | Keep normal 2% threshold | :468-470 |
+| UL-05 | Client-side advice | limitedRatio > 0.60 | Only when main band_limit_warning is severity >= warning | Additional informational band_limit_warning with device-side mitigation advice | :2283-2298 |
 
 ### Tests
 - D5a: 0.59 ratio → info (Phase 28c)
@@ -223,6 +229,9 @@ Generator: `generateBandLimitWarnings()` (generator.ts:1841-1878)
 - D5c: 0.85 ratio → critical (Phase 28c)
 - D5d: add_ap suppression at >0.60 (Phase 28c)
 - D10: mustHaveCoverage PZ exception (Phase 28d)
+- U3a: high uplink (65%) suppresses add_ap unless benefit >= 10% (Phase 28u)
+- U5a: high uplink (>60%) generates client-advice (Phase 28u)
+- U5b: moderate uplink (35-60%) does NOT generate client-advice (Phase 28u)
 
 ---
 

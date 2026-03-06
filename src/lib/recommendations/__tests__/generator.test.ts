@@ -1344,6 +1344,94 @@ describe('generateRecommendations', () => {
     expect(RECOMMENDATION_CATEGORIES.adjust_channel_width).toBe('actionable_config');
   });
 
+  // ─── Phase 28s: Graph-Coloring Channel Tests ──────────────────────
+
+  it('graph-coloring should assign at least 2 different channels for 4 close APs', () => {
+    // 4 APs all within 5m of each other → strong conflict edges → graph-coloring diversifies
+    const aps = [
+      makeAP('ap-1', 3, 3), makeAP('ap-2', 5, 3),
+      makeAP('ap-3', 3, 5), makeAP('ap-4', 5, 5),
+    ];
+    const apResps = [
+      makeAPResponse('ap-1', 3, 3, 36), makeAPResponse('ap-2', 5, 3, 36),
+      makeAPResponse('ap-3', 3, 5, 36), makeAPResponse('ap-4', 5, 5, 36),
+    ];
+
+    const grids = makeGrids(10, 10, { rssi: -50 });
+    grids.apIndexGrid.fill(0);
+    for (let r = 0; r < 5; r++) for (let c = 5; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 1;
+    for (let r = 5; r < 10; r++) for (let c = 0; c < 5; c++) grids.apIndexGrid[r * 10 + c] = 2;
+    for (let r = 5; r < 10; r++) for (let c = 5; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 3;
+    const stats = { ...makeStats(10, 10, grids), apIds: ['ap-1', 'ap-2', 'ap-3', 'ap-4'] };
+
+    const result = generateRecommendations(
+      aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+
+    // Build final channel plan
+    const channelPlan = new Map<string, number>([
+      ['ap-1', 36], ['ap-2', 36], ['ap-3', 36], ['ap-4', 36],
+    ]);
+    for (const rec of channelRecs) {
+      if (rec.suggestedChange?.apId && rec.suggestedChange.suggestedValue != null) {
+        channelPlan.set(rec.suggestedChange.apId, rec.suggestedChange.suggestedValue as number);
+      }
+    }
+
+    const uniqueChannels = new Set(channelPlan.values());
+    // Graph-coloring must assign at least 2 different channels for close neighbors
+    expect(uniqueChannels.size).toBeGreaterThanOrEqual(2);
+    // All channels from valid pool
+    for (const ch of channelPlan.values()) {
+      expect([36, 40, 44, 48]).toContain(ch);
+    }
+  });
+
+  it('should emit channel exhaustion warning when component exceeds pool size', () => {
+    // 6 APs all close together on 5 GHz (pool size 4) → exhaustion warning
+    const aps = [
+      makeAP('ap-1', 3, 3), makeAP('ap-2', 5, 3), makeAP('ap-3', 7, 3),
+      makeAP('ap-4', 3, 5), makeAP('ap-5', 5, 5), makeAP('ap-6', 7, 5),
+    ];
+    const apResps = [
+      makeAPResponse('ap-1', 3, 3, 36), makeAPResponse('ap-2', 5, 3, 36),
+      makeAPResponse('ap-3', 7, 3, 36), makeAPResponse('ap-4', 3, 5, 36),
+      makeAPResponse('ap-5', 5, 5, 36), makeAPResponse('ap-6', 7, 5, 36),
+    ];
+
+    const grids = makeGrids(12, 12, { rssi: -50 });
+    grids.apIndexGrid.fill(0);
+    // Assign each AP roughly 24 cells so all are dominant somewhere
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) grids.apIndexGrid[r * 12 + c] = 0;
+    for (let r = 0; r < 4; r++) for (let c = 6; c < 12; c++) grids.apIndexGrid[r * 12 + c] = 1;
+    for (let r = 4; r < 8; r++) for (let c = 0; c < 6; c++) grids.apIndexGrid[r * 12 + c] = 2;
+    for (let r = 4; r < 8; r++) for (let c = 6; c < 12; c++) grids.apIndexGrid[r * 12 + c] = 3;
+    for (let r = 8; r < 12; r++) for (let c = 0; c < 6; c++) grids.apIndexGrid[r * 12 + c] = 4;
+    for (let r = 8; r < 12; r++) for (let c = 6; c < 12; c++) grids.apIndexGrid[r * 12 + c] = 5;
+    const stats = {
+      ...makeStats(12, 12, grids),
+      apIds: ['ap-1', 'ap-2', 'ap-3', 'ap-4', 'ap-5', 'ap-6'],
+    };
+
+    const result = generateRecommendations(
+      aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+    );
+
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const exhaustionRecs = allRecs.filter(
+      r => r.type === 'overlap_warning' && r.titleKey === 'rec.channelExhaustionTitle',
+    );
+
+    // With 6 APs and only 4 channels, some neighbors must share → exhaustion warning
+    expect(exhaustionRecs.length).toBeGreaterThanOrEqual(1);
+    const exh = exhaustionRecs[0]!;
+    expect(exh.severity).toBe('warning');
+    expect(exh.affectedApIds!.length).toBeGreaterThan(4);
+  });
+
   // ─── Phase 27b: Audit Fixes Tests ──────────────────────────────────
 
   it('Fix W1: should NOT generate move_ap for AP with 30% coverage (threshold lowered to 25%)', () => {
@@ -1733,8 +1821,8 @@ describe('generateRecommendations', () => {
       }],
     ]);
     const pairs = [
-      { ap1Id: 'ap-1', ap2Id: 'ap-2', handoffZoneCells: 10, handoffZoneRatio: 0.3, avgDeltaInZone: 4, gapCells: 0, avgRssiInZone: -55, stickyRatio: 0.1 },
-      { ap1Id: 'ap-1', ap2Id: 'ap-3', handoffZoneCells: 8, handoffZoneRatio: 0.25, avgDeltaInZone: 5, gapCells: 0, avgRssiInZone: -58, stickyRatio: 0.1 },
+      { ap1Id: 'ap-1', ap2Id: 'ap-2', totalPairCells: 100, handoffZoneCells: 10, handoffZoneRatio: 0.3, avgDeltaInZone: 4, gapCells: 0, avgRssiInZone: -55, stickyRatio: 0.1 },
+      { ap1Id: 'ap-1', ap2Id: 'ap-3', totalPairCells: 100, handoffZoneCells: 8, handoffZoneRatio: 0.25, avgDeltaInZone: 5, gapCells: 0, avgRssiInZone: -58, stickyRatio: 0.1 },
     ];
     const role = classifyApRole('ap-1', metrics, pairs);
     expect(role).toBe('roaming_bridge');
@@ -4061,6 +4149,392 @@ describe('generateRecommendations', () => {
       for (const rec of chRecs) {
         expect(rec.affectedApIds.every(id => id !== 'ap-ch1' && id !== 'ap-ch2')).toBe(true);
       }
+    });
+  });
+
+  // ─── Block: Roaming Pair Relevance Filter ──────────────────────
+
+  describe('Roaming Pair Relevance Filter', () => {
+    // MIN_PAIR_CELLS = 80, MIN_PAIR_RATIO = 0.02
+    // Filter: totalPairCells < 80 AND totalPairCells/totalCells < 0.02 → skip
+
+    it('T1: pair with 10 cells and stickyRatio 0.9 produces no roaming recs (noise)', () => {
+      // Large grid: 50x50 = 2500 cells. Two APs. Only 10 cells where both are visible.
+      const W = 50;
+      const H = 50;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -50, apIdx: 0, delta: 99, overlap: 1 });
+
+      // AP-0 dominates everywhere. AP-1 is secondary only in a tiny corner (10 cells).
+      // Set those 10 cells with delta > 15 (sticky) and high stickyRatio.
+      for (let i = 0; i < 10; i++) {
+        grids.secondBestApIndexGrid[i] = 1;
+        grids.deltaGrid[i] = 20; // > 15 → sticky
+      }
+      // All other cells: delta=99 (single AP only, secondBest=255)
+      for (let i = 10; i < total; i++) {
+        grids.secondBestApIndexGrid[i] = 255;
+      }
+
+      const stats: HeatmapStats = {
+        ...makeStats(W, H, grids),
+        apIds: ['ap-0', 'ap-1'],
+      };
+
+      const ap0 = makeAP('ap-0', 12, 12, { txPowerDbm: 20 });
+      const ap1 = makeAP('ap-1', 37, 12, { txPowerDbm: 20 });
+      const apResp0 = makeAPResponse('ap-0', 12, 12, 36);
+      const apResp1 = makeAPResponse('ap-1', 37, 12, 40);
+
+      const bounds: FloorBounds = { width: 50, height: 50, originX: 0, originY: 0 };
+
+      const result = generateRecommendations(
+        [ap0, ap1], [apResp0, apResp1], WALLS, bounds,
+        BAND, stats, RF_CONFIG, 'balanced', EMPTY_CONTEXT,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const roamingTypes = ['sticky_client_risk', 'handoff_gap_warning', 'roaming_tx_adjustment', 'roaming_tx_boost'];
+      const roamingRecs = all.filter(r => roamingTypes.includes(r.type));
+
+      // 10 cells / 2500 total = 0.4%, well below MIN_PAIR_RATIO (2%)
+      // 10 < MIN_PAIR_CELLS (80) → both conditions met → filtered out
+      expect(roamingRecs.length).toBe(0);
+    });
+
+    it('T2: pair with 200 cells produces roaming recs normally', () => {
+      // Grid: 20x20 = 400 cells. Two APs with 200 shared cells (50% ratio).
+      const W = 20;
+      const H = 20;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -50, apIdx: 0, delta: 99, overlap: 2 });
+
+      // First 200 cells: AP-0 primary, AP-1 secondary, delta=20 (sticky)
+      for (let i = 0; i < 200; i++) {
+        grids.secondBestApIndexGrid[i] = 1;
+        grids.deltaGrid[i] = 20; // > 15 → sticky
+      }
+      // Remaining 200 cells: AP-1 primary, AP-0 secondary, delta=20
+      for (let i = 200; i < total; i++) {
+        grids.apIndexGrid[i] = 1;
+        grids.secondBestApIndexGrid[i] = 0;
+        grids.deltaGrid[i] = 20;
+      }
+
+      const stats: HeatmapStats = {
+        ...makeStats(W, H, grids, { excellent: 100, good: 100, fair: 100, poor: 60, none: 40 }),
+        apIds: ['ap-0', 'ap-1'],
+      };
+
+      const ap0 = makeAP('ap-0', 3, 5, { txPowerDbm: 20 });
+      const ap1 = makeAP('ap-1', 17, 5, { txPowerDbm: 20 });
+      const apResp0 = makeAPResponse('ap-0', 3, 5, 36);
+      const apResp1 = makeAPResponse('ap-1', 17, 5, 40);
+
+      const bounds: FloorBounds = { width: 20, height: 20, originX: 0, originY: 0 };
+
+      const result = generateRecommendations(
+        [ap0, ap1], [apResp0, apResp1], WALLS, bounds,
+        BAND, stats, RF_CONFIG, 'balanced', EMPTY_CONTEXT,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const roamingTypes = ['sticky_client_risk', 'handoff_gap_warning', 'roaming_tx_adjustment', 'roaming_tx_boost'];
+      const roamingRecs = all.filter(r => roamingTypes.includes(r.type));
+
+      // 400 totalPairCells >= 80 → relevance filter passes → recs should be generated
+      // stickyRatio = 400/400 = 1.0 (all cells are sticky) → sticky_client_risk expected
+      expect(roamingRecs.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ─── Phase 28u: Recommendation Correctness ────────────────────────
+
+  describe('U1: CandidatePolicy hard guarantee', () => {
+    it('U1a: required_for_new_ap policy with no candidates emits infrastructure_required, never add_ap', () => {
+      // 1 AP in corner, large weak zone opposite — but NO candidates defined
+      const aps = [makeAP('ap-1', 1, 1)];
+      const apResps = [makeAPResponse('ap-1', 1, 1)];
+
+      const W = 20;
+      const H = 20;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      // AP-1 covers only a small area near (1,1)
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          if (c < 3 && r < 3) {
+            grids.rssiGrid[idx] = -45;
+          }
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 9, good: 0, fair: 0, poor: 50, none: 341,
+      });
+      stats.apIds = ['ap-1'];
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidatePolicy: 'required_for_new_ap',
+        candidates: [], // NO candidates
+      };
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const addApRecs = all.filter(r => r.type === 'add_ap');
+      const infraRecs = all.filter(r => r.type === 'infrastructure_required');
+
+      // INVARIANT: No add_ap when policy requires candidates and none are defined
+      expect(addApRecs.length).toBe(0);
+      // Should have infrastructure_required instead
+      expect(infraRecs.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('U2: Move-AP blocked when candidates too far', () => {
+    it('U2a: required_for_move_and_new_ap with distant candidates emits blocked_recommendation', () => {
+      // 2 APs: ap-1 has very low coverage (< 25%), ap-2 covers most.
+      // Only 1 candidate defined, far from weak zones → move_ap blocked.
+      const aps = [
+        makeAP('ap-1', 1, 1, { txPowerDbm: 10 }),
+        makeAP('ap-2', 30, 5, { txPowerDbm: 20 }),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 1, 1),
+        makeAPResponse('ap-2', 30, 5, 40),
+      ];
+
+      const W = 40;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -90 });
+      // AP-2 covers right 75%, AP-1 covers only small area (< 25%)
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          if (c >= 10) {
+            grids.rssiGrid[idx] = -50;
+            grids.apIndexGrid[idx] = 1;
+            grids.secondBestApIndexGrid[idx] = 0;
+          } else if (c < 3 && r < 3) {
+            grids.rssiGrid[idx] = -55;
+            grids.apIndexGrid[idx] = 0;
+            grids.secondBestApIndexGrid[idx] = 1;
+          } else {
+            grids.apIndexGrid[idx] = 0;
+            grids.secondBestApIndexGrid[idx] = 1;
+          }
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 0, good: 300, fair: 9, poor: 50, none: 41,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      // Candidate at (39, 9) — far from weak zones in the left region
+      const farCandidate: CandidateLocation = {
+        id: 'cand-far',
+        x: 39,
+        y: 9,
+        label: 'Far corner',
+        mountingOptions: ['ceiling'],
+        hasLan: true,
+        hasPoe: true,
+        hasPower: true,
+        preferred: false,
+        forbidden: false,
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidatePolicy: 'required_for_move_and_new_ap',
+        candidates: [farCandidate],
+      };
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const moveRecs = all.filter(r => r.type === 'move_ap');
+      const blockedRecs = all.filter(r =>
+        r.type === 'blocked_recommendation' &&
+        r.reasonParams?.reason === 'no_candidate_close_enough',
+      );
+
+      // No move_ap because candidate is too far from zone targets
+      expect(moveRecs.length).toBe(0);
+      // Should have blocked_recommendation with no_candidate_close_enough reason
+      expect(blockedRecs.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('U3: Uplink-suppress gating for add_ap', () => {
+    it('U3a: high uplink (65%) suppresses add_ap unless benefit >= 10%', () => {
+      // Setup: 1 AP, weak zones, 65% uplink-limited (above UPLINK_SUPPRESS_ADD_MOVE=0.60)
+      const aps = [makeAP('ap-1', 2, 5)];
+      const apResps = [makeAPResponse('ap-1', 2, 5)];
+
+      const W = 20;
+      const H = 10;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -85 });
+
+      // AP-1 covers left 30%
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < 6; c++) {
+          grids.rssiGrid[r * W + c] = -50;
+        }
+      }
+
+      // 65% uplink-limited
+      for (let i = 0; i < Math.floor(total * 0.65); i++) {
+        grids.uplinkLimitedGrid[i] = 1;
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 60, good: 0, fair: 0, poor: 80, none: 60,
+      });
+      stats.apIds = ['ap-1'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', EMPTY_CONTEXT,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const addApRecs = all.filter(r => r.type === 'add_ap');
+
+      // Any add_ap recs that survive must have changePercent >= 10 (UPLINK_ADD_MOVE_MIN_BENEFIT)
+      for (const rec of addApRecs) {
+        if (rec.simulatedDelta) {
+          expect(rec.simulatedDelta.changePercent).toBeGreaterThanOrEqual(10);
+        }
+      }
+    });
+  });
+
+  describe('U4: Add-AP zone quality filter', () => {
+    it('U4a: marginally weak zone (avgRssi > -80, < 5% cells) is skipped for add_ap', () => {
+      // Setup: 2 APs with moderate coverage, one small marginally weak zone (avgRssi ~ -75)
+      const aps = [
+        makeAP('ap-1', 5, 5),
+        makeAP('ap-2', 15, 5),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 5, 5),
+        makeAPResponse('ap-2', 15, 5),
+      ];
+
+      const W = 20;
+      const H = 10;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -55 });
+
+      // Small "weak" patch at edge: only 8 cells (4% of 200), avgRssi ~ -75 (not critical)
+      for (let r = 8; r < 10; r++) {
+        for (let c = 16; c < 20; c++) {
+          grids.rssiGrid[r * W + c] = -75;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 140, good: 40, fair: 12, poor: 8, none: 0,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', EMPTY_CONTEXT,
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const addApRecs = all.filter(r => r.type === 'add_ap');
+
+      // No add_ap for marginally weak zones — the 8-cell zone at -75 dBm
+      // is above -80 threshold AND below 5% of total (4%) → filtered out
+      expect(addApRecs.length).toBe(0);
+    });
+  });
+
+  describe('U5: Client-side advice for band limitation', () => {
+    it('U5a: high uplink (>60%) generates additional client-advice band_limit_warning', () => {
+      const aps = [makeAP('ap-1', 5, 5)];
+      const apResps = [makeAPResponse('ap-1', 5, 5)];
+
+      const W = 10;
+      const H = 10;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -50 });
+
+      // 70% uplink-limited
+      for (let i = 0; i < Math.floor(total * 0.70); i++) {
+        grids.uplinkLimitedGrid[i] = 1;
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 80, good: 10, fair: 5, poor: 3, none: 2,
+      });
+      stats.apIds = ['ap-1'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const bandLimitRecs = all.filter(r => r.type === 'band_limit_warning');
+
+      // Should have 2 band_limit_warning recs: the main one + client advice
+      expect(bandLimitRecs.length).toBe(2);
+
+      // One should be the client advice (info severity with client advice title key)
+      const clientAdvice = bandLimitRecs.find(r =>
+        r.titleKey === 'rec.bandLimitClientAdviceTitle',
+      );
+      expect(clientAdvice).toBeDefined();
+      expect(clientAdvice!.severity).toBe('info');
+      expect(clientAdvice!.priority).toBe('low');
+    });
+
+    it('U5b: moderate uplink (35-60%) does NOT generate client-advice', () => {
+      const aps = [makeAP('ap-1', 5, 5)];
+      const apResps = [makeAPResponse('ap-1', 5, 5)];
+
+      const W = 10;
+      const H = 10;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -50 });
+
+      // 40% uplink-limited (above 30% trigger, but below 60% client-advice threshold)
+      for (let i = 0; i < Math.floor(total * 0.40); i++) {
+        grids.uplinkLimitedGrid[i] = 1;
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 80, good: 10, fair: 5, poor: 3, none: 2,
+      });
+      stats.apIds = ['ap-1'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const all = collectAllRecommendations(result.recommendations);
+      const bandLimitRecs = all.filter(r => r.type === 'band_limit_warning');
+
+      // Should have exactly 1 band_limit_warning (main only, no client advice)
+      expect(bandLimitRecs.length).toBe(1);
+      expect(bandLimitRecs[0]!.titleKey).toBe('rec.bandLimitTitle');
     });
   });
 });

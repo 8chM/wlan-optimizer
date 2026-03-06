@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28r-complete",
+  "currentPhase": "phase-28u-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1029,6 +1029,22 @@
         "2 neue i18n-Keys EN+DE: opt.markDone, opt.instructionDone",
         "10 neue Store-Tests: stableKey, markDone, isDone, clearDone, Serialisierung, stale-Interaktion",
         "885 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
+      ]
+    },
+    "28u": {
+      "name": "Recommendation Correctness — Add/Move-Realismus & No-new-cable-Mode",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-06",
+      "deliverables": [
+        "Sub-task 1: CandidatePolicy Hard-Guarantee — verifiziert: required_for_new_ap Default, add_ap + preferred_candidate bereits korrekt gated",
+        "Sub-task 2: Add-AP Zone Quality Filter — avgRssi > -80 UND < 5% Total-Cells → Zone wird uebersprungen",
+        "Sub-task 3: Move-AP blocked_recommendation wenn Kandidaten zu weit (required_for_move_and_new_ap + no_candidate_close_enough)",
+        "Sub-task 4: Client-Advice band_limit_warning bei severity >= warning (limitedRatio > 0.60)",
+        "Sub-task 5: 7 neue Tests (U1a, U2a, U3a, U4a, U5a, U5b) — 893 Tests total",
+        "2 neue i18n-Keys EN+DE: rec.bandLimitClientAdviceTitle, rec.bandLimitClientAdviceReason",
+        "apFieldMap.ts: Pre-existing Type-Error gefixt (Linter auto-fix)",
+        "893 Tests pass, svelte-check 0 Errors, Build OK, Dev-Server 5175 laeuft"
       ]
     }
   },

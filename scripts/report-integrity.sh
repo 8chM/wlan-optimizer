@@ -100,7 +100,15 @@ echo "$REPORT"
 echo "$REPORT" > "$REPORT_FILE"
 echo "Report saved to $REPORT_FILE"
 
-# ─── 7. Exit code reflects overall status ────────────────────────
+# ─── 7. Machine-readable summary line ────────────────────────────
+INTEGRITY_LINE="INTEGRITY_OK tests=$TESTS_PASSED golden=$GOLDEN_PASSED svelteErrors=$SVELTE_ERRORS build=$BUILD_STATUS"
+if [ "$TESTS_FAILED" != "0" ] || [ "$GOLDEN_FAILED" != "0" ] || [ "$SVELTE_ERRORS" != "0" ] || [ "$BUILD_STATUS" != "OK" ]; then
+  INTEGRITY_LINE="INTEGRITY_FAIL tests=$TESTS_PASSED golden=$GOLDEN_PASSED svelteErrors=$SVELTE_ERRORS build=$BUILD_STATUS testsFailed=$TESTS_FAILED goldenFailed=$GOLDEN_FAILED"
+fi
+echo "$INTEGRITY_LINE"
+echo "$INTEGRITY_LINE" >> "$REPORT_FILE"
+
+# ─── 8. Exit code reflects overall status ────────────────────────
 if [ "$TESTS_FAILED" != "0" ] || [ "$GOLDEN_FAILED" != "0" ] || [ "$SVELTE_ERRORS" != "0" ] || [ "$BUILD_STATUS" != "OK" ]; then
   exit 1
 fi

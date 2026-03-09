@@ -311,13 +311,26 @@ describe('Performance: Heatmap grid calculation', () => {
     const walls = generateRandomWalls(10, AREA_W, AREA_H);
     const { grid, allSegments } = buildSpatialGrid(walls, AREA_W, AREA_H);
 
-    const r1 = simulateHeatmapGrid(1.0, ap, config, grid, allSegments);
-    const r025 = simulateHeatmapGrid(0.25, ap, config, grid, allSegments);
+    // JIT warmup — run both resolutions once before measuring
+    simulateHeatmapGrid(1.0, ap, config, grid, allSegments);
+    simulateHeatmapGrid(0.25, ap, config, grid, allSegments);
+
+    // Take median of 3 runs to reduce jitter
+    const times1: number[] = [];
+    const times025: number[] = [];
+    for (let trial = 0; trial < 3; trial++) {
+      times1.push(simulateHeatmapGrid(1.0, ap, config, grid, allSegments).elapsed);
+      times025.push(simulateHeatmapGrid(0.25, ap, config, grid, allSegments).elapsed);
+    }
+    times1.sort((a, b) => a - b);
+    times025.sort((a, b) => a - b);
+    const median1 = times1[1]!;
+    const median025 = times025[1]!;
 
     // 0.25m has 16x more points than 1.0m (1600 vs 100)
-    // Time should scale roughly linearly with point count,
-    // so allow up to 40x (generous margin for overhead and CI variability)
-    const ratio = r025.elapsed / (r1.elapsed + 0.01); // avoid division by zero
+    // Time should scale roughly linearly with point count.
+    // Use median + floor of 0.5ms to avoid flaky ratios when baseline is <1ms.
+    const ratio = median025 / (median1 + 0.5);
     expect(ratio).toBeLessThan(40);
   });
 });

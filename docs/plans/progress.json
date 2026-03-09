@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28be-complete",
+  "currentPhase": "phase-28bf-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1561,6 +1561,20 @@
         "BE-1c: cross-fixture — candidatePosition und usedFallback mutually exclusive invariant",
         "Fix: generator.ts config_budget_note apId string→removed (svelte-check type error)",
         "1197 Tests pass (38 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bf": {
+      "name": "Golden/CI-Align + Flaky-Test Endgame",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "Flaky perf test fix: performance.test.ts:308 — JIT warmup + median-of-3 + 0.5ms floor (root cause: sub-1ms baseline made ratio blow up on jitter)",
+        "report-integrity.sh: machine-readable INTEGRITY_OK/INTEGRITY_FAIL summary line at end of output",
+        "CI workflow already uses report-integrity.sh as single entry point — no parallel vitest calls",
+        "Root cause 'different test counts': concurrent sessions adding tests (1197 vs 1200) — not exclusion or skip",
+        "5/5 local runs of perf test stable after fix",
+        "1200 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [ad0d126]"
       ]
     }
   },

@@ -29,6 +29,9 @@ import {
   createF3UplinkLimited,
   createF4NoNewCable,
   createF5FarCandidates,
+  createF6StickyTinyHandoff,
+  createF7UplinkWeakCoverage,
+  createF8CandidateRequiredNoNear,
 } from './fixtures/regression-fixtures';
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
@@ -214,6 +217,9 @@ const GOLDEN_CASES: GoldenCase[] = [
   { name: 'g3-uplink-limited', create: createF3UplinkLimited },
   { name: 'g4-no-new-cable', create: createF4NoNewCable },
   { name: 'g5-far-candidates', create: createF5FarCandidates },
+  { name: 'g6-sticky-tiny-handoff', create: createF6StickyTinyHandoff },
+  { name: 'g7-uplink-weak-coverage', create: createF7UplinkWeakCoverage },
+  { name: 'g8-candidate-required-no-near', create: createF8CandidateRequiredNoNear },
 ];
 
 /** Generate golden input files (project.json + stats.json) from fixture. */

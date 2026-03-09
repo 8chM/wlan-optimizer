@@ -196,14 +196,14 @@ Helper: `wouldHurtPriorityZone()` — Samples 5 points per mustHaveCoverage PZ, 
 | AM-12b | Candidate policy gate (move_ap) | candidatePolicy === 'required_for_move_and_new_ap' | — | Block Strategy 2 interpolation fallback | :865-868 |
 | AM-12c | Move blocked — no candidate close enough | bestDelta === null AND candidates.length > 0 AND movePolicy === 'required_for_move_and_new_ap' | — | Emit blocked_recommendation with reason 'no_candidate_close_enough' | :909-928 |
 
-### Rotate AP — `generateRotateApSuggestions()` (generator.ts:875-938)
+### Rotate AP (`rotate_ap`) — `generateRotateApSuggestions()` (generator.ts:875-938)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
 | AM-13 | Wall-mount only | ap.mounting !== 'wall' | — | Skip (ceiling APs have no orientation effect) | :933 |
 | AM-14 | Improvement threshold | changePercent <= 3 | hasWallInFrontSector skip | Require >3% improvement | :959 |
 
-### Mounting — `generateMountingSuggestions()` (generator.ts:940-1024)
+### Mounting (`change_mounting`) — `generateMountingSuggestions()` (generator.ts:940-1024)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -339,7 +339,7 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | OV-01 | Overlap warning | overlapPercent > 20 | — | medium/warning overlap_warning | :1693 |
 
-### Coverage Warning — `generateCoverageWarnings()` (generator.ts:331-366)
+### Coverage Warning (`coverage_warning`) — `generateCoverageWarnings()` (generator.ts:331-366)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
@@ -361,28 +361,37 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 
 ## Summary
 
-| Cluster | Rules | Generator Function | Lines |
-|---------|-------|--------------------|-------|
-| Channel | CH-01..CH-07 | generateChannelRecommendations | 1149-1345 |
-| TX-Power | TX-01..TX-08 | generateTxPowerSuggestions | 1026-1147 |
-| Roaming (Down) | RM-01..RM-09 | generateRoamingTxAdjustments | 1481-1645 |
-| Roaming (Boost) | RB-01..RB-07 | generateRoamingTxBoosts | 1646-1779 |
-| Roaming (Warnings) | RM-10..RM-13 | generateStickyClientWarnings + Gap | 1780-1873 |
-| Add/Move/Rotate/Mount | AM-01..AM-15 | 4 generators | 400-1024 |
-| Uplink | UL-01..UL-04 | generateBandLimitWarnings + gating | 1841-1878, :68-69 |
-| Disable AP | DA-01..DA-04 | generateDisableApSuggestions | 1773-1839 |
-| Constraint/Blocked | CB-01..CB-05 | generateConstraintConflictWarnings + Preferred | 1880-2086 |
-| Sorting | SO-01..SO-05 | sort block in main function | 247-272 |
-| Dedup | DD-01..DD-04 | deduplicateRecommendations | 2090-2137 |
-| Channel Width | CW-01 | generateChannelWidthRecommendations | 2149-2218 |
-| Overlap | OV-01 | generateOverlapWarnings | 1681-1713 |
-| Coverage | CV-01 | generateCoverageWarnings | 331-366 |
-| Low-Value | LV-01 | generateLowValueWarnings | 1651-1679 |
-| Roaming Hint | RH-01 | generateRoamingHints | 1347-1390 |
+| Cluster | Rules | Count | Generator Function |
+|---------|-------|-------|--------------------|
+| Channel | CH-01..CH-07 | 7 | generateChannelRecommendations |
+| TX-Power | TX-01..TX-09 | 9 | generateTxPowerSuggestions |
+| Roaming (Down) | RM-01..RM-09, RM-07b, RM-14, RM-15 | 12 | generateRoamingTxAdjustments |
+| Roaming (Boost) | RB-01..RB-08 | 8 | generateRoamingTxBoosts |
+| Roaming (Warnings) | RM-10..RM-13 | 4 | generateStickyClientWarnings + Gap |
+| Add/Move/Rotate/Mount | AM-01..AM-15 + 6 sub-rules | 21 | 4 generators |
+| Uplink | UL-01..UL-05 | 5 | generateBandLimitWarnings + gating |
+| Disable AP | DA-01..DA-04 | 4 | generateDisableApSuggestions |
+| Constraint/Blocked | CB-01..CB-05 | 5 | generateConstraintConflictWarnings + Preferred |
+| Sorting | SO-01..SO-05 | 5 | sort block in main function |
+| Dedup | DD-01..DD-04 | 4 | deduplicateRecommendations |
+| Channel Width | CW-01 | 1 | generateChannelWidthRecommendations |
+| Overlap | OV-01 | 1 | generateOverlapWarnings |
+| Coverage | CV-01 | 1 | generateCoverageWarnings |
+| Low-Value | LV-01 | 1 | generateLowValueWarnings |
+| Roaming Hint | RH-01 | 1 | generateRoamingHints |
 
-**Total: 71 rules across 16 clusters.**
+**Total: 89 rules across 16 clusters. 21 RecommendationType values.**
 
-All rules have code references. No "not implemented" rules identified — every documented rule has a corresponding code path.
+All rules have code references. Every documented rule has a corresponding code path.
+
+### Auto-Verification
+
+```
+Total rules:  89  (counted by regex ^| [A-Z]{2}-\d+ in this document)
+Total types:  21  (RecommendationType union in types.ts)
+Last verified: scripts/report-integrity.sh "phase-28ag"
+Drift-proof:  rulesIntegrity.test.ts (E1-E9) + rulesCatalogIntegrity.test.ts (RC-1..RC-4)
+```
 
 ---
 

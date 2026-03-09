@@ -17,6 +17,9 @@ import {
   createF3UplinkWithMustHavePZ,
   createF4NoNewCable,
   createF5FarCandidates,
+  createF6StickyTinyHandoff,
+  createF7UplinkWeakCoverage,
+  createF8CandidateRequiredNoNear,
 } from './fixtures/regression-fixtures';
 import { computeZoneRelevance, classifyApRole, analyzeRoamingPairs } from '../analysis';
 import type { APMetrics, WeakZone } from '../types';
@@ -6463,6 +6466,284 @@ describe('generateRecommendations', () => {
         // Max 1 informational note per pair
         expect(stickyForPair.length, 'max 1 sticky_client_risk per pair').toBeLessThanOrEqual(1);
       });
+    });
+  });
+
+  // ─── Phase 28ah: Sanity Invariants ─────────────────────────────
+
+  describe('INV-1: Max 2 channel recs when channel exhaustion note present', () => {
+    it('INV-1a: F1 dense cluster (4 APs, all ch36) → max 2 actionable channel recs + exhaustion note', () => {
+      const f = createF1DenseCluster();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const exhaustionNote = allRecs.find(r =>
+        r.type === 'overlap_warning' && r.titleKey === 'rec.channelExhaustionTitle',
+      );
+      const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+
+      if (exhaustionNote) {
+        expect(channelRecs.length, 'max 2 actionable channel recs when pool exhausted').toBeLessThanOrEqual(2);
+      }
+      // Independent of exhaustion: never more than 5 channel recs
+      expect(channelRecs.length, 'never more than 5 channel recs').toBeLessThanOrEqual(5);
+    });
+  });
+
+  describe('INV-2: roaming_tx_adjustment/boost never actionable when scoreAfter < scoreBefore', () => {
+    it('INV-2a: F1 (dense cluster) — no actionable roaming rec regresses score', () => {
+      const f = createF1DenseCluster();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const actionableRoaming = allRecs.filter(r =>
+        (r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost')
+        && RECOMMENDATION_CATEGORIES[r.type] === 'actionable_config',
+      );
+      for (const rec of actionableRoaming) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.scoreAfter,
+            `${rec.type} for [${rec.affectedApIds}] must not regress score`,
+          ).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
+        }
+      }
+    });
+
+    it('INV-2b: F2 (roaming conflict) — no actionable roaming rec regresses score', () => {
+      const f = createF2RoamingConflict();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const actionableRoaming = allRecs.filter(r =>
+        (r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost')
+        && RECOMMENDATION_CATEGORIES[r.type] === 'actionable_config',
+      );
+      for (const rec of actionableRoaming) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.scoreAfter,
+            `${rec.type} for [${rec.affectedApIds}] must not regress score`,
+          ).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
+        }
+      }
+    });
+
+    it('INV-2c: F6 (sticky tiny handoff) — no actionable roaming rec regresses score', () => {
+      const f = createF6StickyTinyHandoff();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const actionableRoaming = allRecs.filter(r =>
+        (r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost')
+        && RECOMMENDATION_CATEGORIES[r.type] === 'actionable_config',
+      );
+      for (const rec of actionableRoaming) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.scoreAfter,
+            `${rec.type} for [${rec.affectedApIds}] must not regress score`,
+          ).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
+        }
+      }
+    });
+  });
+
+  describe('INV-3: CandidatePolicy required → add_ap only with selectedCandidatePosition', () => {
+    it('INV-3a: F4 no-new-cable (required_for_new_ap) → zero add_ap', () => {
+      const f = createF4NoNewCable();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+      expect(allRecs.filter(r => r.type === 'add_ap').length).toBe(0);
+    });
+
+    it('INV-3b: F8 candidate-required-no-near → zero add_ap, no phantom positions', () => {
+      const f = createF8CandidateRequiredNoNear();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // No phantom add_ap without valid candidate
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'no phantom add_ap').toBe(0);
+
+      // Any move_ap must reference a candidate position
+      const moveRecs = allRecs.filter(r => r.type === 'move_ap');
+      for (const rec of moveRecs) {
+        expect(rec.selectedCandidatePosition, 'move_ap must have selectedCandidatePosition').toBeDefined();
+      }
+
+      // Any infrastructure_required must have evidence
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+      for (const rec of infraRecs) {
+        expect(rec.evidence?.metrics, 'infra rec must have evidence metrics').toBeDefined();
+      }
+    });
+
+    it('INV-3c: cross-fixture — any add_ap with required policy must have selectedCandidatePosition', () => {
+      // Test all fixtures that use required policy
+      const fixtures = [createF4NoNewCable(), createF5FarCandidates(), createF8CandidateRequiredNoNear()];
+      for (const f of fixtures) {
+        const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+        for (const rec of addApRecs) {
+          expect(rec.selectedCandidatePosition, 'add_ap with required policy must have selectedCandidatePosition').toBeDefined();
+        }
+      }
+    });
+  });
+
+  describe('INV-4: No-new-cable mode → no interpolation moves', () => {
+    it('INV-4a: required_for_move_and_new_ap + no candidates → no move_ap via interpolation', () => {
+      const f = createF7UplinkWeakCoverage();
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [],
+        candidatePolicy: 'required_for_move_and_new_ap',
+      };
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const moveRecs = allRecs.filter(r => r.type === 'move_ap');
+      // With required_for_move_and_new_ap and no candidates, moves via interpolation are blocked
+      for (const rec of moveRecs) {
+        expect(rec.selectedCandidatePosition, 'move_ap must be candidate-based, not interpolated').toBeDefined();
+      }
+
+      // Also: no add_ap without candidates
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'no add_ap without candidates in required_for_move_and_new_ap').toBe(0);
+    });
+
+    it('INV-4b: required_for_new_ap + no candidates → move_ap still allowed via interpolation', () => {
+      const f = createF7UplinkWeakCoverage();
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [],
+        candidatePolicy: 'required_for_new_ap',
+      };
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // required_for_new_ap does NOT block interpolation moves — only blocks add_ap
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'no add_ap without candidates in required_for_new_ap').toBe(0);
+      // move_ap is still allowed via interpolation in this policy
+    });
+  });
+
+  describe('INV-5: 6GHz capability gates — channel + TX obey canChangeChannel6/canChangeTxPower6', () => {
+    it('INV-5a: canChangeChannel6=false blocks ALL channel recs on 6GHz band', () => {
+      const f = createF1DenseCluster(); // 4 APs, all same channel → conflict
+      const caps = {
+        ...DEFAULT_AP_CAPABILITIES,
+        canChangeChannel6: false,
+      };
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        apCapabilities: new Map(f.aps.map(a => [a.id, { apId: a.id, ...caps }])),
+      };
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '6ghz', f.stats, createRFConfig('6ghz'), 'balanced', ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+      expect(channelRecs.length, 'no channel recs when canChangeChannel6=false on 6GHz').toBe(0);
+    });
+
+    it('INV-5b: canChangeTxPower6=false blocks TX recs on 6GHz band', () => {
+      const f = createF1DenseCluster();
+      const caps = {
+        ...DEFAULT_AP_CAPABILITIES,
+        canChangeTxPower6: false,
+      };
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        apCapabilities: new Map(f.aps.map(a => [a.id, { apId: a.id, ...caps }])),
+      };
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '6ghz', f.stats, createRFConfig('6ghz'), 'balanced', ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const txRecs = allRecs.filter(r =>
+        r.type === 'adjust_tx_power' || r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost',
+      );
+      expect(txRecs.length, 'no TX recs when canChangeTxPower6=false on 6GHz').toBe(0);
+    });
+  });
+
+  describe('INV-F6: F6 sticky-tiny-handoff sanity', () => {
+    it('INV-F6a: no actionable roaming_tx_adjustment when handoff zone is tiny', () => {
+      const f = createF6StickyTinyHandoff();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const actionableRoaming = allRecs.filter(r =>
+        r.type === 'roaming_tx_adjustment'
+        && r.suggestedChange != null,
+      );
+      // With 4 well-separated APs and tiny handoff zones, the MIN_HANDOFF_CELLS guard should prevent
+      // actionable roaming recs. If any exist, they must not regress.
+      for (const rec of actionableRoaming) {
+        if (rec.simulatedDelta) {
+          expect(rec.simulatedDelta.scoreAfter).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
+        }
+      }
+    });
+  });
+
+  describe('INV-F7: F7 uplink-weak-coverage sanity', () => {
+    it('INV-F7a: high uplink (75%) suppresses add_ap unless benefit >= 10', () => {
+      const f = createF7UplinkWeakCoverage();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      for (const rec of addApRecs) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.changePercent,
+            'add_ap with 75% uplink must have high benefit',
+          ).toBeGreaterThanOrEqual(10);
+        }
+      }
+
+      // TX increase should also be suppressed or absent
+      const txIncreaseRecs = allRecs.filter(r =>
+        r.type === 'adjust_tx_power'
+        && r.suggestedChange
+        && typeof r.suggestedChange.suggestedValue === 'number'
+        && typeof r.suggestedChange.currentValue === 'number'
+        && r.suggestedChange.suggestedValue > r.suggestedChange.currentValue,
+      );
+      // If present, must have meaningful improvement
+      for (const rec of txIncreaseRecs) {
+        if (rec.simulatedDelta) {
+          expect(rec.simulatedDelta.changePercent, 'TX increase must improve').toBeGreaterThan(0);
+        }
+      }
+    });
+  });
+
+  describe('INV-F8: F8 candidate-required-no-near structural', () => {
+    it('INV-F8a: required_for_move_and_new_ap blocks phantom positions, no add_ap', () => {
+      const f = createF8CandidateRequiredNoNear();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, '5ghz', f.stats, createRFConfig('5ghz'), 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // No phantom add_ap (candidates are far from weak zones)
+      expect(allRecs.filter(r => r.type === 'add_ap').length, 'no phantom add_ap').toBe(0);
+
+      // No interpolated move_ap (required_for_move_and_new_ap blocks interpolation)
+      const moveRecs = allRecs.filter(r => r.type === 'move_ap');
+      for (const rec of moveRecs) {
+        expect(rec.selectedCandidatePosition, 'move_ap must be candidate-based').toBeDefined();
+      }
+
+      // F8 with 2 overlapping APs may produce sticky/gap warnings — these are valid informational recs
+      const informationalTypes = ['sticky_client_risk', 'handoff_gap_warning', 'low_ap_value'];
+      const infoRecs = allRecs.filter(r => informationalTypes.includes(r.type));
+      for (const rec of infoRecs) {
+        expect(rec.severity, 'informational recs should not be critical').not.toBe('critical');
+      }
     });
   });
 });

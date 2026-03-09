@@ -1,0 +1,28 @@
+[
+  {
+    "type": "band_limit_warning",
+    "affectedApIds": [],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.bandLimitTitle",
+    "reasonKey": "rec.bandLimitReason",
+    "evidenceKeys": [
+      "limitedCells",
+      "uplinkLimitedPercent"
+    ]
+  },
+  {
+    "type": "band_limit_warning",
+    "affectedApIds": [],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.bandLimitClientAdviceTitle",
+    "reasonKey": "rec.bandLimitClientAdviceReason",
+    "evidenceKeys": [
+      "limitedCells",
+      "uplinkLimitedPercent"
+    ]
+  }
+]

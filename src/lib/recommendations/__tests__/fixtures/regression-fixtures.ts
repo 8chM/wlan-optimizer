@@ -290,6 +290,170 @@ export function createF5FarCandidates() {
   return { aps, apResps, walls: [] as WallData[], bounds: { width: W, height: H, originX: 0, originY: 0 }, stats, ctx };
 }
 
+// ─── F6: Sticky high but handoff zone tiny (4 APs) ──────────────
+
+export function createF6StickyTinyHandoff() {
+  const W = 30, H = 20;
+  // 4 APs spread out, different channels → no channel conflicts
+  // Overlap zones are tiny (<50 cells each) → MIN_HANDOFF_CELLS guard should fire
+  // stickyRatio can be high but with very few cells → no actionable roaming_tx
+  const aps = [
+    ap('ap-1', 5, 5),
+    ap('ap-2', 25, 5),
+    ap('ap-3', 5, 15),
+    ap('ap-4', 25, 15),
+  ];
+  const apResps = [
+    apResp('ap-1', 5, 5, 36),
+    apResp('ap-2', 25, 5, 44),
+    apResp('ap-3', 5, 15, 48),
+    apResp('ap-4', 25, 15, 52),
+  ];
+
+  const grids = makeGrids(W, H);
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const idx = r * W + c;
+      // Each AP dominates its quadrant with minimal overlap
+      const d1 = Math.sqrt((c - 5) ** 2 + (r - 5) ** 2);
+      const d2 = Math.sqrt((c - 25) ** 2 + (r - 5) ** 2);
+      const d3 = Math.sqrt((c - 5) ** 2 + (r - 15) ** 2);
+      const d4 = Math.sqrt((c - 25) ** 2 + (r - 15) ** 2);
+      const dists = [d1, d2, d3, d4];
+      const minIdx = dists.indexOf(Math.min(...dists));
+      grids.apIndexGrid[idx] = minIdx;
+      grids.secondBestApIndexGrid[idx] = dists.indexOf(
+        Math.min(...dists.filter((_, i) => i !== minIdx)),
+      );
+
+      const bestDist = dists[minIdx]!;
+      grids.rssiGrid[idx] = bestDist < 5 ? -40 : bestDist < 10 ? -55 : -70;
+
+      // Delta is high everywhere (APs well-separated) → minimal overlap
+      grids.deltaGrid[idx] = 15;
+      grids.overlapCountGrid[idx] = bestDist > 12 ? 1 : 2;
+    }
+  }
+
+  const stats = makeStats(W, H, grids, {
+    excellent: 200, good: 250, fair: 100, poor: 40, none: 10,
+  }, ['ap-1', 'ap-2', 'ap-3', 'ap-4']);
+
+  return { aps, apResps, walls: [] as WallData[], bounds: { width: W, height: H, originX: 0, originY: 0 }, stats, ctx: EMPTY_CONTEXT };
+}
+
+// ─── F7: Uplink 75% + weak coverage + 2 APs ────────────────────
+
+export function createF7UplinkWeakCoverage() {
+  const W = 30, H = 10;
+  // 2 APs: ap-1 at left, ap-2 at center-right but low TX → weak zone far right
+  // 75% uplink-limited → add_ap/move_ap suppressed unless benefit >= 10
+  // 2 APs differ from F3 (1 AP) → produces overlap/roaming content too
+  const aps = [
+    ap('ap-1', 5, 5, { txPowerDbm: 20 }),
+    ap('ap-2', 18, 5, { txPowerDbm: 14 }),
+  ];
+  const apResps = [
+    apResp('ap-1', 5, 5, 36, { tx_power_5ghz_dbm: 20 }),
+    apResp('ap-2', 18, 5, 44, { tx_power_5ghz_dbm: 14 }),
+  ];
+
+  const grids = makeGrids(W, H);
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const idx = r * W + c;
+      const d1 = Math.sqrt((c - 5) ** 2 + (r - 5) ** 2);
+      const d2 = Math.sqrt((c - 18) ** 2 + (r - 5) ** 2);
+      const rssi1 = -38 - d1 * 2.5;
+      const rssi2 = -44 - d2 * 3.0; // ap-2 weaker TX → steeper falloff
+
+      if (rssi1 > rssi2) {
+        grids.apIndexGrid[idx] = 0;
+        grids.secondBestApIndexGrid[idx] = 1;
+        grids.rssiGrid[idx] = rssi1;
+        grids.deltaGrid[idx] = rssi1 - rssi2;
+      } else {
+        grids.apIndexGrid[idx] = 1;
+        grids.secondBestApIndexGrid[idx] = 0;
+        grids.rssiGrid[idx] = rssi2;
+        grids.deltaGrid[idx] = rssi2 - rssi1;
+      }
+
+      // 75% uplink limited
+      grids.uplinkLimitedGrid[idx] = (c + r * W) % 4 !== 0 ? 1 : 0;
+    }
+  }
+
+  const stats = makeStats(W, H, grids, {
+    excellent: 50, good: 80, fair: 60, poor: 60, none: 50,
+  }, ['ap-1', 'ap-2']);
+
+  return { aps, apResps, walls: [] as WallData[], bounds: { width: W, height: H, originX: 0, originY: 0 }, stats, ctx: EMPTY_CONTEXT };
+}
+
+// ─── F8: Candidates required + no candidate near weak zone ──────
+
+export function createF8CandidateRequiredNoNear() {
+  const W = 30, H = 10;
+  // 2 APs: ap-1 covers left, ap-2 covers very little (low TX) → low primaryCoverageRatio → move_ap triggers
+  // Candidates defined but far from weak zones → move_ap blocked by required_for_move_and_new_ap
+  const aps = [
+    ap('ap-1', 5, 5, { txPowerDbm: 20 }),
+    ap('ap-2', 25, 5, { txPowerDbm: 10 }), // Very low TX → tiny coverage → move_ap target
+  ];
+  const apResps = [
+    apResp('ap-1', 5, 5, 36, { tx_power_5ghz_dbm: 20 }),
+    apResp('ap-2', 25, 5, 44, { tx_power_5ghz_dbm: 10 }),
+  ];
+
+  const grids = makeGrids(W, H);
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const idx = r * W + c;
+      const d1 = Math.sqrt((c - 5) ** 2 + (r - 5) ** 2);
+      const d2 = Math.sqrt((c - 25) ** 2 + (r - 5) ** 2);
+      const rssi1 = -38 - d1 * 2.5;
+      const rssi2 = -50 - d2 * 4; // Very steep falloff
+
+      if (rssi1 > rssi2) {
+        grids.apIndexGrid[idx] = 0;
+        grids.secondBestApIndexGrid[idx] = 1;
+        grids.rssiGrid[idx] = rssi1;
+      } else {
+        grids.apIndexGrid[idx] = 1;
+        grids.secondBestApIndexGrid[idx] = 0;
+        grids.rssiGrid[idx] = rssi2;
+      }
+    }
+  }
+
+  const stats = makeStats(W, H, grids, {
+    excellent: 40, good: 60, fair: 50, poor: 80, none: 70,
+  }, ['ap-1', 'ap-2']);
+
+  // Candidates: both near the AP, far from weak zone (~15m away from ideal position)
+  const candidates: CandidateLocation[] = [
+    {
+      id: 'cand-1', x: 2, y: 3, label: 'Server Room',
+      mountingOptions: ['ceiling'], hasLan: true, hasPoe: true, hasPower: true,
+      preferred: false, forbidden: false,
+    },
+    {
+      id: 'cand-2', x: 4, y: 8, label: 'Hallway Spot',
+      mountingOptions: ['ceiling'], hasLan: true, hasPoe: true, hasPower: true,
+      preferred: false, forbidden: false,
+    },
+  ];
+
+  const ctx: RecommendationContext = {
+    ...EMPTY_CONTEXT,
+    candidates,
+    candidatePolicy: 'required_for_move_and_new_ap',
+  };
+
+  return { aps, apResps, walls: [] as WallData[], bounds: { width: W, height: H, originX: 0, originY: 0 }, stats, ctx };
+}
+
 // ─── F3b: Uplink-Limited with mustHaveCoverage PZ ────────────────
 
 export function createF3UplinkWithMustHavePZ() {

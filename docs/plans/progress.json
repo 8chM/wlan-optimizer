@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
-  "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28ae-complete",
+  "lastUpdated": "2026-03-09",
+  "currentPhase": "phase-28ah-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1140,6 +1140,29 @@
         "AE4: Marginal zone skip greift auch bei optional policy fallback",
         "AE5a/b: Golden fixture structural invariants (F4: kein add_ap, F5: distance info)",
         "1006 Tests pass (29 files), svelte-check 0 Errors 2 Warnings, Build OK [cd3d769]"
+      ]
+    },
+    "28ah": {
+      "name": "Correctness Gap vs Sticky vs Uplink — Sanity Suite",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "Fixture F6: 4 APs sticky-tiny-handoff (MIN_HANDOFF_CELLS guard)",
+        "Fixture F7: 2 APs uplink 75% + weak coverage (UPLINK_SUPPRESS_ADD_MOVE)",
+        "Fixture F8: 2 APs candidate-required-no-near (required_for_move_and_new_ap block)",
+        "Golden g6: 4x adjust_channel_width (AP-Dichte-basiert)",
+        "Golden g7: 2x band_limit_warning (warning + client advice)",
+        "Golden g8: 1x sticky_client_risk",
+        "INV-1: max 2 channel recs when pool exhausted",
+        "INV-2a/b/c: roaming_tx never regresses overall score (3 fixtures)",
+        "INV-3a/b/c: required policy → no phantom add_ap, candidate-gated moves",
+        "INV-4a/b: required_for_move_and_new_ap blocks interpolation, required_for_new_ap allows it",
+        "INV-5a/b: 6GHz capability gates (canChangeChannel6, canChangeTxPower6)",
+        "INV-F6a: tiny handoff → no regressing roaming recs",
+        "INV-F7a: 75% uplink suppresses low-benefit add_ap/TX",
+        "INV-F8a: required policy blocks phantom positions, informational recs valid",
+        "1038 Tests pass (30 files), svelte-check 0 Errors 2 Warnings, Build OK [6294dd1]"
       ]
     }
   },

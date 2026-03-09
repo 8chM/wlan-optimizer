@@ -1643,8 +1643,10 @@
         "U8: Max 1 Note/Pair, U9: Evidence Minimums, U10: Budget Notes BG-01",
         "U11: Config Budget BD-01, U12: Cross-Type TX Dedup",
         "Golden g14-user-myhouse (3 recs: sticky_client_risk), g9-g14 shared guardrails",
+        "DEV-Export UX: besserer Dateiname (rf-user-export-<pid>-<band>-<ts>.json), Inline-Hint (3-Schritt-Anleitung)",
+        "RT-3: RF6 Round-Trip-Test (export→JSON→import→engine, candidatePolicy+constraintZones, Determinismus)",
         "fixtures.md: RF6 Eintrag",
-        "1260 Tests pass (40 files), svelte-check 0 Errors, Build OK [734449b]"
+        "1261 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     },
     "28bk": {

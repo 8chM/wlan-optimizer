@@ -421,7 +421,11 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `regression-fixture-${Date.now()}.json`;
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+    const pid = projectStore.currentProject?.id ?? 'unknown';
+    const band = params.band ?? '5ghz';
+    a.download = `rf-user-export-${pid}-${band}-${ts}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -558,14 +562,19 @@
   <HeatmapComparison visible={comparisonStore.isActive} />
 
   {#if import.meta.env.DEV}
-    <button
-      class="dev-export-btn"
-      onclick={handleExportFixture}
-      disabled={!recommendationStore.lastAnalysisParams}
-      title="Speichert eine JSON-Datei, die in Tests via loadExportedFixture genutzt werden kann."
-    >
-      Export Regression Fixture (DEV)
-    </button>
+    <div class="dev-export-area">
+      <button
+        class="dev-export-btn"
+        onclick={handleExportFixture}
+        disabled={!recommendationStore.lastAnalysisParams}
+        title="Speichert eine JSON-Datei mit dem kompletten Analyse-Snapshot (APs, Waende, Grids, Kontext). Kann in Tests via loadExportedFixture() geladen werden."
+      >
+        Export Regression Fixture (DEV)
+      </button>
+      <span class="dev-export-hint">
+        1) Neu analysieren &rarr; 2) Export klicken &rarr; 3) JSON im Downloads-Ordner
+      </span>
+    </div>
   {/if}
 </div>
 
@@ -726,10 +735,17 @@
     background: rgba(99, 102, 241, 0.35);
   }
 
-  .dev-export-btn {
+  .dev-export-area {
     position: absolute;
     bottom: 10px;
     left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-start;
+  }
+
+  .dev-export-btn {
     padding: 4px 10px;
     background: rgba(234, 179, 8, 0.2);
     border: 1px solid rgba(234, 179, 8, 0.5);
@@ -748,5 +764,12 @@
 
   .dev-export-btn:hover:not(:disabled) {
     background: rgba(234, 179, 8, 0.35);
+  }
+
+  .dev-export-hint {
+    color: rgba(234, 179, 8, 0.6);
+    font-size: 0.55rem;
+    font-family: inherit;
+    padding-left: 2px;
   }
 </style>

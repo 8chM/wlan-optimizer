@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28an-complete",
+  "currentPhase": "phase-28ap-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1248,6 +1248,20 @@
         "1054 Tests pass (33 files), 31 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     },
+    "28am": {
+      "name": "Real-Setup Import — My House Fixture + 6 Invarianten",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "create-rf3.ts: My House Fixture (3 APs, 6 Waende, 3 PZ, 2 Candidates, ch36-Konflikt, strict policy, 18x12)",
+        "rf3-my-house-5ghz.json: Serialisierte JSON-Fixture (~26KB)",
+        "rf3-my-house.test.ts: 6 Invarianz-Tests (CandidatePolicy, Phantom, Channel-Spam, Roaming, Evidence, No-Cable)",
+        "golden.test.ts: g11-rf3-my-house (5 recs)",
+        "fixtures.md: RF3 Eintrag",
+        "1074 Tests pass (35 files), 34 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
     "28an": {
       "name": "Candidate Realism Drift-Tests",
       "status": "completed",
@@ -1260,6 +1274,23 @@
         "CR-3: required_for_move_and_new_ap → no interpolation-fallback move_ap (2 Tests)",
         "CR-4: optional policy → fallback add_ap carries usedFallback=1 + candidateCount=0 (2 Tests)",
         "1065 Tests pass (34 files), 31 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28ap": {
+      "name": "RF3 Fixture Quality Suite + Golden g11 Guardrails",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "rf3-my-house.test.ts: 6 neue Invarianz-Tests (RF3-7..RF3-12)",
+        "RF3-7: Channel recs bounded + korrekte band-spezifische Parameter",
+        "RF3-8: Channel width recs — valide suggestedValues + evidenceKeys",
+        "RF3-9: Channel width max 1 pro AP, total config recs bounded",
+        "RF3-10: Roaming recs respektieren MIN_HANDOFF guards + severity != critical",
+        "RF3-11: Cross-type dedup — max 1 TX-modifying rec pro AP",
+        "RF3-12: Informational recs (sticky/handoff) korrekte Kategorie + priority",
+        "golden.test.ts: 4 neue g11 Guardrails (no phantom add_ap, evidenceKeys, width values, sticky severity)",
+        "1084 Tests pass (35 files), 38 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

@@ -9,9 +9,9 @@
  *   GOLDEN_UPDATE=1 npx vitest run golden.test.ts
  *
  * Golden cases:
- *   G1: Dense AP cluster (4 APs, channel conflicts)
- *   G2: Roaming conflict (2 APs, sticky/gap)
- *   G3: Uplink-limited floor (1 AP, 75% uplink)
+ *   G1-G8: Synthetic fixtures (regression-fixtures.ts)
+ *   G9: Home-Office (create-rf1.ts, realistic 3-AP scenario)
+ *   G10: User House (create-rf2.ts, 4-AP + walls + PZ + channel conflict)
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -33,6 +33,9 @@ import {
   createF7UplinkWeakCoverage,
   createF8CandidateRequiredNoNear,
 } from './fixtures/regression-fixtures';
+import { createRf1HomeOffice } from './fixtures/create-rf1';
+import { createRf2UserHouse } from './fixtures/create-rf2';
+import { createRf3MyHouse } from './fixtures/create-rf3';
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
 const GOLDEN_DIR = join(__testdir, 'golden');
@@ -220,6 +223,9 @@ const GOLDEN_CASES: GoldenCase[] = [
   { name: 'g6-sticky-tiny-handoff', create: createF6StickyTinyHandoff },
   { name: 'g7-uplink-weak-coverage', create: createF7UplinkWeakCoverage },
   { name: 'g8-candidate-required-no-near', create: createF8CandidateRequiredNoNear },
+  { name: 'g9-home-office', create: createRf1HomeOffice },
+  { name: 'g10-rf2-user-house', create: createRf2UserHouse },
+  { name: 'g11-rf3-my-house', create: createRf3MyHouse },
 ];
 
 /** Generate golden input files (project.json + stats.json) from fixture. */
@@ -387,5 +393,52 @@ describe('Golden File Regression Tests', () => {
         ).toBe(true);
       }
     }
+  });
+
+  // ─── g11 (RF3 My House) specific guardrails ─────────────────────
+  describe('g11-rf3-my-house guardrails', () => {
+    it('g11: no phantom add_ap in golden output', () => {
+      const expected = loadExpected('g11-rf3-my-house');
+      expect(expected, 'g11 expected.json must exist').not.toBeNull();
+
+      const addApRecs = expected!.filter(r => r.type === 'add_ap');
+      expect(addApRecs.length, 'g11 must not contain phantom add_ap (strict policy)').toBe(0);
+    });
+
+    it('g11: all recs have valid type and evidenceKeys', () => {
+      const expected = loadExpected('g11-rf3-my-house');
+      expect(expected, 'g11 expected.json must exist').not.toBeNull();
+
+      for (const rec of expected!) {
+        expect(rec.type, 'type must be non-empty').toBeTruthy();
+        expect(Array.isArray(rec.evidenceKeys), `${rec.type} must have evidenceKeys array`).toBe(true);
+        expect(rec.evidenceKeys.length, `${rec.type} must have at least 1 evidenceKey`).toBeGreaterThan(0);
+      }
+    });
+
+    it('g11: adjust_channel_width recs suggest valid width values', () => {
+      const expected = loadExpected('g11-rf3-my-house');
+      expect(expected, 'g11 expected.json must exist').not.toBeNull();
+
+      const widthRecs = expected!.filter(r => r.type === 'adjust_channel_width');
+      expect(widthRecs.length, 'g11 must have channel_width recs').toBeGreaterThan(0);
+
+      for (const rec of widthRecs) {
+        const val = Number(rec.suggestedChange?.suggestedValue);
+        expect([20, 40].includes(val), `suggestedValue ${val} must be 20 or 40`).toBe(true);
+        expect(rec.suggestedChange?.parameter).toBe('channel_width');
+      }
+    });
+
+    it('g11: sticky_client_risk recs are informational', () => {
+      const expected = loadExpected('g11-rf3-my-house');
+      expect(expected, 'g11 expected.json must exist').not.toBeNull();
+
+      const stickyRecs = expected!.filter(r => r.type === 'sticky_client_risk');
+      for (const rec of stickyRecs) {
+        expect(rec.severity, `sticky_client_risk severity`).toBe('info');
+        expect(rec.priority, `sticky_client_risk priority`).toBe('low');
+      }
+    });
   });
 });

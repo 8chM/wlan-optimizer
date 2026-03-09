@@ -32,6 +32,7 @@
   import { registerShortcuts } from '$lib/utils/keyboard';
   import { t } from '$lib/i18n';
   import type { Recommendation, RejectionReason, CandidateLocation, ConstraintZone, APCapabilities } from '$lib/recommendations/types';
+  import { exportRegressionFixture } from '$lib/recommendations/fixture-export';
   import { RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
 
   // Set page context for toolbar filtering
@@ -411,6 +412,20 @@
     forecastStats = stats;
   }
 
+  function handleExportFixture(): void {
+    const params = recommendationStore.lastAnalysisParams;
+    if (!params) return;
+    const fixture = exportRegressionFixture(params, recommendationStore.context, recommendationStore.profile);
+    const json = JSON.stringify(fixture, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `regression-fixture-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function handleTakeSnapshot(): void {
     if (!forecastCanvas) return;
     if (!comparisonStore.beforeCanvas) {
@@ -541,6 +556,17 @@
 
   <!-- Heatmap Comparison Panel -->
   <HeatmapComparison visible={comparisonStore.isActive} />
+
+  {#if import.meta.env.DEV}
+    <button
+      class="dev-export-btn"
+      onclick={handleExportFixture}
+      disabled={!recommendationStore.lastAnalysisParams}
+      title="Speichert eine JSON-Datei, die in Tests via loadExportedFixture genutzt werden kann."
+    >
+      Export Regression Fixture (DEV)
+    </button>
+  {/if}
 </div>
 
 <!-- Floating Heatmap Controls Panel -->
@@ -698,5 +724,29 @@
 
   .snapshot-btn:hover {
     background: rgba(99, 102, 241, 0.35);
+  }
+
+  .dev-export-btn {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    padding: 4px 10px;
+    background: rgba(234, 179, 8, 0.2);
+    border: 1px solid rgba(234, 179, 8, 0.5);
+    border-radius: 4px;
+    color: #eab308;
+    font-size: 0.65rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .dev-export-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .dev-export-btn:hover:not(:disabled) {
+    background: rgba(234, 179, 8, 0.35);
   }
 </style>

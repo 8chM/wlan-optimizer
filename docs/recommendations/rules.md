@@ -450,3 +450,10 @@ Wenn kein Candidate die Hard-Filter besteht, analysiert `collectCandidateRejecti
 - `too_far` — Candidate ist > MAX_IDEAL_DISTANCE_ADD_AP_M (8m) vom RF-Ziel entfernt
 
 Das Ergebnis wird als `infrastructure_required` mit `reasonParams.no_candidate_valid: 1` und `reasonParams.reasons` emittiert.
+
+### Real-Project Regression Fixtures (Phase 28aj/28ak)
+
+Realistische Fixtures koennen ueber den DEV-only "Export Regression Fixture" Button auf der Mixing-Seite exportiert werden. Der Export erzeugt eine JSON-Datei mit TypedArray→Array und Map→Array Serialisierung, die ueber `loadExportedFixture()` (load-exported-fixture.ts) zurueck in typisierte Objekte deserialisiert wird.
+
+- **RF1** (`create-rf1.ts`): Home-Office (3 APs, 2 Waende, 1 PZ, 1 Candidate) — Golden g9
+- **RF2** (`create-rf2.ts`, JSON: `real-fixtures/rf2-user-house-5ghz.json`): User House (4 APs, 3 Waende, 2 PZ, 2 Candidates, Channel-Konflikt ch36) — Golden g10, 5 Invarianz-Tests

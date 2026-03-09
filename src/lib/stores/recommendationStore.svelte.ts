@@ -73,6 +73,7 @@ function createRecommendationStore() {
     get selectedRecommendationId() { return selectedRecommendationId; },
     get context() { return buildContext(); },
     get candidatePolicy() { return ctxCandidatePolicy; },
+    get lastAnalysisParams() { return lastAnalysisParams; },
 
     setProfile(p: ExpertProfile): void {
       profile = p;

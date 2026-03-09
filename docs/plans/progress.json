@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28ap-complete",
+  "currentPhase": "phase-28ao-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1291,6 +1291,26 @@
         "RF3-12: Informational recs (sticky/handoff) korrekte Kategorie + priority",
         "golden.test.ts: 4 neue g11 Guardrails (no phantom add_ap, evidenceKeys, width values, sticky severity)",
         "1084 Tests pass (35 files), 38 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28ao": {
+      "name": "Candidate Semantics Hardening — Move/Add/Infra + Evidence Drift Guards",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "candidateSemanticsIntegrity.test.ts: 10 Tests (CS-1..CS-10)",
+        "CS-1: add_ap candidate → selectedCandidatePosition gesetzt, usedFallback absent",
+        "CS-2: add_ap optional fallback → usedFallback=1, candidateCount=0, keine selectedCandidatePosition",
+        "CS-3: move_ap interpolation → keine selectedCandidatePosition (nur add_ap setzt usedFallback)",
+        "CS-4: move_ap candidate → selectedCandidatePosition zeigt auf definierten Candidate",
+        "CS-5: preferred_candidate → selectedCandidatePosition immer gesetzt (Koordinaten korrekt)",
+        "CS-6: required_for_move_and_new_ap + keine Candidates → blocked_recommendation, kein move_ap",
+        "CS-7: F5 far candidates → infrastructure_required mit nearestDistance + maxDistance in reasonParams",
+        "CS-8: RF3 strictest policy → kein move_ap/add_ap ohne selectedCandidatePosition",
+        "CS-9: usedFallback nur auf add_ap, nie auf move_ap (Cross-Type-Konsistenz)",
+        "CS-10: EVIDENCE_MINIMUMS deckt add_ap, move_ap, infrastructure_required, preferred_candidate_location, blocked_recommendation ab",
+        "1094 Tests pass (36 files), 38 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [a163f44]"
       ]
     }
   },

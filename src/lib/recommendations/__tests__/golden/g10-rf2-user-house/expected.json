@@ -1,0 +1,192 @@
+[
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-wohnzimmer"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "40"
+    }
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-kueche"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "40"
+    }
+  },
+  {
+    "type": "change_channel",
+    "affectedApIds": [
+      "ap-keller",
+      "ap-wohnzimmer"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "medium",
+    "severity": "warning",
+    "titleKey": "rec.changeChannelTitle",
+    "reasonKey": "rec.changeChannelTxAlternativeReason",
+    "evidenceKeys": [
+      "conflictScore",
+      "distance"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_5ghz",
+      "suggestedValue": 40
+    }
+  },
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-keller",
+      "ap-wohnzimmer"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "marginalBenefit",
+      "stickyRatio"
+    ]
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-schlafzimmer"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "medium",
+    "severity": "info",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "40"
+    }
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-keller"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "medium",
+    "severity": "info",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "40"
+    }
+  },
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-keller",
+      "ap-kueche"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "marginalBenefit",
+      "stickyRatio"
+    ]
+  },
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-kueche",
+      "ap-schlafzimmer"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "marginalBenefit",
+      "stickyRatio"
+    ]
+  },
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-kueche",
+      "ap-wohnzimmer"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "marginalBenefit",
+      "stickyRatio"
+    ]
+  },
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-schlafzimmer",
+      "ap-wohnzimmer"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "marginalBenefit",
+      "stickyRatio"
+    ]
+  }
+]

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28ax-complete",
+  "currentPhase": "phase-28ba-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1472,6 +1472,23 @@
         "Existing tests fixed: handoff zone expanded to meet MIN_HANDOFF_CELLS (80 cells), T2 delta values for handoff zone",
         "Golden files regenerated: g6 (4x channel_width), g7 (2x band_limit), g8 (2x: infrastructure_required + coverage_warning)",
         "1183 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [6d04a38]"
+      ]
+    },
+    "28ba": {
+      "name": "Actionability-Gates + Parameter-Dedup",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "isStrictlyBeneficial() helper — gates recs with simulatedDelta to require scoreAfter > scoreBefore AND changePercent > 0",
+        "TX-Reduce gate: adjust_tx_power reduce now requires strictly positive improvement, otherwise downgrades to informational overlap_warning",
+        "deduplicateByParameterFamily() — max 1 TX-changing and max 1 channel-changing rec per target AP in main list, rest to alternativeRecommendations",
+        "EVIDENCE_MINIMUMS: overlap_warning now also accepts overlapRatio key",
+        "BA-1: Cross-fixture invariant — TX reduce adjust_tx_power must have strictly positive delta",
+        "BA-2: Cross-fixture invariant — max 1 TX rec per target AP in main list",
+        "BA-3: Cross-fixture invariant — max 1 channel/width rec per target AP in main list",
+        "BA-4: All 8 fixtures — combined TX + channel/width dedup invariant",
+        "1187 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [91807fb]"
       ]
     }
   },

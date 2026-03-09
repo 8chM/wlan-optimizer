@@ -7255,4 +7255,154 @@ describe('generateRecommendations', () => {
       }
     });
   });
+
+  // ─── Phase 28ba: Actionability-Gates + Parameter-Dedup ─────────────
+
+  describe('BA-1: Strict Improvement Gate — TX reduce only when strictly beneficial', () => {
+    it('BA-1a: cross-fixture — any TX reduce adjust_tx_power must have strictly positive delta', () => {
+      const fixtures = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+      for (const create of fixtures) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+
+        // Any adjust_tx_power that REDUCES power must have strictly positive delta
+        const txReduceRecs = allRecs.filter(r =>
+          r.type === 'adjust_tx_power'
+          && r.suggestedChange
+          && typeof r.suggestedChange.suggestedValue === 'number'
+          && typeof r.suggestedChange.currentValue === 'number'
+          && r.suggestedChange.suggestedValue < r.suggestedChange.currentValue,
+        );
+        for (const rec of txReduceRecs) {
+          if (rec.simulatedDelta) {
+            expect(
+              rec.simulatedDelta.scoreAfter,
+              `adjust_tx_power reduce for [${rec.affectedApIds}] must have scoreAfter > scoreBefore`,
+            ).toBeGreaterThan(rec.simulatedDelta.scoreBefore);
+            expect(
+              rec.simulatedDelta.changePercent,
+              `adjust_tx_power reduce for [${rec.affectedApIds}] must have changePercent > 0`,
+            ).toBeGreaterThan(0);
+          }
+        }
+      }
+    });
+  });
+
+  describe('BA-2: TX Parameter-Dedup — max 1 TX-changing rec per target AP', () => {
+    it('BA-2a: cross-fixture — max 1 TX rec per target AP in main list', () => {
+      const TX_PARAMS = new Set(['tx_power_24ghz', 'tx_power_5ghz', 'tx_power_6ghz']);
+      const fixtures = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+      for (const create of fixtures) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        // Collect all unique target AP ids
+        const allApIds = new Set(f.aps.map(a => a.id));
+        for (const apId of allApIds) {
+          const txRecs = result.recommendations.filter(r =>
+            TX_PARAMS.has(r.suggestedChange?.parameter ?? '') && r.suggestedChange?.apId === apId,
+          );
+          expect(
+            txRecs.length,
+            `AP ${apId}: max 1 TX rec in main list`,
+          ).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
+
+  describe('BA-3: Channel/Width Parameter-Dedup — max 1 channel rec per target AP', () => {
+    it('BA-3a: cross-fixture — max 1 channel/width rec per target AP in main list', () => {
+      const CH_PARAMS = new Set(['channel_24ghz', 'channel_5ghz', 'channel_6ghz', 'channel_width']);
+      const fixtures = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+      for (const create of fixtures) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const allApIds = new Set(f.aps.map(a => a.id));
+        for (const apId of allApIds) {
+          const chRecs = result.recommendations.filter(r =>
+            CH_PARAMS.has(r.suggestedChange?.parameter ?? '') && r.suggestedChange?.apId === apId,
+          );
+          expect(
+            chRecs.length,
+            `AP ${apId}: max 1 channel/width rec in main list`,
+          ).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
+
+  describe('BA-4: Cross-Fixture Invariant — parameter-family dedup holds everywhere', () => {
+    it('BA-4a: all fixtures — max 1 TX + max 1 channel/width per AP in main list', () => {
+      const TX_PARAMS = new Set(['tx_power_24ghz', 'tx_power_5ghz', 'tx_power_6ghz']);
+      const CH_PARAMS = new Set(['channel_24ghz', 'channel_5ghz', 'channel_6ghz', 'channel_width']);
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF4NoNewCable,
+        createF5FarCandidates,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+        createF8CandidateRequiredNoNear,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const allApIds = new Set(f.aps.map(a => a.id));
+        for (const apId of allApIds) {
+          const txRecs = result.recommendations.filter(r =>
+            TX_PARAMS.has(r.suggestedChange?.parameter ?? '') && r.suggestedChange?.apId === apId,
+          );
+          expect(
+            txRecs.length,
+            `AP ${apId}: max 1 TX rec`,
+          ).toBeLessThanOrEqual(1);
+
+          const chRecs = result.recommendations.filter(r =>
+            CH_PARAMS.has(r.suggestedChange?.parameter ?? '') && r.suggestedChange?.apId === apId,
+          );
+          expect(
+            chRecs.length,
+            `AP ${apId}: max 1 channel/width rec`,
+          ).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
 });

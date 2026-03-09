@@ -99,6 +99,16 @@ const PHYSICAL_GAP_RATIO = 0.30;
 /** RSSI offset below "fair" threshold indicating physical gap */
 const PHYSICAL_GAP_RSSI_OFFSET = 7;
 
+/**
+ * Check if a recommendation's simulation shows strictly positive improvement.
+ * Recs without simulatedDelta (heuristic-only) are passed through — their guards are sufficient.
+ */
+function isStrictlyBeneficial(rec: Pick<Recommendation, 'simulatedDelta'>): boolean {
+  if (!rec.simulatedDelta) return true;
+  return rec.simulatedDelta.scoreAfter > rec.simulatedDelta.scoreBefore
+      && rec.simulatedDelta.changePercent > 0;
+}
+
 let nextRecId = 0;
 function genId(): string {
   nextRecId++;
@@ -356,6 +366,11 @@ export function generateRecommendations(
   const deduped = deduplicateRecommendations(recommendations);
   recommendations.length = 0;
   recommendations.push(...deduped);
+
+  // Parameter-family dedup: max 1 TX-changing and 1 channel-changing rec per target AP
+  const paramDeduped = deduplicateByParameterFamily(recommendations);
+  recommendations.length = 0;
+  recommendations.push(...paramDeduped);
 
   // Compute feasibility scores for all recommendations
   for (const rec of recommendations) {
@@ -1447,33 +1462,53 @@ function generateTxPowerSuggestions(
               confidence: 0.6,
             });
           } else if (delta.changePercent > -5) {
-            const absImprove = Math.abs(delta.changePercent);
-            recs.push({
-              id: genId(),
-              type: 'adjust_tx_power',
-              priority: absImprove > 15 ? 'high' : absImprove > 8 ? 'medium' : 'low',
-              severity: absImprove > 15 ? 'critical' : absImprove > 8 ? 'warning' : 'info',
-              titleKey: 'rec.adjustTxPowerTitle',
-              titleParams: { ap: apLabel(ap.id), power: lowerPower },
-              reasonKey: 'rec.adjustTxPowerReason',
-              reasonParams: {
-                currentPower: ap.txPowerDbm,
-                suggestedPower: lowerPower,
-                overlapPercent: Math.round(overlapRatio * 100),
-              },
-              affectedApIds: [ap.id],
-              affectedBand: band,
-              suggestedChange: {
-                apId: ap.id,
-                parameter: txParamName,
-                currentValue: ap.txPowerDbm,
-                suggestedValue: lowerPower,
-              },
-              evidence: { metrics: { overlapRatio, improvement: delta.changePercent }, gridStep },
-              simulatedDelta: delta,
-              confidence: 0.6,
-            });
-            continue; // Don't also suggest increasing power for the same AP
+            if (delta.scoreAfter > delta.scoreBefore && delta.changePercent > 0) {
+              // Strictly beneficial TX reduction → actionable
+              const absImprove = Math.abs(delta.changePercent);
+              recs.push({
+                id: genId(),
+                type: 'adjust_tx_power',
+                priority: absImprove > 15 ? 'high' : absImprove > 8 ? 'medium' : 'low',
+                severity: absImprove > 15 ? 'critical' : absImprove > 8 ? 'warning' : 'info',
+                titleKey: 'rec.adjustTxPowerTitle',
+                titleParams: { ap: apLabel(ap.id), power: lowerPower },
+                reasonKey: 'rec.adjustTxPowerReason',
+                reasonParams: {
+                  currentPower: ap.txPowerDbm,
+                  suggestedPower: lowerPower,
+                  overlapPercent: Math.round(overlapRatio * 100),
+                },
+                affectedApIds: [ap.id],
+                affectedBand: band,
+                suggestedChange: {
+                  apId: ap.id,
+                  parameter: txParamName,
+                  currentValue: ap.txPowerDbm,
+                  suggestedValue: lowerPower,
+                },
+                evidence: { metrics: { overlapRatio, improvement: delta.changePercent }, gridStep },
+                simulatedDelta: delta,
+                confidence: 0.6,
+              });
+              continue; // Don't also suggest increasing power for the same AP
+            } else {
+              // Not strictly beneficial → downgrade to informational overlap note
+              recs.push({
+                id: genId(),
+                type: 'overlap_warning',
+                priority: 'low',
+                severity: 'info',
+                titleKey: 'rec.overlapWarningTitle',
+                titleParams: { percent: Math.round(overlapRatio * 100) },
+                reasonKey: 'rec.overlapWarningReason',
+                reasonParams: { percent: Math.round(overlapRatio * 100), zones: 1 },
+                affectedApIds: [ap.id],
+                affectedBand: band,
+                evidence: { metrics: { overlapRatio, marginalReduction: 1, changePercent: delta.changePercent } },
+                simulatedDelta: delta,
+                confidence: 0.5,
+              });
+            }
           }
         }
       }
@@ -2915,6 +2950,57 @@ function deduplicateRecommendations(recs: Recommendation[]): Recommendation[] {
   return result;
 }
 
+// ─── Parameter-Family Deduplication ─────────────────────────────────
+
+const TX_PARAMS = new Set(['tx_power_24ghz', 'tx_power_5ghz', 'tx_power_6ghz']);
+const CHANNEL_PARAMS = new Set(['channel_24ghz', 'channel_5ghz', 'channel_6ghz', 'channel_width']);
+
+/**
+ * Dedup by parameter family: for each target AP, keep at most 1 TX-changing
+ * and 1 channel-changing rec in the main list. The rest go to alternativeRecommendations.
+ */
+function deduplicateByParameterFamily(recs: Recommendation[]): Recommendation[] {
+  const txByAp = new Map<string, Recommendation[]>();
+  const chByAp = new Map<string, Recommendation[]>();
+  const other: Recommendation[] = [];
+
+  for (const rec of recs) {
+    const apId = rec.suggestedChange?.apId;
+    const param = rec.suggestedChange?.parameter;
+    if (!apId || !param) { other.push(rec); continue; }
+
+    if (TX_PARAMS.has(param)) {
+      const list = txByAp.get(apId);
+      if (list) { list.push(rec); } else { txByAp.set(apId, [rec]); }
+    } else if (CHANNEL_PARAMS.has(param)) {
+      const list = chByAp.get(apId);
+      if (list) { list.push(rec); } else { chByAp.set(apId, [rec]); }
+    } else {
+      other.push(rec);
+    }
+  }
+
+  for (const familyMap of [txByAp, chByAp]) {
+    for (const [, group] of familyMap) {
+      if (group.length <= 1) { other.push(...group); continue; }
+      group.sort((a, b) => {
+        const scoreA = a.recommendationScore ?? 50;
+        const scoreB = b.recommendationScore ?? 50;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return (b.simulatedDelta?.changePercent ?? 0) - (a.simulatedDelta?.changePercent ?? 0);
+      });
+      const best = group[0]!;
+      best.alternativeRecommendations = [
+        ...(best.alternativeRecommendations ?? []),
+        ...group.slice(1),
+      ];
+      other.push(best);
+    }
+  }
+
+  return other;
+}
+
 // ─── Channel Width Recommendations ────────────────────────────────
 
 /**
@@ -3018,7 +3104,7 @@ export const EVIDENCE_MINIMUMS: Partial<Record<RecommendationType, string[]>> = 
   disable_ap: ['primaryCoverageRatio'],
   band_limit_warning: ['uplinkLimitedPercent', 'sixGhzBand'],
   coverage_warning: ['weakPercent'],
-  overlap_warning: ['overlapPercent', 'componentSize'],
+  overlap_warning: ['overlapPercent', 'componentSize', 'overlapRatio'],
   low_ap_value: ['primaryCoverageRatio'],
   constraint_conflict: ['zoneWeight'],
   preferred_candidate_location: ['improvement'],

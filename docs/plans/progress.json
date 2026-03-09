@@ -1530,6 +1530,23 @@
         "1195 Tests pass (38 files), svelte-check 0 Errors 2 Warnings, Build OK [6a58606]"
       ]
     },
+    "28bd": {
+      "name": "Per-AP Config Budget & Parameter-Family Caps",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "config_budget_note: neuer RecommendationType (informational, config effort) — 23 Typen total",
+        "BD-01: capConfigBudgetPerAp — max 2 actionable_config recs pro AP, priorisiert nach channel > roaming > TX > disable",
+        "Excess recs: same-param-family → alternativeRecommendations, rest → config_budget_note",
+        "2 neue i18n-Keys EN+DE: configBudgetTitle/Reason",
+        "rulesIntegrity: 23 RecommendationType members, GENERATOR_EMITTED_TYPES updated",
+        "rules.md: 97 Regeln, 19 Cluster, BD-01 dokumentiert",
+        "BD-1a: cross-fixture invariant — max 2 actionable_config recs per AP",
+        "BD-1b: config_budget_note evidence validation (suppressedCount, keptCount)",
+        "1200 Tests pass (38 files), svelte-check 0 Errors 2 Warnings, Build OK [e98f54a]"
+      ]
+    },
     "28be": {
       "name": "Candidate-Realismus im UI (Output-Klarheit)",
       "status": "completed",

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28ai-complete",
+  "currentPhase": "phase-28an-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1204,6 +1204,62 @@
         "package.json: ci:recommendations Script",
         "rules.md: CI Guardrails Sektion (Golden gating, How to update, Integrity script)",
         "1038 Tests pass (30 files), 25 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28aj": {
+      "name": "Real-Project Regression Capture",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "recommendationStore: lastAnalysisParams Getter fuer Export-Zugriff",
+        "fixture-export.ts: exportRegressionFixture() — TypedArray/Map-safe JSON Export",
+        "DEV-only Export-Button auf Mixing-Seite (Prod eliminiert via Dead-Code-Elimination)",
+        "load-exported-fixture.ts: Import-Harness fuer exportierte Fixtures",
+        "create-rf1.ts: Home-Office Fixture (3 APs, 2 Waende, PZ, Candidate, 30x15 Grid)",
+        "real-fixture.test.ts: 3 Tests (phantom add_ap, PZ coverage, evidence minimums)",
+        "golden.test.ts: g9-home-office (5 recs)",
+        "1044 Tests pass (31 files), 28 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28ak": {
+      "name": "Real-Project Regression Capture — RF2 User House",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "create-rf2.ts: User-House Fixture (4 APs, 3 Waende, 2 PZ, 2 Candidates, Channel-Konflikt ch36, 25x20 Grid)",
+        "real-fixtures/rf2-user-house-5ghz.json: Serialisierte JSON-Fixture (~50KB, Export/Import Round-Trip)",
+        "rf2-user-house.test.ts: 5 Invarianz-Tests (Phantom-Placement, No-New-Cable, Channel-Spam, Roaming-Guard, Evidence-Minimums)",
+        "golden.test.ts: g10-rf2-user-house (10 recs)",
+        "rules.md: Real-Project Regression Fixtures Sektion",
+        "1052 Tests pass (32 files), 31 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28al": {
+      "name": "Round-Trip Beweis + DEV-Export Dokumentation",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "fixture-roundtrip.test.ts: RT-1 (in-memory export→JSON→import→engine) + RT-2 (file-based rf2 import)",
+        "DEV-Button: Klarerer Label + Tooltip (title-Attribut)",
+        "docs/recommendations/fixtures.md: How to capture, Datenfluss, How to update golden",
+        "1054 Tests pass (33 files), 31 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28an": {
+      "name": "Candidate Realism Drift-Tests",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "candidateRealismIntegrity.test.ts: 11 Drift-Proof Tests (CR-1..CR-4)",
+        "CR-1: required policies → add_ap/preferred_candidate must have selectedCandidatePosition (5 Fixtures)",
+        "CR-2: required_for_new_ap + empty candidates → zero add_ap/preferred_candidate (2 Tests)",
+        "CR-3: required_for_move_and_new_ap → no interpolation-fallback move_ap (2 Tests)",
+        "CR-4: optional policy → fallback add_ap carries usedFallback=1 + candidateCount=0 (2 Tests)",
+        "1065 Tests pass (34 files), 31 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

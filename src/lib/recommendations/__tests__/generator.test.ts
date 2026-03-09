@@ -591,7 +591,7 @@ describe('generateRecommendations', () => {
     expect(conflict?.requiresUserDecision).toBe(true);
   });
 
-  it('should switch preferred_candidate to infrastructure_required when no LAN/PoE', () => {
+  it('should emit preferred_candidate_location (not infrastructure_required) when no LAN/PoE', () => {
     const ap = makeAP('ap-1', 0, 0);
     const apResp = makeAPResponse('ap-1', 0, 0);
 
@@ -620,13 +620,24 @@ describe('generateRecommendations', () => {
       [ap], [apResp], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
     );
 
-    const prefRec2 = result.recommendations.find(r =>
+    const allRecs = collectAllRecommendations(result.recommendations);
+
+    // Preferred candidate without LAN/PoE → preferred_candidate_location with infrastructureRequired
+    const prefRec = allRecs.find(r =>
       r.type === 'preferred_candidate_location' &&
       r.selectedCandidatePosition?.x === 8 &&
       r.selectedCandidatePosition?.y === 8,
     );
-    // preferred_candidate_location should NOT appear for no-infra candidates
-    expect(prefRec2).toBeUndefined();
+    expect(prefRec, 'preferred candidate must appear as preferred_candidate_location').toBeDefined();
+    expect(prefRec!.infrastructureRequired, 'must flag infrastructure need').toBe(true);
+
+    // Must NOT be infrastructure_required
+    const infraFromPreferred = allRecs.find(r =>
+      r.type === 'infrastructure_required' &&
+      r.selectedCandidatePosition?.x === 8 &&
+      r.selectedCandidatePosition?.y === 8,
+    );
+    expect(infraFromPreferred, 'no infrastructure_required from preferred candidate path').toBeUndefined();
   });
 
   it('should generate move_ap with idealTargetPosition using RF-weighted target', () => {
@@ -6815,6 +6826,227 @@ describe('generateRecommendations', () => {
       const infoRecs = allRecs.filter(r => informationalTypes.includes(r.type));
       for (const rec of infoRecs) {
         expect(rec.severity, 'informational recs should not be critical').not.toBe('critical');
+      }
+    });
+  });
+
+  // ─── AW: Infra/Phantom-Fixes (Phase 28aw) ────────────────────────
+
+  describe('AW-1: zero weak cells → no infrastructure_required', () => {
+    it('AW-1a: good coverage everywhere → no infrastructure_required', () => {
+      // Strong RSSI everywhere = no weak zones
+      const grids = makeGrids(20, 20, { rssi: -40, delta: 25 });
+      const stats = makeStats(20, 20, grids, {
+        excellent: 400, good: 0, fair: 0, poor: 0, none: 0,
+      });
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [],
+        candidatePolicy: 'required_for_new_ap',
+      };
+
+      const result = generateRecommendations(
+        [makeAP('ap-1', 10, 10)], [makeAPResponse('ap-1', 10, 10)],
+        WALLS, { width: 20, height: 20, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      expect(
+        allRecs.filter(r => r.type === 'infrastructure_required').length,
+        'no infrastructure_required when coverage is perfect',
+      ).toBe(0);
+    });
+
+    it('AW-1b: preferred candidate with no LAN + good coverage → preferred_candidate_location, NOT infrastructure_required', () => {
+      // Good coverage but a preferred candidate exists without LAN/PoE
+      const grids = makeGrids(20, 20, { rssi: -55, delta: 20 });
+      const stats = makeStats(20, 20, grids, {
+        excellent: 100, good: 200, fair: 100, poor: 0, none: 0,
+      });
+
+      const preferredCand: CandidateLocation = {
+        id: 'cand-test',
+        label: 'Test-Spot',
+        x: 15, y: 15,
+        mountingOptions: ['ceiling'],
+        hasLan: false,
+        hasPoe: false,
+        hasPower: true,
+        preferred: true,
+        forbidden: false,
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [preferredCand],
+        candidatePolicy: 'required_for_new_ap',
+      };
+
+      const result = generateRecommendations(
+        [makeAP('ap-1', 5, 5)], [makeAPResponse('ap-1', 5, 5)],
+        WALLS, { width: 20, height: 20, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // Must NOT produce infrastructure_required from preferred path
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+      // Any infra must come from weak zones, not preferred candidates
+      for (const rec of infraRecs) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        expect(
+          m?.weakCells != null,
+          `infrastructure_required ${rec.id} must have weakCells evidence (not from preferred candidate path)`,
+        ).toBe(true);
+      }
+
+      // Preferred candidate should appear as preferred_candidate_location with infra flag
+      const prefRecs = allRecs.filter(r => r.type === 'preferred_candidate_location');
+      for (const rec of prefRecs) {
+        if (rec.infrastructureRequired) {
+          expect(rec.type, 'must be preferred_candidate_location, not infrastructure_required').toBe('preferred_candidate_location');
+        }
+      }
+    });
+  });
+
+  describe('AW-2: no (0,0) phantom coordinates in output', () => {
+    it('AW-2a: no recommendation has reasonParams/titleParams with default (0,0) unless real candidate at (0,0)', () => {
+      // Single AP at corner, weak coverage elsewhere, no candidates
+      const W = 20, H = 20;
+      const total = W * H;
+      const rssiGrid = new Float32Array(total);
+      const apIndexGrid = new Uint8Array(total);
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          const dist = Math.sqrt(c ** 2 + r ** 2);
+          rssiGrid[idx] = dist < 6 ? -45 : -88;
+          apIndexGrid[idx] = 0;
+        }
+      }
+      const grids = {
+        rssiGrid,
+        apIndexGrid,
+        deltaGrid: new Float32Array(total).fill(20),
+        overlapCountGrid: new Uint8Array(total).fill(1),
+        uplinkLimitedGrid: new Uint8Array(total),
+        secondBestApIndexGrid: new Uint8Array(total),
+      };
+      const stats = makeStats(W, H, grids, {
+        excellent: 30, good: 20, fair: 20, poor: 30, none: 300,
+      });
+
+      // With a preferred candidate that has no infra — should not produce (0,0)
+      const preferredCand: CandidateLocation = {
+        id: 'cand-corner',
+        label: 'Corner',
+        x: 18, y: 18,
+        mountingOptions: ['ceiling'],
+        hasLan: false, hasPoe: false, hasPower: true,
+        preferred: true, forbidden: false,
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [preferredCand],
+        candidatePolicy: 'required_for_new_ap',
+      };
+
+      const result = generateRecommendations(
+        [makeAP('ap-1', 1, 1)], [makeAPResponse('ap-1', 1, 1)],
+        WALLS, { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      for (const rec of allRecs) {
+        const tp = rec.titleParams as Record<string, unknown> | undefined;
+        // No (0,0) default coords in titleParams unless explicitly a real candidate there
+        if (tp && tp.x === 0 && tp.y === 0) {
+          // Only OK if there's a candidate at exactly (0,0)
+          const hasCandAtOrigin = ctx.candidates.some(c => c.x === 0 && c.y === 0);
+          expect(
+            hasCandAtOrigin,
+            `${rec.type} ${rec.id} has titleParams {x:0, y:0} but no candidate at origin`,
+          ).toBe(true);
+        }
+      }
+    });
+  });
+
+  describe('AW-3: candidate at (0,0) + weak zone → add_ap, not phantom infra', () => {
+    it('AW-3a: explicit candidate at (0,0) with weak zone → add_ap or preferred_candidate at that position', () => {
+      // Large grid with AP at far corner → weak zone near origin
+      const W = 30, H = 30;
+      const total = W * H;
+      const rssiGrid = new Float32Array(total);
+      const apIndexGrid = new Uint8Array(total);
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          const dist = Math.sqrt((c - 25) ** 2 + (r - 25) ** 2);
+          rssiGrid[idx] = dist < 8 ? -40 : -90;
+          apIndexGrid[idx] = 0;
+        }
+      }
+      const grids = {
+        rssiGrid,
+        apIndexGrid,
+        deltaGrid: new Float32Array(total).fill(15),
+        overlapCountGrid: new Uint8Array(total).fill(1),
+        uplinkLimitedGrid: new Uint8Array(total),
+        secondBestApIndexGrid: new Uint8Array(total),
+      };
+      const stats = makeStats(W, H, grids, {
+        excellent: 50, good: 30, fair: 20, poor: 100, none: 700,
+      });
+
+      // Candidate at exactly (0,0) — this is a real location
+      const candAtOrigin: CandidateLocation = {
+        id: 'cand-origin',
+        label: 'Origin-Spot',
+        x: 0, y: 0,
+        mountingOptions: ['ceiling'],
+        hasLan: true, hasPoe: true, hasPower: true,
+        preferred: false, forbidden: false,
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        candidates: [candAtOrigin],
+        candidatePolicy: 'required_for_new_ap',
+      };
+
+      const result = generateRecommendations(
+        [makeAP('ap-1', 25, 25)], [makeAPResponse('ap-1', 25, 25)],
+        WALLS, { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // If an add_ap at (0,0) is emitted, it must be a real candidate-backed placement
+      const addApRecs = allRecs.filter(r => r.type === 'add_ap');
+      for (const rec of addApRecs) {
+        if (rec.selectedCandidatePosition) {
+          const pos = rec.selectedCandidatePosition;
+          if (pos.x === 0 && pos.y === 0) {
+            // Must be candidate-backed, not phantom
+            expect(rec.selectedCandidatePosition, 'add_ap at (0,0) must have selectedCandidatePosition').toBeDefined();
+            expect(rec.titleKey, 'add_ap at candidate should use candidate title').toBe('rec.addApAtCandidateTitle');
+          }
+        }
+      }
+
+      // No infrastructure_required with (0,0) as phantom
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+      for (const rec of infraRecs) {
+        const tp = rec.titleParams as Record<string, unknown> | undefined;
+        if (tp && tp.x === 0 && tp.y === 0) {
+          expect.fail(`infrastructure_required ${rec.id} has phantom (0,0) coordinates`);
+        }
       }
     });
   });

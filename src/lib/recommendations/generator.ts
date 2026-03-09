@@ -2815,15 +2815,11 @@ function generatePreferredCandidateSuggestions(
       const requiresInfra = !cand.hasLan || !cand.hasPoe;
       recs.push({
         id: genId(),
-        type: requiresInfra ? 'infrastructure_required' : 'preferred_candidate_location',
+        type: 'preferred_candidate_location',
         priority: 'medium',
         severity: requiresInfra ? 'warning' : 'info',
-        titleKey: requiresInfra
-          ? (cand.label ? 'rec.infraRequiredAtCandidateTitle' : 'rec.infraRequiredTitle')
-          : 'rec.preferredCandidateTitle',
-        titleParams: requiresInfra
-          ? { x: Math.round(cand.x * 10) / 10, y: Math.round(cand.y * 10) / 10, ...(cand.label ? { candidate: cand.label } : {}) }
-          : { candidate: cand.label },
+        titleKey: 'rec.preferredCandidateTitle',
+        titleParams: { candidate: cand.label },
         reasonKey: 'rec.preferredCandidateReason',
         reasonParams: {
           candidate: cand.label,
@@ -2857,30 +2853,9 @@ function generatePreferredCandidateSuggestions(
     }
   }
 
-  // If no preferred candidate produced a recommendation, inform the user
-  if (!anyAccepted) {
-    recs.push({
-      id: genId(),
-      type: 'infrastructure_required',
-      priority: 'low',
-      severity: 'info',
-      titleKey: 'rec.infraRequiredTitle',
-      titleParams: { x: 0, y: 0 },
-      reasonKey: 'rec.infraNoValidCandidateReason',
-      reasonParams: {
-        cells: 0,
-        count: preferredCandidates.length,
-        reasons: 'preferred_candidates_unsuitable',
-        no_candidate_valid: 1,
-      },
-      affectedApIds: [],
-      affectedBand: band,
-      evidence: { metrics: { candidateCount: preferredCandidates.length, allUnsuitable: 1 } },
-      confidence: 0.4,
-      infrastructureRequired: true,
-      requiresUserDecision: true,
-    });
-  }
+  // If no preferred candidate produced a recommendation, silently skip.
+  // No phantom infrastructure_required at (0,0) — absence of preferred_candidate_location
+  // is sufficient signal to the user.
 }
 
 // ─── Deduplication ───────────────────────────────────────────────

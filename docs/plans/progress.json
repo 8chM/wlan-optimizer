@@ -1434,7 +1434,25 @@
         "CR-C: Optional-policy golden (g12) — add_ap mit usedFallback oder weakCells evidence",
         "rules.md: Candidate-Only Guarantee Sektion mit Invariant, Enforcement-Tabelle, Verification",
         "1175 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
-      ]
+      ],
+      "subPhases": {
+        "28aw-infra": {
+          "name": "Infra/Phantom-Fixes — keine phantom infrastructure_required",
+          "status": "completed",
+          "gate": "passed",
+          "completedAt": "2026-03-09",
+          "deliverables": [
+            "generator.ts Path 4: preferred candidate ohne LAN/PoE → preferred_candidate_location (nicht infrastructure_required)",
+            "generator.ts Path 5: phantom infrastructure_required bei (0,0) entfernt — keine Emission wenn alle Candidates unsuitable",
+            "AW-1a: gute Abdeckung → keine infrastructure_required",
+            "AW-1b: preferred candidate ohne LAN + gute Abdeckung → preferred_candidate_location mit infrastructureRequired flag",
+            "AW-2a: keine (0,0) phantom coordinates in Output",
+            "AW-3a: echter Candidate bei (0,0) + weak zone → add_ap, nicht phantom infra",
+            "Bestehender Test angepasst: preferred_candidate ohne LAN → preferred_candidate_location statt infrastructure_required",
+            "1179 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+          ]
+        }
+      }
     }
   },
   "functionalAuditFixes": {

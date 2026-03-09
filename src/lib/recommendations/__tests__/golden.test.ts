@@ -600,6 +600,50 @@ describe('Golden File Regression Tests', () => {
     });
   });
 
+  // ─── CR-C: Candidate-Only Guarantee in golden output (Phase 28aw) ─
+  describe('CR-C: Candidate-Only Guarantee — golden hard guard', () => {
+    // Required-policy cases: g9 (RF1), g10 (RF2), g11 (RF3), g13 (RF5) — no add_ap without evidence of candidate
+    const REQUIRED_CASES = [
+      { name: 'g9-home-office', policy: 'required_for_new_ap' },
+      { name: 'g10-rf2-user-house', policy: 'required_for_new_ap' },
+      { name: 'g11-rf3-my-house', policy: 'required_for_move_and_new_ap' },
+      { name: 'g13-rf5-user-live-v2', policy: 'required_for_new_ap' },
+    ] as const;
+
+    for (const { name, policy } of REQUIRED_CASES) {
+      it(`CR-C: ${name} (${policy}) — no add_ap with usedFallback in golden`, () => {
+        const expected = loadExpected(name);
+        expect(expected, `${name} expected.json must exist`).not.toBeNull();
+
+        const addApRecs = expected!.filter(r => r.type === 'add_ap');
+        for (const rec of addApRecs) {
+          // Under required policy, add_ap must NOT carry usedFallback evidence
+          expect(
+            rec.evidenceKeys.includes('usedFallback'),
+            `${name}: add_ap must not have usedFallback (required policy forbids fallback)`,
+          ).toBe(false);
+        }
+      });
+    }
+
+    // Optional-policy case: g12 (RF4) — fallback add_ap must have usedFallback
+    it('CR-C: g12-rf4-user-live (optional) — add_ap with usedFallback is valid', () => {
+      const expected = loadExpected('g12-rf4-user-live');
+      expect(expected, 'g12 expected.json must exist').not.toBeNull();
+
+      const addApRecs = expected!.filter(r => r.type === 'add_ap');
+      for (const rec of addApRecs) {
+        // Under optional policy: either has candidateCount (matched) or usedFallback (fallback)
+        const hasCandidate = rec.evidenceKeys.includes('candidateCount');
+        const hasFallback = rec.evidenceKeys.includes('usedFallback');
+        expect(
+          hasCandidate || hasFallback || rec.evidenceKeys.includes('weakCells'),
+          `g12: add_ap must have candidateCount, usedFallback, or weakCells in evidence`,
+        ).toBe(true);
+      }
+    });
+  });
+
   // ─── g13 (RF5 User Live v2, uplink-limited) specific guardrails ─
   describe('g13-rf5-user-live-v2 guardrails', () => {
     it('g13: no phantom add_ap in golden output', () => {

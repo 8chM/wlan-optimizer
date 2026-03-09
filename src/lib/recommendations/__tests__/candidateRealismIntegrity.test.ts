@@ -29,8 +29,11 @@ import {
 import { createRf1HomeOffice } from './fixtures/create-rf1';
 import { createRf2UserHouse } from './fixtures/create-rf2';
 import { createRf3MyHouse } from './fixtures/create-rf3';
+import { createRf4UserLive } from './fixtures/create-rf4';
+import { createRf5UserLiveV2 } from './fixtures/create-rf5';
 import { loadExportedFixture } from './fixtures/load-exported-fixture';
 import type { ExportedFixture } from '../fixture-export';
+import { matchesAnyCandidate } from '../candidates';
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
 const BAND = '5ghz' as const;
@@ -644,6 +647,153 @@ describe('AV: Evidence Drift Hardening (Phase 28av)', () => {
             `${name}: move_ap ${rec.id} without selectedCandidatePosition must use interpolation reasonKey`,
           ).toBe('rec.moveApInterpolationReason');
         }
+      }
+    }
+  });
+});
+
+// ─── AW: Candidate-Only Guarantee (Phase 28aw) ───────────────────
+
+describe('AW-A: Candidate-Only Guarantee — required policies (Phase 28aw)', () => {
+  const fixtures = [
+    { name: 'RF1', create: createRf1HomeOffice, policy: 'required_for_new_ap' as const },
+    { name: 'RF2', create: createRf2UserHouse, policy: 'required_for_new_ap' as const },
+    { name: 'RF3', create: createRf3MyHouse, policy: 'required_for_move_and_new_ap' as const },
+    { name: 'RF5', create: createRf5UserLiveV2, policy: 'required_for_new_ap' as const },
+  ];
+
+  for (const { name, create, policy } of fixtures) {
+    it(`CR-A: ${name} (${policy}) — add_ap/preferred_candidate position matches real candidate`, () => {
+      const f = create();
+      const ctx: RecommendationContext = { ...f.ctx, candidatePolicy: policy };
+      const result = run(f, ctx);
+      const allRecs = collectAll(result.recommendations);
+      const candidates = ctx.candidates;
+
+      // Every add_ap with selectedCandidatePosition must match a real candidate
+      for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+        if (rec.selectedCandidatePosition) {
+          expect(
+            matchesAnyCandidate(rec.selectedCandidatePosition, candidates),
+            `${name}: add_ap ${rec.id} selectedCandidatePosition (${rec.selectedCandidatePosition.x}, ${rec.selectedCandidatePosition.y}) must match a real candidate`,
+          ).toBe(true);
+        }
+      }
+
+      // Every preferred_candidate_location with selectedCandidatePosition must match
+      for (const rec of allRecs.filter(r => r.type === 'preferred_candidate_location')) {
+        expect(
+          rec.selectedCandidatePosition,
+          `${name}: preferred_candidate ${rec.id} must have selectedCandidatePosition`,
+        ).toBeDefined();
+        if (rec.selectedCandidatePosition) {
+          expect(
+            matchesAnyCandidate(rec.selectedCandidatePosition, candidates),
+            `${name}: preferred_candidate ${rec.id} pos (${rec.selectedCandidatePosition.x}, ${rec.selectedCandidatePosition.y}) must match a real candidate`,
+          ).toBe(true);
+        }
+      }
+
+      // move_ap with selectedCandidatePosition must match (for move_and_new_ap policy)
+      if (policy === 'required_for_move_and_new_ap') {
+        for (const rec of allRecs.filter(r => r.type === 'move_ap')) {
+          if (rec.selectedCandidatePosition) {
+            expect(
+              matchesAnyCandidate(rec.selectedCandidatePosition, candidates),
+              `${name}: move_ap ${rec.id} pos (${rec.selectedCandidatePosition.x}, ${rec.selectedCandidatePosition.y}) must match a real candidate`,
+            ).toBe(true);
+          }
+        }
+      }
+    });
+  }
+
+  it('CR-A: no add_ap without selectedCandidatePosition under required policies (cross-fixture)', () => {
+    for (const { name, create, policy } of fixtures) {
+      const f = create();
+      const ctx: RecommendationContext = { ...f.ctx, candidatePolicy: policy };
+      const result = run(f, ctx);
+      const allRecs = collectAll(result.recommendations);
+
+      for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+        expect(
+          rec.selectedCandidatePosition,
+          `${name}: add_ap ${rec.id} must have selectedCandidatePosition under ${policy}`,
+        ).toBeDefined();
+      }
+    }
+  });
+});
+
+describe('AW-B: Candidate-Only Guarantee — optional policy (Phase 28aw)', () => {
+  it('CR-B: RF4 (optional) — add_ap with candidates → position matches candidate', () => {
+    const f = createRf4UserLive();
+    expect(f.ctx.candidatePolicy).toBe('optional');
+    const result = run(f);
+    const allRecs = collectAll(result.recommendations);
+    const candidates = f.ctx.candidates;
+
+    for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+      if (rec.selectedCandidatePosition) {
+        // Has a position → must match a real candidate
+        expect(
+          matchesAnyCandidate(rec.selectedCandidatePosition, candidates),
+          `RF4: add_ap ${rec.id} pos (${rec.selectedCandidatePosition.x}, ${rec.selectedCandidatePosition.y}) must match a real candidate`,
+        ).toBe(true);
+        // Must NOT have usedFallback
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        expect(m?.usedFallback, `RF4: add_ap ${rec.id} with candidate pos must not have usedFallback`).toBeUndefined();
+      } else {
+        // No position → must be a fallback
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        expect(m?.usedFallback, `RF4: add_ap ${rec.id} without pos must have usedFallback=1`).toBe(1);
+        expect(m?.candidateCount, `RF4: add_ap ${rec.id} without pos must have candidateCount=0`).toBe(0);
+      }
+    }
+  });
+
+  it('CR-B: RF4 forced to 0 candidates — all add_ap are fallback', () => {
+    const f = createRf4UserLive();
+    const ctx: RecommendationContext = {
+      ...f.ctx,
+      candidatePolicy: 'optional',
+      candidates: [],
+    };
+    const result = run(f, ctx);
+    const allRecs = collectAll(result.recommendations);
+
+    for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+      const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+      expect(m?.usedFallback, `add_ap ${rec.id} must be fallback (usedFallback=1)`).toBe(1);
+      expect(m?.candidateCount, `add_ap ${rec.id} must have candidateCount=0`).toBe(0);
+      expect(rec.selectedCandidatePosition, `add_ap ${rec.id} must NOT have selectedCandidatePosition`).toBeUndefined();
+    }
+  });
+
+  it('CR-B: mutual exclusion — selectedCandidatePosition XOR usedFallback (cross-fixture)', () => {
+    const allFixtures = [
+      { name: 'RF1', create: createRf1HomeOffice },
+      { name: 'RF2', create: createRf2UserHouse },
+      { name: 'RF3', create: createRf3MyHouse },
+      { name: 'RF4', create: createRf4UserLive },
+      { name: 'RF5', create: createRf5UserLiveV2 },
+    ];
+
+    for (const { name, create } of allFixtures) {
+      const f = create();
+      const result = run(f);
+      const allRecs = collectAll(result.recommendations);
+
+      for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        const hasPos = rec.selectedCandidatePosition != null;
+        const hasFallback = m?.usedFallback === 1;
+
+        // Must be one or the other, never both
+        expect(
+          hasPos !== hasFallback || (!hasPos && !hasFallback),
+          `${name}: add_ap ${rec.id} — selectedCandidatePosition and usedFallback must be mutually exclusive (pos=${hasPos}, fallback=${hasFallback})`,
+        ).toBe(true);
       }
     }
   });

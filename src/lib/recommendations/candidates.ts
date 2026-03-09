@@ -234,6 +234,21 @@ export function getMountingOptionsAtPoint(
 }
 
 /**
+ * Check if a position matches any candidate within tolerance (epsilon in meters).
+ * Used by integrity tests to verify the "No Phantom Placement" guarantee:
+ * every selectedCandidatePosition must correspond to an actual CandidateLocation.
+ */
+export function matchesAnyCandidate(
+  pos: { x: number; y: number },
+  candidates: CandidateLocation[],
+  epsM = 0.05,
+): boolean {
+  return candidates.some(
+    c => Math.abs(c.x - pos.x) <= epsM && Math.abs(c.y - pos.y) <= epsM,
+  );
+}
+
+/**
  * Check if movement is allowed for an AP at a given position.
  */
 export function isMovementAllowed(

@@ -393,6 +393,29 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 
 ---
 
+## Candidate-Only Guarantee (Phase 28aw)
+
+### Invariant: No Phantom Placement
+
+Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with a `selectedCandidatePosition` is **guaranteed** to point to an actual `CandidateLocation` defined by the user. The engine never invents coordinates.
+
+### Enforcement
+
+| Policy | add_ap | move_ap | preferred_candidate |
+|--------|--------|---------|---------------------|
+| `required_for_new_ap` | Only with candidate match; else `infrastructure_required` | Interpolation allowed (no candidate needed) | Only with candidate match |
+| `required_for_move_and_new_ap` | Only with candidate match | Only with candidate match; else `blocked_recommendation` | Only with candidate match |
+| `optional` | Candidate match preferred; fallback (RF-weighted centroid) carries `usedFallback=1` + `candidateCount=0` + no `selectedCandidatePosition` | Interpolation allowed | Only with candidate match |
+
+### Verification
+
+- **`matchesAnyCandidate(pos, candidates, epsM=0.05)`** — helper in `candidates.ts` verifies position-to-candidate match within 5cm tolerance.
+- **Tests CR-A** — Cross-fixture (RF1, RF2, RF3, RF5): every `selectedCandidatePosition` matches a real candidate.
+- **Tests CR-B** — Optional policy (RF4): mutual exclusion `selectedCandidatePosition` XOR `usedFallback`.
+- **Tests CR-C** — Golden hard guard: required-policy golden outputs contain no `usedFallback` add_ap.
+
+---
+
 ## Summary
 
 | Cluster | Rules | Count | Generator Function |

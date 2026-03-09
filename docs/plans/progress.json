@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28av-complete",
+  "currentPhase": "phase-28aw-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1416,6 +1416,24 @@
         "AS-4: Global cross-fixture invariant — required policies verbieten phantom positions (6 Fixtures × 2 Policies)",
         "AS-5: move_ap interpolation reasonKey markiert Interpolation klar",
         "1130 Tests pass (38 files), 52 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28aw": {
+      "name": "Candidate-Only Guarantee — No Phantom Placement, Ever",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "candidates.ts: matchesAnyCandidate(pos, candidates, epsM=0.05) Helper fuer Position-zu-Kandidat Abgleich",
+        "CR-A: Required policy cross-fixture (RF1, RF2, RF3, RF5) — selectedCandidatePosition matcht echte Kandidaten",
+        "CR-A: Kein add_ap ohne selectedCandidatePosition unter required policies (cross-fixture)",
+        "CR-B: Optional policy (RF4) — add_ap mit Kandidat matcht, fallback korrekt markiert",
+        "CR-B: RF4 forced 0 candidates — alle add_ap sind fallback",
+        "CR-B: Mutual exclusion selectedCandidatePosition XOR usedFallback (5 Fixtures cross-check)",
+        "CR-C: Golden hard guard — required-policy golden outputs enthalten kein usedFallback add_ap (g9, g10, g11, g13)",
+        "CR-C: Optional-policy golden (g12) — add_ap mit usedFallback oder weakCells evidence",
+        "rules.md: Candidate-Only Guarantee Sektion mit Invariant, Enforcement-Tabelle, Verification",
+        "1175 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

@@ -15,7 +15,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "ci:recommendations": "./scripts/report-integrity.sh ci"
   },
   "dependencies": {
     "@sveltejs/adapter-static": "^3.0.0",

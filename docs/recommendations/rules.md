@@ -3,7 +3,35 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-09 (Phase 28af — Roaming Explainability & "Why not?" Notes)
+Last updated: 2026-03-09 (Phase 28ai — CI Guardrails)
+
+---
+
+## CI Guardrails
+
+### Golden tests are gating
+
+Golden file tests (`golden.test.ts`) run on every push and PR via GitHub Actions.
+If the recommendation engine output changes, the golden tests **fail** with a detailed diff showing exactly what changed (added/removed/changed recs).
+
+### How to update goldens
+
+After an **intentional** engine change that alters recommendations:
+
+```bash
+GOLDEN_UPDATE=1 npx vitest run src/lib/recommendations/__tests__/golden.test.ts
+```
+
+This regenerates all `expected.json` files. Review the diffs in git before committing.
+
+### Integrity script
+
+```bash
+./scripts/report-integrity.sh "phase-name"
+```
+
+Runs: svelte-check, vitest (all tests), golden tests (separately for visibility), and build.
+Exit code 1 if any step fails. Report saved to `scripts/.last-report.txt`.
 
 ---
 

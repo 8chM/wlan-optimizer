@@ -313,20 +313,24 @@ describe('Golden File Regression Tests', () => {
         );
 
         const actual = normalizeOutput(result.recommendations);
-        const expected = loadExpected(gc.name);
+        const loaded = loadExpected(gc.name);
 
-        if (expected === null || UPDATE_MODE) {
-          // First run or explicit update: generate expected.json
+        if (loaded === null && !UPDATE_MODE) {
+          expect.fail(
+            `Golden file missing for ${gc.name}.\n` +
+            `  expected.json does not exist — cannot validate.\n` +
+            `  To generate: GOLDEN_UPDATE=1 npx vitest run golden.test.ts\n`,
+          );
+        }
+
+        if (UPDATE_MODE) {
           writeExpected(gc.name, actual);
-          if (expected === null) {
-            // eslint-disable-next-line no-console
-            console.log(`[golden] Generated expected.json for ${gc.name} (${actual.length} recs)`);
-          } else {
-            // eslint-disable-next-line no-console
-            console.log(`[golden] Updated expected.json for ${gc.name} (${actual.length} recs)`);
-          }
+          // eslint-disable-next-line no-console
+          console.log(`[golden] ${loaded === null ? 'Generated' : 'Updated'} expected.json for ${gc.name} (${actual.length} recs)`);
           return;
         }
+
+        const expected = loaded!;
 
         // Compare with diff-friendly output on mismatch
         const diff = computeDiff(expected, actual);

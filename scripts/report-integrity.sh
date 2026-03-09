@@ -54,7 +54,15 @@ TEST_FILES_TOTAL="${TEST_FILES_TOTAL:-$TEST_FILES_PASSED}"
 DURATION=$(echo "$VITEST_OUTPUT" | grep "Duration" | tail -1 | sed -n 's/.*Duration[[:space:]]*\([0-9.]*s\).*/\1/p')
 DURATION="${DURATION:-?}"
 
-# ─── 4. Build ────────────────────────────────────────────────────
+# ─── 4. Golden tests (explicit separate run for visibility) ────
+echo "Running golden tests..."
+GOLDEN_OUTPUT=$(npx vitest run src/lib/recommendations/__tests__/golden.test.ts 2>&1 || true)
+GOLDEN_PASSED=$(echo "$GOLDEN_OUTPUT" | grep "Tests" | tail -1 | sed -n 's/.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p')
+GOLDEN_PASSED="${GOLDEN_PASSED:-0}"
+GOLDEN_FAILED=$(echo "$GOLDEN_OUTPUT" | grep "Tests" | tail -1 | sed -n 's/.*[^0-9]\([0-9][0-9]*\) failed.*/\1/p')
+GOLDEN_FAILED="${GOLDEN_FAILED:-0}"
+
+# ─── 5. Build ────────────────────────────────────────────────────
 echo "Running build..."
 BUILD_OUTPUT=$(npm run build 2>&1 || true)
 if echo "$BUILD_OUTPUT" | grep -q "done"; then
@@ -63,7 +71,7 @@ else
   BUILD_STATUS="FAILED"
 fi
 
-# ─── 5. Compose report ──────────────────────────────────────────
+# ─── 6. Compose report ──────────────────────────────────────────
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 REPORT="
@@ -79,6 +87,7 @@ REPORT="
   Tests:         $TESTS_PASSED passed, $TESTS_FAILED failed ($TESTS_TOTAL total)
   Test files:    $TEST_FILES_PASSED / $TEST_FILES_TOTAL
   Duration:      $DURATION
+  Golden tests:  $GOLDEN_PASSED passed, $GOLDEN_FAILED failed
   svelte-check:  $SVELTE_ERRORS errors, $SVELTE_WARNINGS warnings ($SVELTE_FILES files)
   Build:         $BUILD_STATUS
 ══════════════════════════════════════════════════════
@@ -91,7 +100,7 @@ echo "$REPORT"
 echo "$REPORT" > "$REPORT_FILE"
 echo "Report saved to $REPORT_FILE"
 
-# ─── 6. Exit code reflects overall status ────────────────────────
-if [ "$TESTS_FAILED" != "0" ] || [ "$SVELTE_ERRORS" != "0" ] || [ "$BUILD_STATUS" != "OK" ]; then
+# ─── 7. Exit code reflects overall status ────────────────────────
+if [ "$TESTS_FAILED" != "0" ] || [ "$GOLDEN_FAILED" != "0" ] || [ "$SVELTE_ERRORS" != "0" ] || [ "$BUILD_STATUS" != "OK" ]; then
   exit 1
 fi

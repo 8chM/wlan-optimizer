@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28ah-complete",
+  "currentPhase": "phase-28ai-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1190,6 +1190,20 @@
         "INV-F7a: 75% uplink suppresses low-benefit add_ap/TX",
         "INV-F8a: required policy blocks phantom positions, informational recs valid",
         "1038 Tests pass (30 files), svelte-check 0 Errors 2 Warnings, Build OK [6294dd1]"
+      ]
+    },
+    "28ai": {
+      "name": "CI Guardrails for Recommendations",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "report-integrity.sh: Golden tests als separater sichtbarer Step + GOLDEN_FAILED im Exit-Code",
+        "golden.test.ts: Hard-fail wenn expected.json fehlt und GOLDEN_UPDATE nicht gesetzt",
+        ".github/workflows/ci.yml: GitHub Actions CI (checkout, Node 20, npm ci, integrity check)",
+        "package.json: ci:recommendations Script",
+        "rules.md: CI Guardrails Sektion (Golden gating, How to update, Integrity script)",
+        "1038 Tests pass (30 files), 25 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

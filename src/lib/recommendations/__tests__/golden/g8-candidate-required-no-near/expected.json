@@ -1,19 +1,30 @@
 [
   {
-    "type": "sticky_client_risk",
-    "affectedApIds": [
-      "ap-1",
-      "ap-2"
-    ],
+    "type": "infrastructure_required",
+    "affectedApIds": [],
     "affectedBand": "5ghz",
-    "priority": "low",
-    "severity": "info",
-    "titleKey": "rec.stickyClientTitle",
-    "reasonKey": "rec.stickyClientReason",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.infraRequiredTitle",
+    "reasonKey": "rec.infraNoCandidateCloseEnoughReason",
     "evidenceKeys": [
-      "gapCells",
-      "handoffZoneCells",
-      "stickyRatio"
+      "avgRssi",
+      "candidateCount",
+      "weakCells"
+    ]
+  },
+  {
+    "type": "coverage_warning",
+    "affectedApIds": [],
+    "affectedBand": "5ghz",
+    "priority": "medium",
+    "severity": "warning",
+    "titleKey": "rec.coverageWarningTitle",
+    "reasonKey": "rec.coverageWarningReason",
+    "evidenceKeys": [
+      "totalWeakCells",
+      "weakPercent",
+      "weakZoneCount"
     ]
   }
 ]

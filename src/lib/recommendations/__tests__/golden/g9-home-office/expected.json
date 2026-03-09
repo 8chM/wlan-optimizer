@@ -73,7 +73,7 @@
     "evidenceKeys": [
       "gapCells",
       "handoffZoneCells",
-      "marginalBenefit",
+      "overallRegression",
       "stickyRatio"
     ]
   },
@@ -91,7 +91,7 @@
     "evidenceKeys": [
       "gapCells",
       "handoffZoneCells",
-      "marginalBenefit",
+      "overallRegression",
       "stickyRatio"
     ]
   }

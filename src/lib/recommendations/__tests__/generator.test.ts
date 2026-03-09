@@ -949,8 +949,9 @@ describe('generateRecommendations', () => {
           grids.apIndexGrid[idx] = 1;
           grids.secondBestApIndexGrid[idx] = 0;
         }
-        // Handoff zone in the middle columns (c=9,10): delta < 8, weak RSSI (gap)
-        if (c >= 9 && c <= 10) {
+        // Handoff zone in the middle columns (c=8..11): delta < 8, weak RSSI (gap)
+        // 4 columns × 20 rows = 80 cells >= MIN_HANDOFF_CELLS (50)
+        if (c >= 8 && c <= 11) {
           grids.deltaGrid[idx] = 3; // well within handoff threshold (8)
           grids.rssiGrid[idx] = -82; // below 5GHz fair threshold (-75)
         }
@@ -4303,10 +4304,15 @@ describe('generateRecommendations', () => {
       const total = W * H;
       const grids = makeGrids(W, H, { rssi: -50, apIdx: 0, delta: 99, overlap: 2 });
 
-      // First 200 cells: AP-0 primary, AP-1 secondary, delta=20 (sticky)
-      for (let i = 0; i < 200; i++) {
+      // First 140 cells: AP-0 primary, AP-1 secondary, delta=20 (sticky)
+      for (let i = 0; i < 140; i++) {
         grids.secondBestApIndexGrid[i] = 1;
         grids.deltaGrid[i] = 20; // > 15 → sticky
+      }
+      // 60 cells: handoff zone (delta=5, < 8) — ensures handoffZoneCells >= MIN_HANDOFF_CELLS (50)
+      for (let i = 140; i < 200; i++) {
+        grids.secondBestApIndexGrid[i] = 1;
+        grids.deltaGrid[i] = 5; // < 8 → handoff zone
       }
       // Remaining 200 cells: AP-1 primary, AP-0 secondary, delta=20
       for (let i = 200; i < total; i++) {
@@ -7046,6 +7052,205 @@ describe('generateRecommendations', () => {
         const tp = rec.titleParams as Record<string, unknown> | undefined;
         if (tp && tp.x === 0 && tp.y === 0) {
           expect.fail(`infrastructure_required ${rec.id} has phantom (0,0) coordinates`);
+        }
+      }
+    });
+  });
+
+  // ─── AX: Roaming Actionability (Phase 28ax) ──────────────────────
+
+  describe('AX-1: roaming_tx_* with no measurable benefit → not actionable', () => {
+    it('AX-1a: no actionable roaming_tx_adjustment/boost with scoreAfter <= scoreBefore (cross-fixture)', () => {
+      // Test across multiple fixtures that produce roaming recs
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+
+        const actionableRoaming = allRecs.filter(r =>
+          (r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost')
+          && r.simulatedDelta,
+        );
+
+        for (const rec of actionableRoaming) {
+          const d = rec.simulatedDelta!;
+          expect(
+            d.scoreAfter > d.scoreBefore,
+            `${rec.type} ${rec.id}: scoreAfter (${d.scoreAfter}) must be > scoreBefore (${d.scoreBefore})`,
+          ).toBe(true);
+          expect(
+            d.changePercent > 0,
+            `${rec.type} ${rec.id}: changePercent (${d.changePercent}) must be > 0`,
+          ).toBe(true);
+        }
+      }
+    });
+  });
+
+  describe('AX-2: tiny handoff zone → no sticky/gap/physical-gap notes', () => {
+    it('AX-2a: handoffZoneCells < MIN_HANDOFF_CELLS → no sticky_client_risk or handoff_gap_warning', () => {
+      // 2 APs placed so close that there's virtually no handoff zone
+      // AP-1 at (3,5) and AP-2 at (7,5) in a 10×10 grid
+      // With very similar signal strength everywhere → tiny handoff zone
+      const W = 10, H = 10, total = W * H;
+      const rssiGrid = new Float32Array(total);
+      const apIndexGrid = new Uint8Array(total);
+      const deltaGrid = new Float32Array(total);
+      const secondBestApIndexGrid = new Uint8Array(total);
+
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          const d1 = Math.sqrt((c - 3) ** 2 + (r - 5) ** 2);
+          const d2 = Math.sqrt((c - 7) ** 2 + (r - 5) ** 2);
+          const rssi1 = -30 - d1 * 4;
+          const rssi2 = -30 - d2 * 4;
+          if (rssi1 >= rssi2) {
+            rssiGrid[idx] = rssi1;
+            apIndexGrid[idx] = 0;
+            secondBestApIndexGrid[idx] = 1;
+            deltaGrid[idx] = Math.abs(rssi1 - rssi2);
+          } else {
+            rssiGrid[idx] = rssi2;
+            apIndexGrid[idx] = 1;
+            secondBestApIndexGrid[idx] = 0;
+            deltaGrid[idx] = Math.abs(rssi2 - rssi1);
+          }
+        }
+      }
+
+      const grids = {
+        rssiGrid,
+        apIndexGrid,
+        deltaGrid,
+        overlapCountGrid: new Uint8Array(total).fill(2),
+        uplinkLimitedGrid: new Uint8Array(total),
+        secondBestApIndexGrid,
+      };
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 60, good: 30, fair: 10, poor: 0, none: 0,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        [makeAP('ap-1', 3, 5), makeAP('ap-2', 7, 5)],
+        [makeAPResponse('ap-1', 3, 5, 36), makeAPResponse('ap-2', 7, 5, 44)],
+        WALLS, { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', EMPTY_CONTEXT,
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // With such a small grid, handoff zone cells should be minimal
+      // Standalone sticky/gap warnings require MIN_HANDOFF_CELLS (50)
+      const stickyStandalone = allRecs.filter(r =>
+        r.type === 'sticky_client_risk'
+        && !(r.evidence?.metrics as Record<string, unknown>)?.marginalBenefit
+        && !(r.evidence?.metrics as Record<string, unknown>)?.overallRegression
+        && !(r.evidence?.metrics as Record<string, unknown>)?.physicalGap
+        && !(r.evidence?.metrics as Record<string, unknown>)?.wouldHurtPZ,
+      );
+      const gapWarnings = allRecs.filter(r => r.type === 'handoff_gap_warning');
+
+      // In a 10×10 grid (100 cells), handoff zone can't exceed 50 cells meaningfully
+      // These should be suppressed by MIN_HANDOFF_CELLS guard
+      for (const rec of [...stickyStandalone, ...gapWarnings]) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        const hzCells = m?.handoffZoneCells as number | undefined;
+        if (hzCells !== undefined && hzCells < 50) {
+          expect.fail(
+            `${rec.type} ${rec.id} emitted with handoffZoneCells=${hzCells} < MIN_HANDOFF_CELLS(50)`,
+          );
+        }
+      }
+    });
+  });
+
+  describe('AX-3: physical gap notes have correct gapRatio evidence', () => {
+    it('AX-3a: physicalGapNotEffective notes contain gapRatio in evidence + correct gapPercent', () => {
+      // Use F6 and F7 which produce roaming scenarios with potential physical gaps
+      const fixtureFactories = [
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+
+        // Find physical gap notes
+        const physicalGapNotes = allRecs.filter(r =>
+          r.reasonKey === 'rec.physicalGapNotEffectiveReason',
+        );
+
+        for (const rec of physicalGapNotes) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          const params = rec.reasonParams as Record<string, unknown> | undefined;
+
+          // Evidence must contain gapRatio
+          expect(
+            m?.gapRatio != null,
+            `physicalGap ${rec.id}: evidence must contain gapRatio`,
+          ).toBe(true);
+
+          // reasonParams gapPercent must match Math.round(gapRatio * 100)
+          if (m?.gapRatio != null && params?.gapPercent != null) {
+            const expectedPercent = Math.round((m.gapRatio as number) * 100);
+            expect(
+              params.gapPercent,
+              `physicalGap ${rec.id}: gapPercent must be Math.round(gapRatio*100)`,
+            ).toBe(expectedPercent);
+          }
+        }
+      }
+    });
+
+    it('AX-3b: all roaming evidence gapRatio uses handoffZoneCells denominator (invariant)', () => {
+      // Cross-fixture: any rec with both gapCells and handoffZoneCells in evidence
+      // must have gapRatio = gapCells / handoffZoneCells
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+
+        for (const rec of allRecs) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          if (m?.gapRatio != null && m?.gapCells != null && m?.handoffZoneCells != null) {
+            const gc = m.gapCells as number;
+            const hzc = m.handoffZoneCells as number;
+            const gr = m.gapRatio as number;
+            if (hzc > 0) {
+              const expected = gc / hzc;
+              expect(
+                Math.abs(gr - expected) < 0.001,
+                `${rec.type} ${rec.id}: gapRatio (${gr}) must equal gapCells/handoffZoneCells (${gc}/${hzc} = ${expected})`,
+              ).toBe(true);
+            }
+          }
         }
       }
     });

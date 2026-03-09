@@ -133,7 +133,7 @@
     "evidenceKeys": [
       "gapCells",
       "handoffZoneCells",
-      "marginalBenefit",
+      "overallRegression",
       "stickyRatio"
     ]
   },
@@ -151,7 +151,7 @@
     "evidenceKeys": [
       "gapCells",
       "handoffZoneCells",
-      "marginalBenefit",
+      "overallRegression",
       "stickyRatio"
     ]
   },
@@ -169,24 +169,7 @@
     "evidenceKeys": [
       "gapCells",
       "handoffZoneCells",
-      "marginalBenefit",
-      "stickyRatio"
-    ]
-  },
-  {
-    "type": "sticky_client_risk",
-    "affectedApIds": [
-      "ap-flur",
-      "ap-kind"
-    ],
-    "affectedBand": "5ghz",
-    "priority": "low",
-    "severity": "info",
-    "titleKey": "rec.stickyClientTitle",
-    "reasonKey": "rec.stickyClientReason",
-    "evidenceKeys": [
-      "gapCells",
-      "handoffZoneCells",
+      "overallRegression",
       "stickyRatio"
     ]
   }

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28aw-complete",
+  "currentPhase": "phase-28ax-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1453,6 +1453,26 @@
           ]
         }
       }
+    },
+    "28ax": {
+      "name": "Roaming Actionability — no same-value recs, tiny-handoff guard, physical-gap evidence",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "Fix A.1: overallRegresses changed < to <= — scoreAfter==scoreBefore is regression, not actionable",
+        "Fix A.1-Boost: benefit gate for roaming_tx_boost — skip when scoreAfter <= scoreBefore or changePercent <= 0",
+        "Fix A.2: MIN_HANDOFF_CELLS guard applied to generateStickyClientWarnings + generateHandoffGapWarnings",
+        "Fix A.3: gapRatio added to evidence metrics in TX adjustment physical-gap downgrade path",
+        "F8 fixture: propagation model steepened (rssi1 = -50 - d1*3.0) to create real weak zones for infrastructure_required",
+        "AX-1a: Cross-fixture invariant — no actionable roaming with scoreAfter <= scoreBefore",
+        "AX-2a: Tiny handoff zone → no standalone sticky/gap warnings",
+        "AX-3a: Physical gap notes have gapRatio in evidence + correct gapPercent",
+        "AX-3b: Cross-fixture invariant — gapRatio = gapCells / handoffZoneCells",
+        "Existing tests fixed: handoff zone expanded to meet MIN_HANDOFF_CELLS (80 cells), T2 delta values for handoff zone",
+        "Golden files regenerated: g6 (4x channel_width), g7 (2x band_limit), g8 (2x: infrastructure_required + coverage_warning)",
+        "1183 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [6d04a38]"
+      ]
     }
   },
   "functionalAuditFixes": {

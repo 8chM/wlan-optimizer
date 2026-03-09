@@ -2027,7 +2027,7 @@ function generateRoamingTxAdjustments(
     // A1: If overall score regresses OR benefit is marginal, downgrade to
     // informational hint. Roaming improvement alone doesn't justify a coverage
     // regression or near-zero change — the user should decide.
-    const overallRegresses = bestDelta.scoreAfter < bestDelta.scoreBefore;
+    const overallRegresses = bestDelta.scoreAfter <= bestDelta.scoreBefore;
     const overallMarginal = !overallRegresses && bestDelta.changePercent < ROAMING_MIN_OVERALL_BENEFIT;
     const shouldDowngrade = overallRegresses || overallMarginal || gapIsPhysical;
 
@@ -2069,7 +2069,7 @@ function generateRoamingTxAdjustments(
             stickyRatio: pair.stickyRatio,
             handoffZoneCells: pair.handoffZoneCells,
             gapCells: pair.gapCells,
-            ...(overallRegresses ? { overallRegression: 1 } : gapIsPhysical ? { physicalGap: 1, avgRssiInZone: pair.avgRssiInZone, suggestMove: 1 } : { marginalBenefit: 1 }),
+            ...(overallRegresses ? { overallRegression: 1 } : gapIsPhysical ? { physicalGap: 1, gapRatio, avgRssiInZone: pair.avgRssiInZone, suggestMove: 1 } : { marginalBenefit: 1 }),
           },
         },
         confidence: 0.5,
@@ -2209,6 +2209,9 @@ function generateRoamingTxBoosts(
     // No positive step found → skip
     if (!bestDelta) continue;
 
+    // A1-Boost: No measurable improvement → skip (prevents "same value" actionable recs)
+    if (bestDelta.scoreAfter <= bestDelta.scoreBefore || bestDelta.changePercent <= 0) continue;
+
     // Physical gap guard: if zone RSSI is very weak, TX boost alone won't solve it
     const boostFairThreshold = (BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz']).fair;
     if (gapRatio > PHYSICAL_GAP_RATIO && pair.avgRssiInZone < boostFairThreshold - PHYSICAL_GAP_RSSI_OFFSET) {
@@ -2309,6 +2312,8 @@ function generateStickyClientWarnings(
         && (totalCells === 0 || pair.totalPairCells / totalCells < MIN_PAIR_RATIO)) continue;
 
     if (pair.stickyRatio <= 0.50) continue;
+    // Tiny handoff zone guard — too few cells to be meaningful
+    if (pair.handoffZoneCells < MIN_HANDOFF_CELLS) continue;
     // Only warn if handoff zone is very small (<5% of pair cells)
     if (totalCells > 0 && pair.handoffZoneCells / totalCells >= 0.05) continue;
 
@@ -2357,10 +2362,11 @@ function generateHandoffGapWarnings(
     if (pair.totalPairCells < MIN_PAIR_CELLS
         && (totalCells === 0 || pair.totalPairCells / totalCells < MIN_PAIR_RATIO)) continue;
 
-    // Suppress very small gap zones
+    // Suppress very small gap zones / tiny handoff zones
     if (pair.gapCells < 5) continue;
     if (pair.gapCells <= 10) continue;
     if (pair.handoffZoneCells === 0) continue;
+    if (pair.handoffZoneCells < MIN_HANDOFF_CELLS) continue;
     if (pair.gapCells / pair.handoffZoneCells <= 0.20) continue;
 
     // PZ-weighted priority

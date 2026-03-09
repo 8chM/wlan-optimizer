@@ -395,11 +395,12 @@ export function createF7UplinkWeakCoverage() {
 
 export function createF8CandidateRequiredNoNear() {
   const W = 30, H = 10;
-  // 2 APs: ap-1 covers left, ap-2 covers very little (low TX) → low primaryCoverageRatio → move_ap triggers
-  // Candidates defined but far from weak zones → move_ap blocked by required_for_move_and_new_ap
+  // 2 APs: ap-1 covers left, ap-2 covers right but with steep falloff
+  // Middle zone (c≈16-18) is weak — both APs too far → infrastructure_required
+  // Candidates defined but far from weak zones → blocked by required_for_move_and_new_ap
   const aps = [
     ap('ap-1', 5, 5, { txPowerDbm: 20 }),
-    ap('ap-2', 25, 5, { txPowerDbm: 10 }), // Very low TX → tiny coverage → move_ap target
+    ap('ap-2', 25, 5, { txPowerDbm: 10 }), // Low TX → steep coverage
   ];
   const apResps = [
     apResp('ap-1', 5, 5, 36, { tx_power_5ghz_dbm: 20 }),
@@ -412,23 +413,25 @@ export function createF8CandidateRequiredNoNear() {
       const idx = r * W + c;
       const d1 = Math.sqrt((c - 5) ** 2 + (r - 5) ** 2);
       const d2 = Math.sqrt((c - 25) ** 2 + (r - 5) ** 2);
-      const rssi1 = -38 - d1 * 2.5;
-      const rssi2 = -50 - d2 * 4; // Very steep falloff
+      const rssi1 = -50 - d1 * 3.0; // Steep falloff → ~36 weak cells in middle
+      const rssi2 = -50 - d2 * 4;   // Very steep falloff
 
       if (rssi1 > rssi2) {
         grids.apIndexGrid[idx] = 0;
         grids.secondBestApIndexGrid[idx] = 1;
         grids.rssiGrid[idx] = rssi1;
+        grids.deltaGrid[idx] = Math.abs(rssi1 - rssi2);
       } else {
         grids.apIndexGrid[idx] = 1;
         grids.secondBestApIndexGrid[idx] = 0;
         grids.rssiGrid[idx] = rssi2;
+        grids.deltaGrid[idx] = Math.abs(rssi2 - rssi1);
       }
     }
   }
 
   const stats = makeStats(W, H, grids, {
-    excellent: 40, good: 60, fair: 50, poor: 80, none: 70,
+    excellent: 20, good: 60, fair: 100, poor: 70, none: 50,
   }, ['ap-1', 'ap-2']);
 
   // Candidates: both near the AP, far from weak zone (~15m away from ideal position)

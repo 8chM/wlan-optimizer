@@ -151,4 +151,114 @@ describe('Rules Catalog Integrity (Phase 28ag)', () => {
       }
     });
   });
+
+  // ─── RC-7..RC-9: Rule Drift Stopper (Phase 28av) ───────────────
+
+  describe('RC-7: Rule IDs are unique (no duplicates)', () => {
+    it('no rule ID appears more than once in detail tables', () => {
+      // Only scan detail sections (before Summary) to avoid double-counting
+      // rule IDs that also appear in the summary table
+      const summaryIdx = RULES_MD.indexOf('## Summary');
+      const detailSection = summaryIdx > 0 ? RULES_MD.slice(0, summaryIdx) : RULES_MD;
+
+      const pattern = /\|\s*([A-Z]{2,3}-\d+[a-z]?\d?)\s*\|/g;
+      const all: string[] = [];
+      let match;
+      while ((match = pattern.exec(detailSection)) !== null) {
+        all.push(match[1]!);
+      }
+
+      const seen = new Set<string>();
+      const duplicates: string[] = [];
+      for (const id of all) {
+        if (seen.has(id)) duplicates.push(id);
+        seen.add(id);
+      }
+
+      expect(duplicates, `Duplicate rule IDs in rules.md: ${duplicates.join(', ')}`).toHaveLength(0);
+    });
+  });
+
+  describe('RC-8: Every rule ID belongs to exactly one cluster', () => {
+    it('every rule ID prefix appears in the summary table', () => {
+      // Extract unique prefixes from detail rule IDs
+      const prefixes = [...new Set(RULE_IDS.map(id => id.replace(/-\d+.*$/, '')))];
+
+      // Extract summary section
+      const summaryMatch = /## Summary([\s\S]*?)(?=\n---|\n## |$)/.exec(RULES_MD);
+      expect(summaryMatch, 'rules.md must have a Summary section').not.toBeNull();
+      const summary = summaryMatch![1]!;
+
+      const orphans: string[] = [];
+      for (const prefix of prefixes) {
+        if (!summary.includes(prefix + '-')) {
+          orphans.push(prefix);
+        }
+      }
+
+      expect(orphans, `Rule prefixes not in Summary: ${orphans.join(', ')}`).toHaveLength(0);
+    });
+
+    it('no rule ID prefix appears in multiple cluster headings', () => {
+      // Split by cluster headings (## N.)
+      const clusterPattern = /^## \d+\.\s+(.+)$/gm;
+      const clusters: { name: string; start: number }[] = [];
+      let match;
+      while ((match = clusterPattern.exec(RULES_MD)) !== null) {
+        clusters.push({ name: match[1]!, start: match.index });
+      }
+
+      // Also add "Additional Rules" section
+      const addMatch = /^## Additional Rules$/m.exec(RULES_MD);
+      if (addMatch) {
+        clusters.push({ name: 'Additional Rules', start: addMatch.index });
+      }
+
+      // For each cluster section, extract rule ID prefixes
+      const prefixToCluster = new Map<string, string[]>();
+      for (let i = 0; i < clusters.length; i++) {
+        const start = clusters[i]!.start;
+        const end = i + 1 < clusters.length ? clusters[i + 1]!.start : RULES_MD.length;
+        const section = RULES_MD.slice(start, end);
+
+        const idPattern = /\|\s*([A-Z]{2,3}-\d+[a-z]?\d?)\s*\|/g;
+        const prefixes = new Set<string>();
+        let m;
+        while ((m = idPattern.exec(section)) !== null) {
+          prefixes.add(m[1]!.replace(/-\d+.*$/, ''));
+        }
+
+        for (const prefix of prefixes) {
+          if (!prefixToCluster.has(prefix)) prefixToCluster.set(prefix, []);
+          prefixToCluster.get(prefix)!.push(clusters[i]!.name);
+        }
+      }
+
+      const multiCluster: string[] = [];
+      for (const [prefix, owners] of prefixToCluster) {
+        if (owners.length > 1) {
+          multiCluster.push(`${prefix} → [${owners.join(', ')}]`);
+        }
+      }
+
+      expect(
+        multiCluster,
+        `Rule prefixes in multiple clusters: ${multiCluster.join('; ')}`,
+      ).toHaveLength(0);
+    });
+  });
+
+  describe('RC-9: Total rule count is exact', () => {
+    it('rules.md has exactly the stated number of rules', () => {
+      const totalMatch = /\*\*Total:\s*(\d+)\s*rules/.exec(RULES_MD);
+      expect(totalMatch, 'rules.md must state total rules').not.toBeNull();
+      const stated = parseInt(totalMatch![1]!, 10);
+
+      // Hard check: RULE_IDS count must equal stated total exactly
+      expect(
+        RULE_IDS.length,
+        `Extracted ${RULE_IDS.length} rule IDs but rules.md states ${stated}`,
+      ).toBe(stated);
+    });
+  });
 });

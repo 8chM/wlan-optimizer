@@ -2639,6 +2639,78 @@ describe('generateRecommendations', () => {
     }
   });
 
+  it('D11: infra_required demotes sticky_client_risk + handoff_gap_warning to low/info', () => {
+    // Setup: 3 APs — AP1+AP2 close together (creates roaming pair with sticky/gap)
+    //        AP3 covers only corner, weak zone in far corner
+    //        Policy=required_for_new_ap, NO candidates → infrastructure_required
+    //        → sticky/handoff warnings should be demoted to priority=low, severity=info
+    const aps = [
+      makeAP('ap-1', 3, 3, { txPowerDbm: 22 }),
+      makeAP('ap-2', 5, 3, { txPowerDbm: 22 }),
+      makeAP('ap-3', 9, 9, { txPowerDbm: 12 }),  // Low TX → weak zone around it
+    ];
+    const apResps = [
+      makeAPResponse('ap-1', 3, 3, 36),
+      makeAPResponse('ap-2', 5, 3, 36),  // Same channel → conflict
+      makeAPResponse('ap-3', 9, 9, 48),
+    ];
+
+    const W = 15;
+    const H = 15;
+    const total = W * H;
+    const grids = makeGrids(W, H, { rssi: -85 });
+
+    // AP1+AP2 overlap zone (roaming pair territory — close APs)
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const idx = r * W + c;
+        grids.rssiGrid[idx] = -48;
+        grids.apIndexGrid[idx] = c < 4 ? 0 : 1;
+        grids.secondBestApIndexGrid[idx] = c < 4 ? 1 : 0;
+        grids.deltaGrid[idx] = Math.abs(c - 4) * 2;  // Small delta near boundary → overlap
+        grids.overlapCountGrid[idx] = Math.abs(c - 4) < 2 ? 2 : 1;
+      }
+    }
+
+    // Far corner: weak zone (>= 20 cells) — will trigger add_ap / infra_required
+    for (let r = 10; r < H; r++) {
+      for (let c = 10; c < W; c++) {
+        const idx = r * W + c;
+        grids.rssiGrid[idx] = -88;
+        grids.apIndexGrid[idx] = 2;
+      }
+    }
+
+    const stats = makeStats(W, H, grids, {
+      excellent: 50, good: 10, fair: 5, poor: 15, none: 20,
+    });
+    stats.apIds = ['ap-1', 'ap-2', 'ap-3'];
+
+    const ctx: RecommendationContext = {
+      ...EMPTY_CONTEXT,
+      candidatePolicy: 'required_for_new_ap',
+      // No candidates → forces infrastructure_required
+    };
+
+    const result = generateRecommendations(
+      aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced', ctx,
+    );
+    const allRecs = collectAllRecommendations(result.recommendations);
+
+    // infrastructure_required must be present (no candidates + required policy + weak zone)
+    const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+    expect(infraRecs.length, 'must have infrastructure_required').toBeGreaterThanOrEqual(1);
+
+    // If sticky_client_risk or handoff_gap_warning exist, they must be demoted
+    const roamingHints = allRecs.filter(
+      r => r.type === 'sticky_client_risk' || r.type === 'handoff_gap_warning',
+    );
+    for (const rec of roamingHints) {
+      expect(rec.priority, `${rec.type} must be demoted to low`).toBe('low');
+      expect(rec.severity, `${rec.type} must be demoted to info`).toBe('info');
+    }
+  });
+
   // ─── Phase 28h: Recommendation Correctness ─────────────────────
 
   describe('T1: Channel recs — no duplicate target channels', () => {

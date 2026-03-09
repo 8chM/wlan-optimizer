@@ -340,6 +340,18 @@ export function generateRecommendations(
   // 15. Channel width recommendations (reduce width in multi-AP scenarios)
   generateChannelWidthRecommendations(recommendations, aps, accessPoints, band, apLabel);
 
+  // 16. Cross-type prioritization: demote informational roaming hints when infrastructure_required exists
+  // Rationale: when the engine says "you need cable/infrastructure", roaming fine-tuning is noise
+  const hasInfraRequired = recommendations.some(r => r.type === 'infrastructure_required');
+  if (hasInfraRequired) {
+    for (const rec of recommendations) {
+      if (rec.type === 'sticky_client_risk' || rec.type === 'handoff_gap_warning') {
+        rec.priority = 'low';
+        rec.severity = 'info';
+      }
+    }
+  }
+
   // Deduplicate: max 1 physical recommendation per AP, rest as alternatives
   const deduped = deduplicateRecommendations(recommendations);
   recommendations.length = 0;
@@ -3021,7 +3033,7 @@ export const EVIDENCE_MINIMUMS: Partial<Record<RecommendationType, string[]>> = 
   move_ap: ['improvement', 'currentCoverage'],
   rotate_ap: ['improvement'],
   change_mounting: ['improvement'],
-  infrastructure_required: ['weakCells', 'candidateCount', 'allUnsuitable'],
+  infrastructure_required: ['weakCells', 'candidateCount', 'allUnsuitable', 'nearestDistance'],
   disable_ap: ['primaryCoverageRatio'],
   band_limit_warning: ['uplinkLimitedPercent', 'sixGhzBand'],
   coverage_warning: ['weakPercent'],

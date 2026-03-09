@@ -385,6 +385,12 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | RH-01 | Roaming hint | lowDeltaPercent > 15 | No specific roaming warnings exist (sticky/gap/roaming_tx/boost absent, checked at :218-221) | Informational roaming hint | :1455-1476 |
 
+### 17. Cross-Type Prioritization (generator.ts)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| CT-01 | Infra demotes roaming hints | infrastructure_required exists in batch | — | sticky_client_risk + handoff_gap_warning → priority=low, severity=info | :349-356 |
+
 ---
 
 ## Summary
@@ -407,8 +413,9 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 | Coverage | CV-01 | 1 | generateCoverageWarnings |
 | Low-Value | LV-01 | 1 | generateLowValueWarnings |
 | Roaming Hint | RH-01 | 1 | generateRoamingHints |
+| Cross-Type | CT-01 | 1 | post-processing in main function |
 
-**Total: 89 rules across 16 clusters. 21 RecommendationType values.**
+**Total: 90 rules across 17 clusters. 21 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

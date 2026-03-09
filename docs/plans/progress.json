@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28as-complete",
+  "currentPhase": "phase-28au-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1366,6 +1366,22 @@
         "golden.test.ts: g13-rf5-user-live-v2 (12 recs) + 4 Guardrails",
         "fixtures.md: RF5 Eintrag ergaenzt",
         "1125 Tests pass (38 files), 52 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28au": {
+      "name": "No-New-Cable Endgame — Cross-Type Prioritization + Infra-Realismus",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "CT-01: Cross-type prioritization — infra_required demotes sticky_client_risk + handoff_gap_warning to low/info",
+        "generator.ts: Post-processing step after all generators, before dedup",
+        "Test D11: infra_required + roaming hints → demotion verified",
+        "RC-7 fix: detail-only scan prevents false duplicates from summary table",
+        "rules.md: CT-01 rule + cluster 17 Cross-Type + total 90 rules",
+        "Task A verified: infra_required priority=high, max 2, best zones by cellCount*zoneRelevance",
+        "Task B verified: move_ap blocked with full evidence (candidateCount, nearestDistance, maxDistance, policy)",
+        "1162 Tests (1 flaky perf pre-existing), 0 svelte-check Errors, Build OK"
       ]
     },
     "28as": {

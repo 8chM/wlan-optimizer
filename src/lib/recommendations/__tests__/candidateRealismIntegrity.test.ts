@@ -580,3 +580,71 @@ describe('AS: Candidate-Realismus Hard Mode (Phase 28as)', () => {
     }
   });
 });
+
+// ─── AV: Evidence Drift Hardening (Phase 28av) ───────────────────
+
+describe('AV: Evidence Drift Hardening (Phase 28av)', () => {
+  // AV-1: infrastructure_required must have candidateCount OR nearestDistance OR allUnsuitable
+  it('AV-1: infra_required evidence includes candidateCount or nearestDistance or allUnsuitable (multi-fixture)', () => {
+    const fixtures = [
+      { name: 'F4', create: createF4NoNewCable },
+      { name: 'F5', create: createF5FarCandidates },
+      { name: 'RF1', create: createRf1HomeOffice },
+      { name: 'RF2', create: createRf2UserHouse },
+    ];
+
+    for (const { name, create } of fixtures) {
+      const f = create();
+      const ctx: RecommendationContext = {
+        ...f.ctx,
+        candidates: [],
+        candidatePolicy: 'required_for_new_ap',
+      };
+      const result = run(f, ctx);
+      const allRecs = collectAll(result.recommendations);
+
+      const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
+      for (const rec of infraRecs) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        const keys = Object.keys(m ?? {});
+        const hasCriticalEvidence =
+          keys.includes('candidateCount') ||
+          keys.includes('nearestDistance') ||
+          keys.includes('allUnsuitable');
+        expect(
+          hasCriticalEvidence,
+          `${name}: infra_required ${rec.id} must have candidateCount, nearestDistance, or allUnsuitable in evidence. Got: [${keys.join(', ')}]`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  // AV-2: move_ap without selectedCandidatePosition → reasonKey = moveApInterpolationReason
+  it('AV-2: move_ap interpolation → reasonKey marks interpolation (multi-fixture)', () => {
+    const fixtures = [
+      { name: 'F4', create: createF4NoNewCable },
+      { name: 'RF2', create: createRf2UserHouse },
+    ];
+
+    for (const { name, create } of fixtures) {
+      const f = create();
+      // Allow interpolation moves (not strictest policy), no candidates
+      const ctx: RecommendationContext = {
+        ...f.ctx,
+        candidates: [],
+        candidatePolicy: 'optional',
+      };
+      const result = run(f, ctx);
+      const allRecs = collectAll(result.recommendations);
+
+      for (const rec of allRecs.filter(r => r.type === 'move_ap')) {
+        if (!rec.selectedCandidatePosition) {
+          expect(
+            rec.reasonKey,
+            `${name}: move_ap ${rec.id} without selectedCandidatePosition must use interpolation reasonKey`,
+          ).toBe('rec.moveApInterpolationReason');
+        }
+      }
+    }
+  });
+});

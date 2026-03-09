@@ -399,6 +399,110 @@ describe('Golden File Regression Tests', () => {
     }
   });
 
+  // ─── g9-g13 shared guardrails (Phase 28av) ──────────────────────
+
+  const REAL_WORLD_CASES = [
+    'g9-home-office',
+    'g10-rf2-user-house',
+    'g11-rf3-my-house',
+    'g12-rf4-user-live',
+    'g13-rf5-user-live-v2',
+  ] as const;
+
+  describe('g9-g13 shared guardrails', () => {
+    for (const name of REAL_WORLD_CASES) {
+      it(`${name}: no phantom add_ap without evidence`, () => {
+        const expected = loadExpected(name);
+        expect(expected, `${name} expected.json must exist`).not.toBeNull();
+        const addApRecs = expected!.filter(r => r.type === 'add_ap');
+        for (const rec of addApRecs) {
+          expect(
+            rec.evidenceKeys.length > 0,
+            `${name}: add_ap must have evidenceKeys`,
+          ).toBe(true);
+        }
+      });
+
+      it(`${name}: infrastructure_required max 2`, () => {
+        const expected = loadExpected(name);
+        expect(expected, `${name} expected.json must exist`).not.toBeNull();
+        const infraRecs = expected!.filter(r => r.type === 'infrastructure_required');
+        expect(infraRecs.length, `${name}: infra_required capped at 2`).toBeLessThanOrEqual(2);
+      });
+
+      it(`${name}: channel recs bounded at 5`, () => {
+        const expected = loadExpected(name);
+        expect(expected, `${name} expected.json must exist`).not.toBeNull();
+        const channelRecs = expected!.filter(r => r.type === 'change_channel');
+        expect(channelRecs.length, `${name}: channel recs bounded`).toBeLessThanOrEqual(5);
+      });
+
+      it(`${name}: roaming_tx_adjustment must not regress (informational or non-regressing)`, () => {
+        const expected = loadExpected(name);
+        expect(expected, `${name} expected.json must exist`).not.toBeNull();
+        const roamingRecs = expected!.filter(r => r.type === 'roaming_tx_adjustment');
+        for (const rec of roamingRecs) {
+          // Must be informational (severity=info) OR have non-regressing evidence
+          const isInformational = rec.severity === 'info' || rec.priority === 'low';
+          // If not informational, evidenceKeys must indicate positive outcome
+          if (!isInformational) {
+            expect(
+              rec.evidenceKeys.length > 0,
+              `${name}: actionable roaming_tx_adjustment must have evidence`,
+            ).toBe(true);
+          }
+        }
+      });
+    }
+  });
+
+  // ─── g9 (RF1 Home Office) specific guardrails ──────────────────
+  describe('g9-home-office guardrails', () => {
+    it('g9: no add_ap in golden output (required policy)', () => {
+      const expected = loadExpected('g9-home-office');
+      expect(expected, 'g9 expected.json must exist').not.toBeNull();
+      expect(expected!.filter(r => r.type === 'add_ap').length, 'g9: no add_ap').toBe(0);
+    });
+
+    it('g9: all recs have valid type and evidenceKeys', () => {
+      const expected = loadExpected('g9-home-office');
+      expect(expected, 'g9 expected.json must exist').not.toBeNull();
+      for (const rec of expected!) {
+        expect(rec.type, 'type must be non-empty').toBeTruthy();
+        expect(Array.isArray(rec.evidenceKeys), `${rec.type} must have evidenceKeys array`).toBe(true);
+        expect(rec.evidenceKeys.length, `${rec.type} must have ≥1 evidenceKey`).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  // ─── g10 (RF2 User House) specific guardrails ─────────────────
+  describe('g10-rf2-user-house guardrails', () => {
+    it('g10: no add_ap in golden output (required policy)', () => {
+      const expected = loadExpected('g10-rf2-user-house');
+      expect(expected, 'g10 expected.json must exist').not.toBeNull();
+      expect(expected!.filter(r => r.type === 'add_ap').length, 'g10: no add_ap').toBe(0);
+    });
+
+    it('g10: all recs have valid type and evidenceKeys', () => {
+      const expected = loadExpected('g10-rf2-user-house');
+      expect(expected, 'g10 expected.json must exist').not.toBeNull();
+      for (const rec of expected!) {
+        expect(rec.type, 'type must be non-empty').toBeTruthy();
+        expect(Array.isArray(rec.evidenceKeys), `${rec.type} must have evidenceKeys array`).toBe(true);
+        expect(rec.evidenceKeys.length, `${rec.type} must have ≥1 evidenceKey`).toBeGreaterThan(0);
+      }
+    });
+
+    it('g10: channel recs have correct parameter', () => {
+      const expected = loadExpected('g10-rf2-user-house');
+      expect(expected, 'g10 expected.json must exist').not.toBeNull();
+      const channelRecs = expected!.filter(r => r.type === 'change_channel');
+      for (const rec of channelRecs) {
+        expect(rec.suggestedChange?.parameter).toBe('channel_5ghz');
+      }
+    });
+  });
+
   // ─── g11 (RF3 My House) specific guardrails ─────────────────────
   describe('g11-rf3-my-house guardrails', () => {
     it('g11: no phantom add_ap in golden output', () => {

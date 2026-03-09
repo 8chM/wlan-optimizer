@@ -14,7 +14,7 @@ import {
 import type { RecommendationType, RecommendationCategory, EffortLevel } from '../types';
 
 /**
- * Canonical list of all 20 RecommendationType members.
+ * Canonical list of all 22 RecommendationType members.
  * Must match the union type exactly.
  */
 const ALL_RECOMMENDATION_TYPES: RecommendationType[] = [
@@ -39,6 +39,7 @@ const ALL_RECOMMENDATION_TYPES: RecommendationType[] = [
   'sticky_client_risk',
   'handoff_gap_warning',
   'adjust_channel_width',
+  'channel_deprioritized_note',
 ];
 
 const VALID_CATEGORIES: RecommendationCategory[] = [
@@ -86,7 +87,7 @@ describe('Rules Integrity', () => {
     });
 
     it('RECOMMENDATION_CATEGORIES has exactly 21 entries', () => {
-      expect(Object.keys(RECOMMENDATION_CATEGORIES)).toHaveLength(21);
+      expect(Object.keys(RECOMMENDATION_CATEGORIES)).toHaveLength(22);
     });
   });
 
@@ -120,7 +121,7 @@ describe('Rules Integrity', () => {
     });
 
     it('EFFORT_LEVELS has exactly 21 entries', () => {
-      expect(Object.keys(EFFORT_LEVELS)).toHaveLength(21);
+      expect(Object.keys(EFFORT_LEVELS)).toHaveLength(22);
     });
   });
 
@@ -247,6 +248,7 @@ describe('Rules Integrity', () => {
       'band_limit_warning',
       'blocked_recommendation',
       'change_channel',
+      'channel_deprioritized_note',
       'change_mounting',
       'constraint_conflict',
       'coverage_warning',
@@ -336,6 +338,7 @@ describe('Rules Integrity', () => {
       sticky_client_risk: 'stickyClientTitle',
       handoff_gap_warning: 'handoffGapTitle',
       adjust_channel_width: 'adjustChannelWidthTitle',
+      channel_deprioritized_note: 'channelDeprioritizedTitle',
     };
 
     it('every RecommendationType has a documented title key', () => {

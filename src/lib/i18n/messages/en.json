@@ -526,6 +526,8 @@
     "pzBlockedTxReason": "Reducing TX power of {ap} would degrade coverage in priority zone \"{pz}\" by {dropDb}dB. The zone requires uninterrupted coverage \u2014 consider moving an AP closer instead.",
     "pzBlockedPhysicalTitle": "Physical change skipped (priority zone): {ap}",
     "pzBlockedPhysicalReason": "Changing {ap} would degrade coverage in priority zone \"{pz}\" by {dropDb}dB. The zone requires uninterrupted coverage.",
+    "channelDeprioritizedTitle": "Additional channel changes deprioritized ({total} in cluster, {kept} applied)",
+    "channelDeprioritizedReason": "A cluster of {total} APs has channel conflicts. Only the top {kept} changes are actionable — the remaining {suppressed} are deferred to avoid excessive changes at once.",
     "physicalGapNotEffectiveTitle": "Coverage gap is physical: {ap1} \u2194 {ap2}",
     "physicalGapNotEffectiveReason": "The {gapPercent}% coverage gap between {ap1} and {ap2} is caused by walls or distance (avg. {avgRssi}dBm in gap zone). Adjusting TX power alone won\u2019t fix this \u2014 consider moving an AP or adding a new one.",
     "handoffGapTitle": "Handoff dead zone: {ap1} \u2194 {ap2}",

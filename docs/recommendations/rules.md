@@ -369,6 +369,19 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | CW-01 | Width reduction | nearbyCount >= 2 + width >= 80 → suggest 40; veryCloseCount >= 3 + width > 20 → suggest 20 | band !== '2.4ghz' | Emit adjust_channel_width | :2183-2187 |
 
+### Channel Cluster Cap — `capChannelRecsPerCluster()` (Phase 28bc)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BC-01 | Channel cluster cap | >2 change_channel per componentIndex | — | Keep top 2, suppress rest → channel_deprioritized_note (informational) | capChannelRecsPerCluster |
+
+### Roaming Note Dedup — `deduplicateRoamingNotes()` (Phase 28bc)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BC-02a | Actionable suppresses notes | roaming_tx_adjustment/boost exists for pair | — | Remove all informational notes for that pair | deduplicateRoamingNotes |
+| BC-02b | Max 1 note per pair | >1 informational note for same pair | — | Keep highest priority: handoff_gap_warning > sticky_client_risk | deduplicateRoamingNotes |
+
 ### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1681-1713)
 
 | ID | Description | Trigger | Guards | Action | Reference |
@@ -445,16 +458,17 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Low-Value | LV-01 | 1 | generateLowValueWarnings |
 | Roaming Hint | RH-01 | 1 | generateRoamingHints |
 | Cross-Type | CT-01 | 1 | post-processing in main function |
+| Noise & Dedup (BC) | BC-01, BC-02a, BC-02b | 3 | capChannelRecsPerCluster + deduplicateRoamingNotes |
 
-**Total: 93 rules across 17 clusters. 21 RecommendationType values.**
+**Total: 96 rules across 18 clusters. 22 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 
 ### Auto-Verification
 
 ```
-Total rules:  89  (counted by regex ^| [A-Z]{2}-\d+ in this document)
-Total types:  21  (RecommendationType union in types.ts)
+Total rules:  96  (counted by regex ^| [A-Z]{2}-\d+ in this document)
+Total types:  22  (RecommendationType union in types.ts)
 Last verified: scripts/report-integrity.sh "phase-28ag"
 Drift-proof:  rulesIntegrity.test.ts (E1-E9) + rulesCatalogIntegrity.test.ts (RC-1..RC-4)
 ```

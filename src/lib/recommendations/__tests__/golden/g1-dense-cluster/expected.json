@@ -11,6 +11,7 @@
     "titleKey": "rec.changeChannelTitle",
     "reasonKey": "rec.changeChannelTxAlternativeReason",
     "evidenceKeys": [
+      "componentIndex",
       "conflictScore",
       "distance"
     ],
@@ -31,32 +32,13 @@
     "titleKey": "rec.changeChannelTitle",
     "reasonKey": "rec.changeChannelTxAlternativeReason",
     "evidenceKeys": [
+      "componentIndex",
       "conflictScore",
       "distance"
     ],
     "suggestedChange": {
       "parameter": "channel_5ghz",
       "suggestedValue": 44
-    }
-  },
-  {
-    "type": "change_channel",
-    "affectedApIds": [
-      "ap-1",
-      "ap-3"
-    ],
-    "affectedBand": "5ghz",
-    "priority": "high",
-    "severity": "critical",
-    "titleKey": "rec.changeChannelTitle",
-    "reasonKey": "rec.changeChannelTxAlternativeReason",
-    "evidenceKeys": [
-      "conflictScore",
-      "distance"
-    ],
-    "suggestedChange": {
-      "parameter": "channel_5ghz",
-      "suggestedValue": 48
     }
   },
   {
@@ -150,6 +132,23 @@
     "evidenceKeys": [
       "lowDeltaCells",
       "lowDeltaPercent"
+    ]
+  },
+  {
+    "type": "channel_deprioritized_note",
+    "affectedApIds": [
+      "ap-1",
+      "ap-3"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.channelDeprioritizedTitle",
+    "reasonKey": "rec.channelDeprioritizedReason",
+    "evidenceKeys": [
+      "channelClusterSize",
+      "channelRecsSuppressed",
+      "maxChannelRecsApplied"
     ]
   }
 ]

@@ -362,6 +362,12 @@ export function generateRecommendations(
     }
   }
 
+  // 17. Channel cluster cap: max 2 channel recs per conflict cluster, rest → informational note
+  capChannelRecsPerCluster(recommendations);
+
+  // 18. Roaming note dedup: exactly 1 roaming note per AP pair
+  deduplicateRoamingNotes(recommendations);
+
   // Deduplicate: max 1 physical recommendation per AP, rest as alternatives
   const deduped = deduplicateRecommendations(recommendations);
   recommendations.length = 0;
@@ -1707,6 +1713,14 @@ function generateChannelRecommendations(
     components.push(component);
   }
 
+  // Build AP → component index map for downstream cluster dedup
+  const apComponentMap = new Map<string, number>();
+  for (let ci = 0; ci < components.length; ci++) {
+    for (const apId of components[ci]!) {
+      apComponentMap.set(apId, ci);
+    }
+  }
+
   // ── Step 3: Graph-coloring per component ───────────────────────
   // Current channel assignments (baseline)
   const currentChannels = new Map<string, number>();
@@ -1876,6 +1890,7 @@ function generateChannelRecommendations(
         metrics: {
           conflictScore: worstConflict?.score ?? change.worstScore,
           distance: worstConflict?.distanceM ?? 0,
+          componentIndex: apComponentMap.get(targetApId) ?? -1,
         },
       },
       confidence: 0.85,
@@ -2984,6 +2999,135 @@ function generatePreferredCandidateSuggestions(
   // is sufficient signal to the user.
 }
 
+// ─── Channel Cluster Cap ────────────────────────────────────────
+
+const MAX_CHANNEL_RECS_PER_CLUSTER = 2;
+
+/**
+ * BC-1: Cap actionable channel recs per conflict cluster.
+ * Keeps top-2 by severity/conflictScore, converts excess to informational note.
+ */
+function capChannelRecsPerCluster(recs: Recommendation[]): void {
+  // Group change_channel recs by componentIndex
+  const byCluster = new Map<number, Recommendation[]>();
+  for (const rec of recs) {
+    if (rec.type !== 'change_channel') continue;
+    const ci = (rec.evidence?.metrics as Record<string, unknown>)?.componentIndex;
+    if (typeof ci !== 'number') continue;
+    const list = byCluster.get(ci);
+    if (list) { list.push(rec); } else { byCluster.set(ci, [rec]); }
+  }
+
+  for (const [, group] of byCluster) {
+    if (group.length <= MAX_CHANNEL_RECS_PER_CLUSTER) continue;
+
+    // Sort: severity critical > warning > info, then by conflictScore desc
+    const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    group.sort((a, b) => {
+      const sa = severityOrder[a.severity] ?? 2;
+      const sb = severityOrder[b.severity] ?? 2;
+      if (sa !== sb) return sa - sb;
+      const csA = (a.evidence?.metrics as Record<string, number>)?.conflictScore ?? 0;
+      const csB = (b.evidence?.metrics as Record<string, number>)?.conflictScore ?? 0;
+      return csB - csA;
+    });
+
+    const suppressed = group.slice(MAX_CHANNEL_RECS_PER_CLUSTER);
+    const suppressedIds = new Set(suppressed.map(r => r.id));
+    const total = group.length;
+
+    // Remove suppressed from main array
+    for (let i = recs.length - 1; i >= 0; i--) {
+      if (suppressedIds.has(recs[i]!.id)) recs.splice(i, 1);
+    }
+
+    // Emit informational note
+    recs.push({
+      id: genId(),
+      type: 'channel_deprioritized_note',
+      priority: 'low',
+      severity: 'info',
+      titleKey: 'rec.channelDeprioritizedTitle',
+      titleParams: { total, kept: MAX_CHANNEL_RECS_PER_CLUSTER },
+      reasonKey: 'rec.channelDeprioritizedReason',
+      reasonParams: { total, kept: MAX_CHANNEL_RECS_PER_CLUSTER, suppressed: suppressed.length },
+      affectedApIds: suppressed.flatMap(r => r.affectedApIds),
+      affectedBand: suppressed[0]?.affectedBand ?? '5ghz',
+      evidence: {
+        metrics: {
+          channelClusterSize: total,
+          channelRecsSuppressed: suppressed.length,
+          maxChannelRecsApplied: MAX_CHANNEL_RECS_PER_CLUSTER,
+        },
+      },
+      confidence: 0.8,
+    });
+  }
+}
+
+// ─── Roaming Note Dedup ─────────────────────────────────────────
+
+/** Roaming note types in priority order (highest first) */
+const ROAMING_NOTE_TYPES: RecommendationType[] = [
+  'handoff_gap_warning',
+  'sticky_client_risk',
+];
+const ROAMING_ACTIONABLE_TYPES = new Set<RecommendationType>([
+  'roaming_tx_adjustment',
+  'roaming_tx_boost',
+]);
+
+/**
+ * BC-2: Exactly 1 roaming note per AP pair.
+ * - If actionable (tx_adjustment/boost) exists for pair → remove all informational notes for pair
+ * - Otherwise → keep exactly 1 note by priority: handoff_gap_warning > sticky_client_risk
+ * Also handles physicalGapNotEffective (sticky_client_risk with physicalGapNotEffectiveTitle).
+ */
+function deduplicateRoamingNotes(recs: Recommendation[]): void {
+  // Build pair → recs index
+  const pairRecs = new Map<string, { actionable: Recommendation[]; notes: Recommendation[] }>();
+
+  for (const rec of recs) {
+    if (!ROAMING_ACTIONABLE_TYPES.has(rec.type) && !ROAMING_NOTE_TYPES.includes(rec.type)) continue;
+    if (rec.affectedApIds.length < 2) continue;
+
+    const pairKey = [...rec.affectedApIds].sort().join('|');
+    const entry = pairRecs.get(pairKey) ?? { actionable: [], notes: [] };
+    if (ROAMING_ACTIONABLE_TYPES.has(rec.type)) {
+      entry.actionable.push(rec);
+    } else {
+      entry.notes.push(rec);
+    }
+    pairRecs.set(pairKey, entry);
+  }
+
+  const removeIds = new Set<string>();
+
+  for (const [, { actionable, notes }] of pairRecs) {
+    if (actionable.length > 0) {
+      // BC-2a: actionable exists → remove all informational notes for this pair
+      for (const n of notes) removeIds.add(n.id);
+    } else if (notes.length > 1) {
+      // BC-2b: keep exactly 1 note by priority order
+      notes.sort((a, b) => {
+        const ia = ROAMING_NOTE_TYPES.indexOf(a.type);
+        const ib = ROAMING_NOTE_TYPES.indexOf(b.type);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+      // Keep first (highest priority), remove rest
+      for (let i = 1; i < notes.length; i++) {
+        removeIds.add(notes[i]!.id);
+      }
+    }
+  }
+
+  if (removeIds.size > 0) {
+    for (let i = recs.length - 1; i >= 0; i--) {
+      if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
+    }
+  }
+}
+
 // ─── Deduplication ───────────────────────────────────────────────
 
 function deduplicateRecommendations(recs: Recommendation[]): Recommendation[] {
@@ -3195,4 +3339,5 @@ export const EVIDENCE_MINIMUMS: Partial<Record<RecommendationType, string[]>> = 
   preferred_candidate_location: ['improvement'],
   blocked_recommendation: ['stickyRatio', 'currentCoverage', 'gapRatio'],
   roaming_hint: ['lowDeltaPercent'],
+  channel_deprioritized_note: ['channelClusterSize', 'channelRecsSuppressed'],
 };

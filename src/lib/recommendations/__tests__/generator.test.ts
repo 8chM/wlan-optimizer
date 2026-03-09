@@ -7538,4 +7538,158 @@ describe('generateRecommendations', () => {
       }
     });
   });
+
+  // ─── BC: Noise & Messaging ──────────────────────────────────────
+
+  describe('BC-1: Channel cluster spam cap', () => {
+    it('BC-1a: F1 dense cluster — max 2 actionable change_channel per cluster + deprioritized note', () => {
+      // F1: 4 APs all on ch36, tight spacing → all in one conflict component
+      const f = createF1DenseCluster();
+      const result = generateRecommendations(
+        f.aps, f.apResps, f.walls, f.bounds,
+        BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+      );
+
+      // Count actionable change_channel recs in main list
+      const channelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+      expect(
+        channelRecs.length,
+        'max 2 actionable change_channel per cluster',
+      ).toBeLessThanOrEqual(2);
+
+      // If there were more than 2 channel conflicts, a deprioritized note should exist
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const depriNotes = allRecs.filter(r => r.type === 'channel_deprioritized_note');
+      if (f.aps.length > 2) {
+        // 4 APs all on same channel → expect suppressed recs
+        const totalChannelConflicts = channelRecs.length + depriNotes.reduce(
+          (sum, n) => sum + ((n.evidence?.metrics as Record<string, number>)?.channelRecsSuppressed ?? 0), 0,
+        );
+        // At least some channel recs were generated (either kept or suppressed)
+        expect(totalChannelConflicts + depriNotes.length).toBeGreaterThan(0);
+      }
+
+      // Verify deprioritized note has required evidence
+      for (const note of depriNotes) {
+        const m = note.evidence?.metrics as Record<string, number>;
+        expect(m?.channelClusterSize, 'note must have channelClusterSize').toBeDefined();
+        expect(m?.channelRecsSuppressed, 'note must have channelRecsSuppressed').toBeGreaterThan(0);
+        expect(note.severity).toBe('info');
+        expect(note.priority).toBe('low');
+      }
+    });
+  });
+
+  describe('BC-2: Roaming note dedup', () => {
+    it('BC-2a: roaming note priority — only highest-priority note survives per pair', () => {
+      // F2: 2 APs with sticky client situation (AP-1 dominant, AP-2 weaker)
+      // This fixture triggers roaming notes. After dedup, max 1 note per pair.
+      const f = createF2RoamingConflict();
+      const result = generateRecommendations(
+        f.aps, f.apResps, f.walls, f.bounds,
+        BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+      );
+
+      // Group roaming notes by pair
+      const ROAMING_NOTE_TYPES = new Set(['handoff_gap_warning', 'sticky_client_risk']);
+      const notesByPair = new Map<string, Recommendation[]>();
+      for (const rec of result.recommendations) {
+        if (!ROAMING_NOTE_TYPES.has(rec.type)) continue;
+        if (rec.affectedApIds.length < 2) continue;
+        const pairKey = [...rec.affectedApIds].sort().join('|');
+        const list = notesByPair.get(pairKey);
+        if (list) { list.push(rec); } else { notesByPair.set(pairKey, [rec]); }
+      }
+
+      // BC-2b rule: max 1 note per pair
+      for (const [pair, notes] of notesByPair) {
+        expect(
+          notes.length,
+          `Pair ${pair}: max 1 roaming note after dedup`,
+        ).toBeLessThanOrEqual(1);
+      }
+
+      // If a note exists, verify it has the right priority order
+      // (handoff_gap_warning is kept over sticky_client_risk)
+      for (const [, notes] of notesByPair) {
+        if (notes.length === 1 && notes[0]!.type === 'sticky_client_risk') {
+          // Check that no handoff_gap_warning was generated for same pair
+          // (if it was, it should have been kept instead)
+          const allRecs = collectAllRecommendations(result.recommendations);
+          const gapForPair = allRecs.filter(r =>
+            r.type === 'handoff_gap_warning'
+            && [...r.affectedApIds].sort().join('|') === [...notes[0]!.affectedApIds].sort().join('|'),
+          );
+          // If gap exists alongside sticky, gap should have been kept
+          expect(gapForPair.length, 'handoff_gap should win over sticky').toBe(0);
+        }
+      }
+    });
+
+    it('BC-2b: actionable suppresses all notes for same pair', () => {
+      // F2: The roaming conflict scenario may emit roaming_tx_adjustment for AP-1→AP-2
+      // If an actionable roaming rec exists, no notes should remain for that pair
+      const f = createF2RoamingConflict();
+      const result = generateRecommendations(
+        f.aps, f.apResps, f.walls, f.bounds,
+        BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+      );
+
+      const ROAMING_ACTIONABLE = new Set(['roaming_tx_adjustment', 'roaming_tx_boost']);
+      const ROAMING_NOTES = new Set(['handoff_gap_warning', 'sticky_client_risk']);
+
+      // Find pairs that have actionable recs
+      const actionablePairs = new Set<string>();
+      for (const rec of result.recommendations) {
+        if (!ROAMING_ACTIONABLE.has(rec.type)) continue;
+        if (rec.affectedApIds.length < 2) continue;
+        actionablePairs.add([...rec.affectedApIds].sort().join('|'));
+      }
+
+      // For those pairs, no notes should exist in main list
+      for (const rec of result.recommendations) {
+        if (!ROAMING_NOTES.has(rec.type)) continue;
+        if (rec.affectedApIds.length < 2) continue;
+        const pairKey = [...rec.affectedApIds].sort().join('|');
+        expect(
+          actionablePairs.has(pairKey),
+          `Pair ${pairKey} has actionable rec — note ${rec.type} should be suppressed`,
+        ).toBe(false);
+      }
+    });
+
+    it('BC-2c: cross-fixture — max 1 roaming note per pair everywhere', () => {
+      const ROAMING_NOTES = new Set(['handoff_gap_warning', 'sticky_client_risk']);
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const notesByPair = new Map<string, number>();
+        for (const rec of result.recommendations) {
+          if (!ROAMING_NOTES.has(rec.type)) continue;
+          if (rec.affectedApIds.length < 2) continue;
+          const pairKey = [...rec.affectedApIds].sort().join('|');
+          notesByPair.set(pairKey, (notesByPair.get(pairKey) ?? 0) + 1);
+        }
+
+        for (const [pair, count] of notesByPair) {
+          expect(
+            count,
+            `${create.name} — pair ${pair}: max 1 roaming note`,
+          ).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
 });

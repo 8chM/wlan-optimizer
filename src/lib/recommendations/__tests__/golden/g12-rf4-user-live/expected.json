@@ -22,26 +22,6 @@
   {
     "type": "adjust_channel_width",
     "affectedApIds": [
-      "ap-wohn"
-    ],
-    "affectedBand": "5ghz",
-    "priority": "high",
-    "severity": "warning",
-    "titleKey": "rec.adjustChannelWidthTitle",
-    "reasonKey": "rec.adjustChannelWidthReason",
-    "evidenceKeys": [
-      "currentWidth",
-      "nearbyApCount",
-      "veryCloseApCount"
-    ],
-    "suggestedChange": {
-      "parameter": "channel_width",
-      "suggestedValue": "20"
-    }
-  },
-  {
-    "type": "adjust_channel_width",
-    "affectedApIds": [
       "ap-schlaf"
     ],
     "affectedBand": "5ghz",
@@ -111,12 +91,33 @@
     "titleKey": "rec.changeChannelTitle",
     "reasonKey": "rec.changeChannelTxAlternativeReason",
     "evidenceKeys": [
+      "componentIndex",
       "conflictScore",
       "distance"
     ],
     "suggestedChange": {
       "parameter": "channel_5ghz",
       "suggestedValue": 40
+    }
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-wohn"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "20"
     }
   },
   {

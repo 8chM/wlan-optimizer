@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28bb-complete",
+  "currentPhase": "phase-28bc-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1508,6 +1508,26 @@
         "BB-3a: cross-fixture rotate_ap changePercent >= 4 invariant",
         "BB-4a: cross-fixture PZ-blocked physical recs never emitted as instructional",
         "1191 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [6856b55]"
+      ]
+    },
+    "28bc": {
+      "name": "Recommendation Quality — Noise & Messaging",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "channel_deprioritized_note: neuer RecommendationType (informational, config effort)",
+        "BC-01: capChannelRecsPerCluster — max 2 actionable change_channel pro Conflict-Cluster, Rest als channel_deprioritized_note",
+        "BC-02a: deduplicateRoamingNotes — Actionable (tx_adjustment/boost) suppresses all notes fuer gleichen AP-Pair",
+        "BC-02b: deduplicateRoamingNotes — Max 1 note per pair by priority: handoff_gap_warning > sticky_client_risk",
+        "2 neue i18n-Keys EN+DE: channelDeprioritizedTitle/Reason",
+        "rulesIntegrity: 22 RecommendationType members, GENERATOR_EMITTED_TYPES updated",
+        "rules.md: 96 Regeln, 18 Cluster, BC-01/BC-02a/BC-02b dokumentiert",
+        "BC-1a: F1 dense cluster — max 2 change_channel + deprioritized note evidence",
+        "BC-2a: roaming note priority — max 1 note per pair, handoff_gap wins over sticky",
+        "BC-2b: actionable suppresses all notes for same pair",
+        "BC-2c: cross-fixture invariant — max 1 roaming note per pair everywhere",
+        "1195 Tests pass (38 files), svelte-check 0 Errors 2 Warnings, Build OK [6a58606]"
       ]
     }
   },

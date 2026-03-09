@@ -526,6 +526,8 @@
     "pzBlockedTxReason": "Die TX-Reduktion von {ap} wuerde die Abdeckung in Prioritaetszone \"{pz}\" um {dropDb}dB verschlechtern. Diese Zone erfordert lueckenlose Abdeckung \u2014 erwaegen Sie stattdessen, einen AP naeher zu platzieren.",
     "pzBlockedPhysicalTitle": "Physische Aenderung uebersprungen (Prioritaetszone): {ap}",
     "pzBlockedPhysicalReason": "Die Aenderung an {ap} wuerde die Abdeckung in Prioritaetszone \"{pz}\" um {dropDb}dB verschlechtern. Diese Zone erfordert lueckenlose Abdeckung.",
+    "channelDeprioritizedTitle": "Weitere Kanalaenderungen zurueckgestellt ({total} im Cluster, {kept} angewandt)",
+    "channelDeprioritizedReason": "Ein Cluster von {total} APs hat Kanalkonflikte. Nur die Top-{kept} Aenderungen sind aktiv — die verbleibenden {suppressed} werden zurueckgestellt, um zu viele gleichzeitige Aenderungen zu vermeiden.",
     "physicalGapNotEffectiveTitle": "Abdeckungsluecke ist baulich bedingt: {ap1} \u2194 {ap2}",
     "physicalGapNotEffectiveReason": "Die {gapPercent}%-Abdeckungsluecke zwischen {ap1} und {ap2} wird durch Waende oder Distanz verursacht (Durchschnitt {avgRssi}dBm in der Lueckenzone). Eine TX-Aenderung allein behebt das nicht \u2014 erwaegen Sie, einen AP zu verschieben oder hinzuzufuegen.",
     "handoffGapTitle": "Handoff-Luecke: {ap1} \u2194 {ap2}",

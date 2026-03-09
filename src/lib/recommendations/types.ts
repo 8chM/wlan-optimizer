@@ -32,7 +32,8 @@ export type RecommendationType =
   | 'roaming_tx_boost'
   | 'sticky_client_risk'
   | 'handoff_gap_warning'
-  | 'adjust_channel_width';
+  | 'adjust_channel_width'
+  | 'channel_deprioritized_note';
 
 export type RecommendationSeverity = 'critical' | 'warning' | 'info';
 export type RecommendationPriority = 'high' | 'medium' | 'low';
@@ -337,6 +338,7 @@ export const EFFORT_LEVELS: Record<RecommendationType, EffortLevel> = {
   sticky_client_risk: 'config',
   handoff_gap_warning: 'config',
   adjust_channel_width: 'config',
+  channel_deprioritized_note: 'config',
 };
 
 /** Effort score values for each level */
@@ -384,6 +386,7 @@ export const RECOMMENDATION_CATEGORIES: Record<RecommendationType, Recommendatio
   blocked_recommendation: 'informational',
   sticky_client_risk: 'informational',
   handoff_gap_warning: 'informational',
+  channel_deprioritized_note: 'informational',
 };
 
 // ─── Per-AP Metrics ───────────────────────────────────────────────

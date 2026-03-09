@@ -528,6 +528,8 @@
     "pzBlockedPhysicalReason": "Changing {ap} would degrade coverage in priority zone \"{pz}\" by {dropDb}dB. The zone requires uninterrupted coverage.",
     "channelDeprioritizedTitle": "Additional channel changes deprioritized ({total} in cluster, {kept} applied)",
     "channelDeprioritizedReason": "A cluster of {total} APs has channel conflicts. Only the top {kept} changes are actionable — the remaining {suppressed} are deferred to avoid excessive changes at once.",
+    "configBudgetTitle": "Additional config changes deprioritized for {ap}",
+    "configBudgetReason": "AP {ap} has multiple configuration suggestions. Only the top {kept} are shown as actionable — {suppressed} lower-priority changes were deferred to keep the wizard manageable.",
     "physicalGapNotEffectiveTitle": "Coverage gap is physical: {ap1} \u2194 {ap2}",
     "physicalGapNotEffectiveReason": "The {gapPercent}% coverage gap between {ap1} and {ap2} is caused by walls or distance (avg. {avgRssi}dBm in gap zone). Adjusting TX power alone won\u2019t fix this \u2014 consider moving an AP or adding a new one.",
     "handoffGapTitle": "Handoff dead zone: {ap1} \u2194 {ap2}",
@@ -546,7 +548,9 @@
     "adjustChannelWidthTitle": "Reduce channel width to {width} MHz: {ap}",
     "adjustChannelWidthReason": "AP uses {currentWidth} MHz with {nearbyCount} nearby APs — reducing to {suggestedWidth} MHz reduces co-channel interference and improves stability.",
     "changeChannelTxAlternativeReason": "{type} conflict with {otherAp} ({distance}m apart). Consider reducing TX power as alternative to channel change.",
-    "addApCandidateStackingReason": "Additional AP for weak zone ({cells} cells, avg {avgRssi} dBm). Best candidate: {candidate} ({distance}m from ideal). Existing adjustments may reduce need."
+    "addApCandidateStackingReason": "Additional AP for weak zone ({cells} cells, avg {avgRssi} dBm). Best candidate: {candidate} ({distance}m from ideal). Existing adjustments may reduce need.",
+    "candidateUsedLabel": "Candidate: {label}",
+    "fallbackUsedLabel": "Fallback (no candidate defined)"
   },
   "candidate": {
     "title": "Candidate Location",

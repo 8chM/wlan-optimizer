@@ -368,6 +368,9 @@ export function generateRecommendations(
   // 18. Roaming note dedup: exactly 1 roaming note per AP pair
   deduplicateRoamingNotes(recommendations);
 
+  // 19. Per-AP config budget: max 2 actionable_config recs per AP
+  capConfigBudgetPerAp(recommendations);
+
   // Deduplicate: max 1 physical recommendation per AP, rest as alternatives
   const deduped = deduplicateRecommendations(recommendations);
   recommendations.length = 0;
@@ -3128,6 +3131,108 @@ function deduplicateRoamingNotes(recs: Recommendation[]): void {
   }
 }
 
+// ─── Per-AP Config Budget ────────────────────────────────────────
+
+const MAX_CONFIG_RECS_PER_AP = 2;
+
+/** Priority order for actionable_config types (lower = kept first) */
+const CONFIG_TYPE_PRIORITY: Record<string, number> = {
+  change_channel: 0,
+  adjust_channel_width: 0,
+  roaming_tx_boost: 1,
+  roaming_tx_adjustment: 1,
+  adjust_tx_power: 2,
+  disable_ap: 3,
+};
+
+/**
+ * BD-01: Cap actionable_config recs per AP to MAX_CONFIG_RECS_PER_AP.
+ * Keeps highest-priority types. Excess recs from the same parameter family
+ * are folded as alternativeRecommendations; others become config_budget_note.
+ */
+function capConfigBudgetPerAp(recs: Recommendation[]): void {
+  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+
+  // Group actionable_config recs by target AP
+  const byAp = new Map<string, Recommendation[]>();
+  for (const rec of recs) {
+    if (RECOMMENDATION_CATEGORIES[rec.type] !== 'actionable_config') continue;
+    const apId = rec.suggestedChange?.apId ?? rec.affectedApIds[0];
+    if (!apId) continue;
+    const list = byAp.get(apId);
+    if (list) { list.push(rec); } else { byAp.set(apId, [rec]); }
+  }
+
+  const removeIds = new Set<string>();
+  const newNotes: Recommendation[] = [];
+
+  for (const [apId, group] of byAp) {
+    if (group.length <= MAX_CONFIG_RECS_PER_AP) continue;
+
+    // Sort by config type priority → recommendationScore → priority → severity
+    group.sort((a, b) => {
+      const pa = CONFIG_TYPE_PRIORITY[a.type] ?? 99;
+      const pb = CONFIG_TYPE_PRIORITY[b.type] ?? 99;
+      if (pa !== pb) return pa - pb;
+      const sa = a.recommendationScore ?? 50;
+      const sb = b.recommendationScore ?? 50;
+      if (sa !== sb) return sb - sa;
+      const pra = priorityOrder[a.priority] ?? 2;
+      const prb = priorityOrder[b.priority] ?? 2;
+      if (pra !== prb) return pra - prb;
+      return (severityOrder[a.severity] ?? 2) - (severityOrder[b.severity] ?? 2);
+    });
+
+    const kept = group.slice(0, MAX_CONFIG_RECS_PER_AP);
+    const excess = group.slice(MAX_CONFIG_RECS_PER_AP);
+
+    // Try to fold excess into a kept rec from the same parameter family
+    for (const ex of excess) {
+      const exParam = ex.suggestedChange?.parameter ?? '';
+      const sameFamilyKept = kept.find(k => {
+        const kp = k.suggestedChange?.parameter ?? '';
+        return kp === exParam && kp.length > 0;
+      });
+      if (sameFamilyKept) {
+        sameFamilyKept.alternativeRecommendations = [
+          ...(sameFamilyKept.alternativeRecommendations ?? []),
+          ex,
+        ];
+      }
+      removeIds.add(ex.id);
+    }
+
+    // Emit max 1 config_budget_note per AP
+    newNotes.push({
+      id: genId(),
+      type: 'config_budget_note',
+      priority: 'low',
+      severity: 'info',
+      titleKey: 'rec.configBudgetTitle',
+      titleParams: { ap: apId },
+      reasonKey: 'rec.configBudgetReason',
+      reasonParams: { ap: apId, kept: MAX_CONFIG_RECS_PER_AP, suppressed: excess.length },
+      affectedApIds: [apId],
+      affectedBand: excess[0]?.affectedBand ?? '5ghz',
+      evidence: {
+        metrics: {
+          suppressedCount: excess.length,
+          keptCount: MAX_CONFIG_RECS_PER_AP,
+        },
+      },
+      confidence: 0.8,
+    });
+  }
+
+  if (removeIds.size > 0) {
+    for (let i = recs.length - 1; i >= 0; i--) {
+      if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
+    }
+  }
+  recs.push(...newNotes);
+}
+
 // ─── Deduplication ───────────────────────────────────────────────
 
 function deduplicateRecommendations(recs: Recommendation[]): Recommendation[] {
@@ -3340,4 +3445,5 @@ export const EVIDENCE_MINIMUMS: Partial<Record<RecommendationType, string[]>> = 
   blocked_recommendation: ['stickyRatio', 'currentCoverage', 'gapRatio'],
   roaming_hint: ['lowDeltaPercent'],
   channel_deprioritized_note: ['channelClusterSize', 'channelRecsSuppressed'],
+  config_budget_note: ['suppressedCount', 'keptCount'],
 };

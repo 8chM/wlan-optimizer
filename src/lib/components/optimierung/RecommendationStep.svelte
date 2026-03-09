@@ -75,6 +75,25 @@
   const ROAMING_DETAIL_TYPES = new Set(['roaming_tx_adjustment', 'roaming_tx_boost', 'sticky_client_risk', 'handoff_gap_warning']);
   let showRoamingDetails = $derived(ROAMING_DETAIL_TYPES.has(rec.type));
 
+  // BE-01: Candidate/Fallback display for add_ap, move_ap, preferred_candidate_location
+  const CANDIDATE_DISPLAY_TYPES = new Set(['add_ap', 'move_ap', 'preferred_candidate_location']);
+  let showCandidateInfo = $derived(CANDIDATE_DISPLAY_TYPES.has(rec.type));
+
+  let candidateLabel = $derived.by(() => {
+    if (!showCandidateInfo) return undefined;
+    const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+    // Check for selectedCandidatePosition (engine sets this when a candidate was used)
+    if (rec.selectedCandidatePosition) {
+      // Use titleParams.candidate if set, otherwise format position
+      const label = rec.titleParams?.candidate
+        ?? `(${(rec.selectedCandidatePosition as { x: number; y: number }).x.toFixed(1)}, ${(rec.selectedCandidatePosition as { x: number; y: number }).y.toFixed(1)})`;
+      return String(label);
+    }
+    // Check for usedFallback flag
+    if (m?.usedFallback === 1) return null; // null = fallback
+    return undefined; // undefined = no info to show
+  });
+
   const IS_DEV = import.meta.env.DEV;
   let debugOpen = $state(false);
 </script>
@@ -106,6 +125,16 @@
     </div>
 
     <p class="step-desc">{interpolate(t(rec.reasonKey), rec.reasonParams)}</p>
+
+    {#if showCandidateInfo && candidateLabel !== undefined}
+      <span class="candidate-badge" class:fallback={candidateLabel === null}>
+        {#if candidateLabel !== null}
+          {interpolate(t('rec.candidateUsedLabel'), { label: candidateLabel })}
+        {:else}
+          {t('rec.fallbackUsedLabel')}
+        {/if}
+      </span>
+    {/if}
 
     {#if showRoamingDetails}
       <div class="roaming-details">
@@ -324,6 +353,24 @@
     font-size: 0.7rem;
     color: #808090;
     line-height: 1.3;
+  }
+
+  .candidate-badge {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 500;
+    background: rgba(34, 197, 94, 0.12);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+  }
+
+  .candidate-badge.fallback {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.25);
   }
 
   .blocked-reason {

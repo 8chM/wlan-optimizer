@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28bc-complete",
+  "currentPhase": "phase-28be-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1528,6 +1528,22 @@
         "BC-2b: actionable suppresses all notes for same pair",
         "BC-2c: cross-fixture invariant — max 1 roaming note per pair everywhere",
         "1195 Tests pass (38 files), svelte-check 0 Errors 2 Warnings, Build OK [6a58606]"
+      ]
+    },
+    "28be": {
+      "name": "Candidate-Realismus im UI (Output-Klarheit)",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "RecommendationStep.svelte: Candidate/Fallback Badge fuer add_ap, move_ap, preferred_candidate_location",
+        "BE-01: Anzeige-Regel — Candidate-Badge (gruen) wenn selectedCandidatePosition, Fallback-Badge (orange) wenn usedFallback=1",
+        "2 neue i18n-Keys EN+DE: candidateUsedLabel/fallbackUsedLabel",
+        "BE-1a: add_ap candidate evidence — selectedCandidatePosition XOR usedFallback, titleParams.candidate present",
+        "BE-1b: move_ap candidate evidence — titleParams.candidate when selectedCandidatePosition present",
+        "BE-1c: cross-fixture — candidatePosition und usedFallback mutually exclusive invariant",
+        "Fix: generator.ts config_budget_note apId string→removed (svelte-check type error)",
+        "1197 Tests pass (38 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

@@ -7495,6 +7495,89 @@ describe('generateRecommendations', () => {
     });
   });
 
+  // ─── Phase 28be: Candidate-Realismus UI-Klarheit ─────────────────────
+
+  describe('BE-1: add_ap/move_ap candidate evidence consistency', () => {
+    it('BE-1a: add_ap with candidate → has selectedCandidatePosition, no usedFallback', () => {
+      // F1 dense cluster has candidates defined
+      const f = createF1DenseCluster();
+      const result = generateRecommendations(
+        f.aps, f.apResps, f.walls, f.bounds,
+        BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const addAps = allRecs.filter(r => r.type === 'add_ap');
+
+      for (const rec of addAps) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        if (rec.selectedCandidatePosition) {
+          // Candidate used → must NOT have usedFallback
+          expect(m?.usedFallback, `add_ap ${rec.id} with candidate must not have usedFallback`).toBeUndefined();
+          // titleParams must have candidate label
+          expect(rec.titleParams?.candidate, `add_ap ${rec.id} with candidate must have titleParams.candidate`).toBeDefined();
+        } else if (m?.usedFallback === 1) {
+          // Fallback → must NOT have selectedCandidatePosition
+          expect(rec.selectedCandidatePosition, `add_ap ${rec.id} fallback must not have selectedCandidatePosition`).toBeUndefined();
+        }
+      }
+    });
+
+    it('BE-1b: move_ap with candidate → selectedCandidatePosition present', () => {
+      const fixtures = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+      ];
+      for (const create of fixtures) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const moveAps = allRecs.filter(r => r.type === 'move_ap');
+
+        for (const rec of moveAps) {
+          // If candidate was used, titleParams.candidate must be set
+          if (rec.selectedCandidatePosition) {
+            expect(rec.titleParams?.candidate, `move_ap ${rec.id} with candidate must have titleParams.candidate`).toBeDefined();
+          }
+        }
+      }
+    });
+
+    it('BE-1c: cross-fixture — add_ap candidatePosition and usedFallback are mutually exclusive', () => {
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF4NoNewCable,
+        createF5FarCandidates,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+        createF8CandidateRequiredNoNear,
+      ];
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+
+        for (const rec of allRecs.filter(r => r.type === 'add_ap' || r.type === 'move_ap')) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          const hasCandidate = rec.selectedCandidatePosition != null;
+          const hasFallback = m?.usedFallback === 1;
+          expect(
+            hasCandidate && hasFallback,
+            `${rec.type} ${rec.id} must not have both selectedCandidatePosition AND usedFallback`,
+          ).toBe(false);
+        }
+      }
+    });
+  });
+
   describe('BA-4: Cross-Fixture Invariant — parameter-family dedup holds everywhere', () => {
     it('BA-4a: all fixtures — max 1 TX + max 1 channel/width per AP in main list', () => {
       const TX_PARAMS = new Set(['tx_power_24ghz', 'tx_power_5ghz', 'tx_power_6ghz']);
@@ -7688,6 +7771,80 @@ describe('generateRecommendations', () => {
             count,
             `${create.name} — pair ${pair}: max 1 roaming note`,
           ).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+  });
+
+  // ─── BD: Per-AP Config Budget ──────────────────────────────────
+
+  describe('BD-1: Per-AP config budget cap', () => {
+    it('BD-1a: cross-fixture — max 2 actionable_config recs per AP in main list', () => {
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF4NoNewCable,
+        createF5FarCandidates,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+        createF8CandidateRequiredNoNear,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        // Count actionable_config recs per target AP
+        const configByAp = new Map<string, number>();
+        for (const rec of result.recommendations) {
+          if (RECOMMENDATION_CATEGORIES[rec.type] !== 'actionable_config') continue;
+          const apId = rec.suggestedChange?.apId ?? rec.affectedApIds[0];
+          if (!apId) continue;
+          configByAp.set(apId, (configByAp.get(apId) ?? 0) + 1);
+        }
+
+        for (const [apId, count] of configByAp) {
+          expect(
+            count,
+            `${create.name} — AP ${apId}: max 2 actionable_config recs`,
+          ).toBeLessThanOrEqual(2);
+        }
+      }
+    });
+
+    it('BD-1b: config_budget_note has required evidence when budget exceeded', () => {
+      // Use all fixtures; check that if config_budget_note exists, it has valid evidence
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const budgetNotes = allRecs.filter(r => r.type === 'config_budget_note');
+
+        for (const note of budgetNotes) {
+          expect(note.severity).toBe('info');
+          expect(note.priority).toBe('low');
+          const m = note.evidence?.metrics as Record<string, unknown>;
+          expect(m?.suppressedCount, 'note must have suppressedCount').toBeDefined();
+          expect(m?.keptCount, 'note must have keptCount').toBeDefined();
+          expect(typeof m?.suppressedCount).toBe('number');
+          expect((m?.suppressedCount as number)).toBeGreaterThan(0);
+          // apId is in affectedApIds, not metrics
+          expect(note.affectedApIds.length).toBeGreaterThan(0);
         }
       }
     });

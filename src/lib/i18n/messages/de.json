@@ -528,6 +528,8 @@
     "pzBlockedPhysicalReason": "Die Aenderung an {ap} wuerde die Abdeckung in Prioritaetszone \"{pz}\" um {dropDb}dB verschlechtern. Diese Zone erfordert lueckenlose Abdeckung.",
     "channelDeprioritizedTitle": "Weitere Kanalaenderungen zurueckgestellt ({total} im Cluster, {kept} angewandt)",
     "channelDeprioritizedReason": "Ein Cluster von {total} APs hat Kanalkonflikte. Nur die Top-{kept} Aenderungen sind aktiv — die verbleibenden {suppressed} werden zurueckgestellt, um zu viele gleichzeitige Aenderungen zu vermeiden.",
+    "configBudgetTitle": "Weitere Konfigurationsaenderungen zurueckgestellt fuer {ap}",
+    "configBudgetReason": "Fuer AP {ap} gibt es mehrere Konfigurationsvorschlaege. Nur die wichtigsten {kept} werden als aktiv angezeigt — {suppressed} nachrangige Aenderungen wurden zurueckgestellt, um den Assistenten uebersichtlich zu halten.",
     "physicalGapNotEffectiveTitle": "Abdeckungsluecke ist baulich bedingt: {ap1} \u2194 {ap2}",
     "physicalGapNotEffectiveReason": "Die {gapPercent}%-Abdeckungsluecke zwischen {ap1} und {ap2} wird durch Waende oder Distanz verursacht (Durchschnitt {avgRssi}dBm in der Lueckenzone). Eine TX-Aenderung allein behebt das nicht \u2014 erwaegen Sie, einen AP zu verschieben oder hinzuzufuegen.",
     "handoffGapTitle": "Handoff-Luecke: {ap1} \u2194 {ap2}",
@@ -546,7 +548,9 @@
     "adjustChannelWidthTitle": "Kanalbreite auf {width} MHz reduzieren: {ap}",
     "adjustChannelWidthReason": "AP nutzt {currentWidth} MHz bei {nearbyCount} APs in Reichweite — Reduktion auf {suggestedWidth} MHz verringert Interferenz und verbessert Stabilitaet.",
     "changeChannelTxAlternativeReason": "{type}-Konflikt mit {otherAp} ({distance}m Abstand). TX-Power-Reduktion als Alternative zum Kanalwechsel erwaegen.",
-    "addApCandidateStackingReason": "Zusaetzlicher AP fuer Schwachzone ({cells} Zellen, Ø {avgRssi} dBm). Bester Kandidat: {candidate} ({distance}m vom Ideal). Bestehende Anpassungen koennten Bedarf reduzieren."
+    "addApCandidateStackingReason": "Zusaetzlicher AP fuer Schwachzone ({cells} Zellen, Ø {avgRssi} dBm). Bester Kandidat: {candidate} ({distance}m vom Ideal). Bestehende Anpassungen koennten Bedarf reduzieren.",
+    "candidateUsedLabel": "Kandidat: {label}",
+    "fallbackUsedLabel": "Fallback (kein Kandidat definiert)"
   },
   "candidate": {
     "title": "Kandidaten-Position",

@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-09 (Phase 28ai — CI Guardrails)
+Last updated: 2026-03-09 (Phase 28bh — Roaming Sanity)
 
 ---
 
@@ -158,6 +158,8 @@ Helper: `wouldHurtPriorityZone()` — Samples 5 points per mustHaveCoverage PZ, 
 | RB-06 | Score + changePercent guard | scoreAfter < scoreBefore OR changePercent < 0 | — | Skip (worsens) | :1712 |
 | RB-07 | PZ-weighted priority | pzFactor >= 0.7 | — | high/warning, else medium/info | :1723-1724 |
 | RB-08 | Physical gap guard (boost) | gapRatio > PHYSICAL_GAP_RATIO (0.30) AND avgRssiInZone < fair - PHYSICAL_GAP_RSSI_OFFSET (7dB) | — | Emit sticky_client_risk with physicalGapNotEffectiveTitle/Reason (informational, physicalGap=1, suggestMove=1). Phase 28af: specific keys. | Phase 28ad/28af |
+| RB-09 | Marginal benefit guard (boost) | scoreAfter >= scoreBefore AND changePercent < ROAMING_MIN_OVERALL_BENEFIT (0.5%) | — | Emit sticky_client_risk (informational, marginalBenefit=1) instead of actionable boost. Phase 28bh. | :2354+ |
+| RB-10 | PZ guard (boost) | ctx.priorityZones has mustHaveCoverage AND wouldHurtPriorityZone returns hurts=true | — | Emit sticky_client_risk (informational, wouldHurtPriorityZone=1, pzBlockedPhysicalTitle). Phase 28bh. | :2360+ |
 
 ### 3c. Warnings — `generateStickyClientWarnings()` (:1780-1825), `generateHandoffGapWarnings()` (:1828-1873)
 
@@ -368,6 +370,7 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
 | CW-01 | Width reduction | nearbyCount >= 2 + width >= 80 → suggest 40; veryCloseCount >= 3 + width > 20 → suggest 20 | band !== '2.4ghz' | Emit adjust_channel_width | :2183-2187 |
+| CW-02 | Conflict pressure guard (BI-1) | AP worstScore from channelAnalysis < 0.35 | — | Skip adjust_channel_width (no meaningful conflict) | generateChannelWidthRecommendations |
 
 ### Channel Cluster Cap — `capChannelRecsPerCluster()` (Phase 28bc)
 
@@ -456,7 +459,7 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Channel | CH-01..CH-07 | 7 | generateChannelRecommendations |
 | TX-Power | TX-01..TX-09 | 9 | generateTxPowerSuggestions |
 | Roaming (Down) | RM-01..RM-09, RM-07b, RM-14, RM-15 | 12 | generateRoamingTxAdjustments |
-| Roaming (Boost) | RB-01..RB-08 | 8 | generateRoamingTxBoosts |
+| Roaming (Boost) | RB-01..RB-10 | 10 | generateRoamingTxBoosts |
 | Roaming (Warnings) | RM-10..RM-13 | 4 | generateStickyClientWarnings + Gap |
 | Add/Move/Rotate/Mount | AM-01..AM-15 + 6 sub-rules + BB-01..BB-03 | 24 | 4 generators |
 | Uplink | UL-01..UL-05 | 5 | generateBandLimitWarnings + gating |
@@ -464,7 +467,7 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Constraint/Blocked | CB-01..CB-05 | 5 | generateConstraintConflictWarnings + Preferred |
 | Sorting | SO-01..SO-05 | 5 | sort block in main function |
 | Dedup | DD-01..DD-04 | 4 | deduplicateRecommendations |
-| Channel Width | CW-01 | 1 | generateChannelWidthRecommendations |
+| Channel Width | CW-01..CW-02 | 2 | generateChannelWidthRecommendations |
 | Overlap | OV-01 | 1 | generateOverlapWarnings |
 | Coverage | CV-01 | 1 | generateCoverageWarnings |
 | Low-Value | LV-01 | 1 | generateLowValueWarnings |
@@ -474,14 +477,14 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
 | Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
 
-**Total: 98 rules across 20 clusters. 23 RecommendationType values.**
+**Total: 101 rules across 20 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 
 ### Auto-Verification
 
 ```
-Total rules:  98  (counted by regex ^| [A-Z]{2}-\d+ in this document)
+Total rules:  101  (counted by regex ^| [A-Z]{2}-\d+ in this document)
 Total types:  23  (RecommendationType union in types.ts)
 Last verified: scripts/report-integrity.sh "phase-28ag"
 Drift-proof:  rulesIntegrity.test.ts (E1-E9) + rulesCatalogIntegrity.test.ts (RC-1..RC-4)

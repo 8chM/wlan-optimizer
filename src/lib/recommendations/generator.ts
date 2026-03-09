@@ -348,7 +348,7 @@ export function generateRecommendations(
   generatePreferredCandidateSuggestions(recommendations, aps, walls, bounds, band, rfConfig, weights, gridStep, ctx);
 
   // 15. Channel width recommendations (reduce width in multi-AP scenarios)
-  generateChannelWidthRecommendations(recommendations, aps, accessPoints, band, apLabel);
+  generateChannelWidthRecommendations(recommendations, aps, accessPoints, band, apLabel, channelAnalysis);
 
   // 16. Cross-type prioritization: demote informational roaming hints when infrastructure_required exists
   // Rationale: when the engine says "you need cable/infrastructure", roaming fine-tuning is noise
@@ -2353,6 +2353,68 @@ function generateRoamingTxBoosts(
     // A1-Boost: No measurable improvement → skip (prevents "same value" actionable recs)
     if (bestDelta.scoreAfter <= bestDelta.scoreBefore || bestDelta.changePercent <= 0) continue;
 
+    // BH-4: Marginal benefit guard — same threshold as adjustment path
+    const boostOverallRegresses = bestDelta.scoreAfter < bestDelta.scoreBefore;
+    const boostIsMarginal = !boostOverallRegresses && bestDelta.changePercent < ROAMING_MIN_OVERALL_BENEFIT;
+    if (boostOverallRegresses || boostIsMarginal) {
+      recs.push({
+        id: genId(),
+        type: 'sticky_client_risk',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.stickyClientTitle',
+        titleParams: { ap1: apLabel(weakerId), ap2: apLabel(strongerId) },
+        reasonKey: 'rec.stickyClientReason',
+        reasonParams: {
+          ap1: apLabel(weakerId),
+          ap2: apLabel(strongerId),
+          ratio: Math.round(pair.stickyRatio * 100),
+        },
+        affectedApIds: [weakerId, strongerId],
+        affectedBand: band,
+        evidence: {
+          metrics: {
+            stickyRatio: pair.stickyRatio,
+            handoffZoneCells: pair.handoffZoneCells,
+            gapCells: pair.gapCells,
+            marginalBenefit: 1,
+          },
+        },
+        confidence: 0.4,
+      });
+      continue;
+    }
+
+    // BH-3: PZ guard — boost must not degrade mustHaveCoverage PriorityZones
+    if (ctx.priorityZones?.some(pz => pz.mustHaveCoverage)) {
+      const boostedAps = aps.map(a => a.id === weakerId ? { ...a, txPowerDbm: bestPower } : a);
+      const pzResult = wouldHurtPriorityZone(aps, boostedAps, walls, band, rfConfig, ctx.priorityZones ?? []);
+      if (pzResult.hurts) {
+        recs.push({
+          id: genId(),
+          type: 'sticky_client_risk',
+          priority: 'low',
+          severity: 'info',
+          titleKey: 'rec.pzBlockedPhysicalTitle',
+          titleParams: { ap: apLabel(weakerId) },
+          reasonKey: 'rec.pzBlockedPhysicalReason',
+          reasonParams: { ap: apLabel(weakerId), pz: pzResult.worstZoneLabel, dropDb: pzResult.worstDropDb },
+          affectedApIds: [weakerId, strongerId],
+          affectedBand: band,
+          evidence: {
+            metrics: {
+              stickyRatio: pair.stickyRatio,
+              gapRatio,
+              gapCells: pair.gapCells,
+              wouldHurtPriorityZone: 1,
+            },
+          },
+          confidence: 0.3,
+        });
+        continue;
+      }
+    }
+
     // Physical gap guard: if zone RSSI is very weak, TX boost alone won't solve it
     const boostFairThreshold = (BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz']).fair;
     if (gapRatio > PHYSICAL_GAP_RATIO && pair.avgRssiInZone < boostFairThreshold - PHYSICAL_GAP_RSSI_OFFSET) {
@@ -2504,7 +2566,6 @@ function generateHandoffGapWarnings(
         && (totalCells === 0 || pair.totalPairCells / totalCells < MIN_PAIR_RATIO)) continue;
 
     // Suppress very small gap zones / tiny handoff zones
-    if (pair.gapCells < 5) continue;
     if (pair.gapCells <= 10) continue;
     if (pair.handoffZoneCells === 0) continue;
     if (pair.handoffZoneCells < MIN_HANDOFF_CELLS) continue;
@@ -3414,12 +3475,16 @@ function deduplicateByParameterFamily(recs: Recommendation[]): Recommendation[] 
  * - If AP uses >= 40 MHz and has 3+ very close APs (< 10m) → suggest 20 MHz
  * - Only for 5 GHz band (2.4 GHz is always 20 MHz effectively)
  */
+/** BI-1: Minimum conflict pressure to emit width reduction rec */
+const WIDTH_CONFLICT_PRESSURE_MIN = 0.35;
+
 function generateChannelWidthRecommendations(
   recs: Recommendation[],
   aps: APConfig[],
   accessPoints: AccessPointResponse[],
   band: FrequencyBand,
   apLabel: (id: string) => string,
+  channelAnalysis: ReturnType<typeof analyzeChannelConflicts>,
 ): void {
   // Channel width optimization only relevant for 5 GHz and 6 GHz
   if (band === '2.4ghz') return;
@@ -3432,6 +3497,10 @@ function generateChannelWidthRecommendations(
 
     const currentWidth = parseInt(apResp.channel_width ?? '80', 10);
     if (isNaN(currentWidth) || currentWidth <= 20) continue;
+
+    // BI-1: Conflict pressure guard — skip if AP has no meaningful conflict
+    const apSummary = channelAnalysis.apSummaries.find(s => s.apId === apResp.id);
+    if (!apSummary || apSummary.worstScore < WIDTH_CONFLICT_PRESSURE_MIN) continue;
 
     // Count nearby APs
     let nearbyCount = 0;
@@ -3478,7 +3547,12 @@ function generateChannelWidthRecommendations(
         suggestedValue: String(suggestedWidth),
       },
       evidence: {
-        metrics: { nearbyApCount: nearbyCount, veryCloseApCount: veryCloseCount, currentWidth },
+        metrics: {
+          nearbyApCount: nearbyCount,
+          veryCloseApCount: veryCloseCount,
+          currentWidth,
+          conflictPressure: apSummary.worstScore,
+        },
       },
       confidence: 0.75,
     });
@@ -3494,7 +3568,7 @@ function generateChannelWidthRecommendations(
 export const EVIDENCE_MINIMUMS: Partial<Record<RecommendationType, string[]>> = {
   change_channel: ['conflictScore', 'componentSize'],
   adjust_tx_power: ['overlapRatio', 'coverageRatio', 'improvement'],
-  adjust_channel_width: ['nearbyApCount'],
+  adjust_channel_width: ['nearbyApCount', 'conflictPressure'],
   roaming_tx_adjustment: ['stickyRatio'],
   roaming_tx_boost: ['gapRatio', 'gapCells'],
   sticky_client_risk: ['stickyRatio'],

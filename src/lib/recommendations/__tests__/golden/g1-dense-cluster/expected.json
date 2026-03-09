@@ -52,6 +52,7 @@
     "titleKey": "rec.adjustChannelWidthTitle",
     "reasonKey": "rec.adjustChannelWidthReason",
     "evidenceKeys": [
+      "conflictPressure",
       "currentWidth",
       "nearbyApCount",
       "veryCloseApCount"
@@ -72,6 +73,7 @@
     "titleKey": "rec.adjustChannelWidthTitle",
     "reasonKey": "rec.adjustChannelWidthReason",
     "evidenceKeys": [
+      "conflictPressure",
       "currentWidth",
       "nearbyApCount",
       "veryCloseApCount"
@@ -92,6 +94,7 @@
     "titleKey": "rec.adjustChannelWidthTitle",
     "reasonKey": "rec.adjustChannelWidthReason",
     "evidenceKeys": [
+      "conflictPressure",
       "currentWidth",
       "nearbyApCount",
       "veryCloseApCount"
@@ -112,6 +115,7 @@
     "titleKey": "rec.adjustChannelWidthTitle",
     "reasonKey": "rec.adjustChannelWidthReason",
     "evidenceKeys": [
+      "conflictPressure",
       "currentWidth",
       "nearbyApCount",
       "veryCloseApCount"

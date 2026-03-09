@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28bg-complete",
+  "currentPhase": "phase-28bi-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1590,6 +1590,25 @@
         "BG-1b: sort invariant — no informational note before last instructional rec (all 8 fixtures)",
         "rules.md: 98 Regeln, 20 Cluster, BG-01 dokumentiert",
         "1202 Tests pass (38 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bi": {
+      "name": "Channel Width Practicality — Conflict Pressure Guard",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "CW-02: Conflict pressure guard (WIDTH_CONFLICT_PRESSURE_MIN=0.35) — suppress adjust_channel_width when AP has no meaningful co-channel conflict",
+        "channelAnalysis passed to generateChannelWidthRecommendations for worstScore lookup",
+        "conflictPressure added to evidence.metrics for every width rec",
+        "EVIDENCE_MINIMUMS updated: adjust_channel_width requires conflictPressure",
+        "Existing test fixed: APs on same channel (co-channel conflict) for width rec test",
+        "BI-1a: width rec suppressed at low conflict pressure (different channels → worstScore=0)",
+        "BI-1b: width rec emitted at high conflict pressure (same channel → worstScore high)",
+        "BI-2: cross-fixture invariant — all width recs have conflictPressure >= 0.35",
+        "g6 golden correctly empty (BI-1 suppresses width-only recs), g11 test updated",
+        "rules.md: 99 Regeln, 20 Cluster, CW-02 dokumentiert",
+        "1210 Tests pass (38 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

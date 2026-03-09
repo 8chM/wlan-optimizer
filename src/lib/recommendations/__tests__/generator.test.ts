@@ -1332,14 +1332,14 @@ describe('generateRecommendations', () => {
   });
 
   it('should recommend reducing channel width for APs with 80 MHz and 2+ nearby APs', () => {
-    // Three close APs all with 80 MHz channel width
+    // Three close APs all with 80 MHz channel width, same channel → co-channel conflict
     const ap1 = makeAP('ap-1', 3, 3);
     const ap2 = makeAP('ap-2', 6, 3);
     const ap3 = makeAP('ap-3', 3, 6);
     const apResp1 = makeAPResponse('ap-1', 3, 3, 36);
-    const apResp2 = makeAPResponse('ap-2', 6, 3, 40);
-    const apResp3 = makeAPResponse('ap-3', 3, 6, 44);
-    // All have channel_width='80' (from makeAPResponse default)
+    const apResp2 = makeAPResponse('ap-2', 6, 3, 36);
+    const apResp3 = makeAPResponse('ap-3', 3, 6, 36);
+    // All have channel_width='80' (from makeAPResponse default), co-channel → conflictPressure high
 
     const grids = makeGrids(10, 10, { rssi: -50 });
     grids.apIndexGrid.fill(0);
@@ -7934,6 +7934,256 @@ describe('generateRecommendations', () => {
             tier,
             `${create.name} — rec[${i}] (${nonBlocked[i]!.type}) is informational but appears before instructional rec[${lastNonInformationalIdx}] (${nonBlocked[lastNonInformationalIdx]!.type})`,
           ).toBeLessThan(2);
+        }
+      }
+    });
+  });
+
+  // ─── BH: Roaming Sanity & Pair-Interpretation ──────────────────
+
+  describe('BH-1: Tiny handoff → no actionable roaming_tx_*', () => {
+    it('BH-1a: F6 (sticky tiny handoff) — no actionable roaming_tx_adjustment or roaming_tx_boost', () => {
+      const f = createF6StickyTinyHandoff();
+      const result = generateRecommendations(
+        f.aps, f.apResps, f.walls, f.bounds,
+        BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+      );
+
+      const actionableRoaming = result.recommendations.filter(
+        r => (r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost')
+          && RECOMMENDATION_CATEGORIES[r.type] === 'actionable_config',
+      );
+      expect(
+        actionableRoaming.length,
+        'Tiny handoff → no actionable roaming TX recs',
+      ).toBe(0);
+    });
+  });
+
+  describe('BH-2: Gap-dominant → boost or physicalGap, no sticky as primary', () => {
+    it('BH-2a: cross-fixture — when roaming_tx_boost exists for pair, no sticky_client_risk in main list', () => {
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        // Find pairs with boost
+        const boostPairs = new Set<string>();
+        for (const rec of result.recommendations) {
+          if (rec.type !== 'roaming_tx_boost') continue;
+          if (rec.affectedApIds.length < 2) continue;
+          boostPairs.add([...rec.affectedApIds].sort().join('|'));
+        }
+
+        // No sticky_client_risk should exist for those pairs (dedup handles this)
+        for (const rec of result.recommendations) {
+          if (rec.type !== 'sticky_client_risk') continue;
+          if (rec.affectedApIds.length < 2) continue;
+          const pairKey = [...rec.affectedApIds].sort().join('|');
+          // Sticky notes for boosted pairs should have been suppressed by deduplicateRoamingNotes
+          expect(
+            boostPairs.has(pairKey),
+            `${create.name} — pair ${pairKey}: boost exists, sticky should be suppressed`,
+          ).toBe(false);
+        }
+      }
+    });
+  });
+
+  describe('BH-3: Physical gap guard → no actionable TX', () => {
+    it('BH-3a: cross-fixture — physicalGap=1 recs are never actionable_config', () => {
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const allRecs = collectAllRecommendations(result.recommendations);
+        for (const rec of allRecs) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          if (m?.physicalGap === 1) {
+            expect(
+              RECOMMENDATION_CATEGORIES[rec.type],
+              `${create.name} — physicalGap=1 rec (${rec.type}) must not be actionable_config`,
+            ).not.toBe('actionable_config');
+          }
+        }
+      }
+    });
+  });
+
+  describe('BH-4: Actionability strict — marginal roaming recs are informational', () => {
+    it('BH-4a: cross-fixture — roaming_tx_* with marginalBenefit=1 is not in main list as actionable', () => {
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const allRecs = collectAllRecommendations(result.recommendations);
+        for (const rec of allRecs) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          if (m?.marginalBenefit === 1) {
+            // Marginal benefit recs are downgraded — must be informational, not actionable
+            expect(
+              RECOMMENDATION_CATEGORIES[rec.type],
+              `${create.name} — marginalBenefit=1 rec (${rec.type}) must not be actionable_config`,
+            ).not.toBe('actionable_config');
+          }
+        }
+      }
+    });
+
+    it('BH-4b: cross-fixture — gap wins over sticky (max 1 note per pair, gap priority)', () => {
+      const ROAMING_NOTES = new Set(['handoff_gap_warning', 'sticky_client_risk']);
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        // Group notes by pair
+        const notesByPair = new Map<string, Set<string>>();
+        for (const rec of result.recommendations) {
+          if (!ROAMING_NOTES.has(rec.type)) continue;
+          if (rec.affectedApIds.length < 2) continue;
+          const pairKey = [...rec.affectedApIds].sort().join('|');
+          const types = notesByPair.get(pairKey) ?? new Set<string>();
+          types.add(rec.type);
+          notesByPair.set(pairKey, types);
+        }
+
+        for (const [pair, types] of notesByPair) {
+          // Max 1 note per pair
+          expect(
+            types.size,
+            `${create.name} — pair ${pair}: max 1 roaming note type`,
+          ).toBeLessThanOrEqual(1);
+          // If both were originally generated, gap should have won
+          // (deduplicateRoamingNotes enforces this)
+        }
+      }
+    });
+  });
+
+  // ─── Phase 28bi: Channel Width Practicality ─────────────────────────
+
+  describe('Phase 28bi — Channel Width Practicality', () => {
+    it('BI-1a: suppress width rec when conflict pressure < 0.35', () => {
+      // 3 close APs on different channels → no co-channel conflict → worstScore = 0
+      const ap1 = makeAP('ap-1', 3, 3);
+      const ap2 = makeAP('ap-2', 6, 3);
+      const ap3 = makeAP('ap-3', 3, 6);
+      const apResp1 = makeAPResponse('ap-1', 3, 3, 36);
+      const apResp2 = makeAPResponse('ap-2', 6, 3, 40);
+      const apResp3 = makeAPResponse('ap-3', 3, 6, 44);
+
+      const grids = makeGrids(10, 10, { rssi: -50 });
+      grids.apIndexGrid.fill(0);
+      for (let r = 0; r < 5; r++) for (let c = 4; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 1;
+      for (let r = 5; r < 10; r++) for (let c = 0; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 2;
+      const stats = { ...makeStats(10, 10, grids), apIds: ['ap-1', 'ap-2', 'ap-3'] };
+
+      const result = generateRecommendations(
+        [ap1, ap2, ap3], [apResp1, apResp2, apResp3], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const cwRecs = allRecs.filter(r => r.type === 'adjust_channel_width');
+      // No co-channel conflict → no width rec
+      expect(cwRecs.length).toBe(0);
+    });
+
+    it('BI-1b: emit width rec when conflict pressure >= 0.35', () => {
+      // 3 close APs all on same channel → co-channel conflict → high worstScore
+      const ap1 = makeAP('ap-1', 3, 3);
+      const ap2 = makeAP('ap-2', 6, 3);
+      const ap3 = makeAP('ap-3', 3, 6);
+      const apResp1 = makeAPResponse('ap-1', 3, 3, 36);
+      const apResp2 = makeAPResponse('ap-2', 6, 3, 36);
+      const apResp3 = makeAPResponse('ap-3', 3, 6, 36);
+
+      const grids = makeGrids(10, 10, { rssi: -50 });
+      grids.apIndexGrid.fill(0);
+      for (let r = 0; r < 5; r++) for (let c = 4; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 1;
+      for (let r = 5; r < 10; r++) for (let c = 0; c < 10; c++) grids.apIndexGrid[r * 10 + c] = 2;
+      const stats = { ...makeStats(10, 10, grids), apIds: ['ap-1', 'ap-2', 'ap-3'] };
+
+      const result = generateRecommendations(
+        [ap1, ap2, ap3], [apResp1, apResp2, apResp3], WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const cwRecs = allRecs.filter(r => r.type === 'adjust_channel_width');
+      // Co-channel conflict → width rec emitted
+      expect(cwRecs.length).toBeGreaterThan(0);
+      for (const rec of cwRecs) {
+        const metrics = rec.evidence?.metrics as Record<string, number>;
+        expect(metrics.conflictPressure).toBeGreaterThanOrEqual(0.35);
+      }
+    });
+
+    it('BI-2: cross-fixture — adjust_channel_width evidence must include conflictPressure', () => {
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const cwRecs = allRecs.filter(r => r.type === 'adjust_channel_width');
+        for (const rec of cwRecs) {
+          const metrics = rec.evidence?.metrics as Record<string, number> | undefined;
+          expect(
+            metrics?.conflictPressure,
+            `${create.name} — adjust_channel_width must have conflictPressure in evidence`,
+          ).toBeGreaterThanOrEqual(0.35);
         }
       }
     });

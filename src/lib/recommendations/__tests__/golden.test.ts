@@ -360,10 +360,14 @@ describe('Golden File Regression Tests', () => {
         expect(actual.length, 'recommendation count').toBe(expected.length);
       });
 
-      it('golden output is non-empty', () => {
+      it('golden output exists and is valid array', () => {
         const expected = loadExpected(gc.name);
         expect(expected, `${gc.name}/expected.json must exist`).not.toBeNull();
-        expect(expected!.length, `${gc.name} must have at least 1 rec`).toBeGreaterThan(0);
+        expect(Array.isArray(expected), `${gc.name} expected must be an array`).toBe(true);
+        // g6 correctly produces 0 recs — BI-1 conflict pressure guard suppresses width recs
+        if (gc.name !== 'g6-sticky-tiny-handoff') {
+          expect(expected!.length, `${gc.name} must have at least 1 rec`).toBeGreaterThan(0);
+        }
       });
 
       it('golden input files exist and are valid', () => {
@@ -524,18 +528,14 @@ describe('Golden File Regression Tests', () => {
       }
     });
 
-    it('g11: adjust_channel_width recs suggest valid width values', () => {
+    it('g11: adjust_channel_width suppressed at low conflict pressure (BI-1)', () => {
       const expected = loadExpected('g11-rf3-my-house');
       expect(expected, 'g11 expected.json must exist').not.toBeNull();
 
+      // RF3 APs have low co-channel conflict pressure (worstScore < 0.35),
+      // so the BI-1 guard correctly suppresses width recs
       const widthRecs = expected!.filter(r => r.type === 'adjust_channel_width');
-      expect(widthRecs.length, 'g11 must have channel_width recs').toBeGreaterThan(0);
-
-      for (const rec of widthRecs) {
-        const val = Number(rec.suggestedChange?.suggestedValue);
-        expect([20, 40].includes(val), `suggestedValue ${val} must be 20 or 40`).toBe(true);
-        expect(rec.suggestedChange?.parameter).toBe('channel_width');
-      }
+      expect(widthRecs.length, 'g11 width recs suppressed by BI-1 conflict guard').toBe(0);
     });
 
     it('g11: sticky_client_risk recs are informational', () => {

@@ -1101,6 +1101,34 @@ function generateMoveApSuggestions(
     }
 
     if (bestDelta && bestDelta.changePercent > moveMinBenefit) {
+      // BB-1: PZ guard — skip if move would degrade mustHaveCoverage PZ
+      const movedAps = aps.map(a => a.id === ap.id ? { ...a, x: bestPos.x, y: bestPos.y } : a);
+      const movePzCheck = wouldHurtPriorityZone(aps, movedAps, walls, band, rfConfig, ctx.priorityZones);
+      if (movePzCheck.hurts) {
+        recs.push({
+          id: genId(),
+          type: 'constraint_conflict',
+          priority: 'low',
+          severity: 'info',
+          titleKey: 'rec.pzBlockedPhysicalTitle',
+          titleParams: { ap: apLabel(ap.id) },
+          reasonKey: 'rec.pzBlockedPhysicalReason',
+          reasonParams: { ap: apLabel(ap.id), pz: movePzCheck.worstZoneLabel, dropDb: movePzCheck.worstDropDb },
+          affectedApIds: [ap.id],
+          affectedBand: band,
+          evidence: {
+            metrics: {
+              wouldHurtPriorityZone: 1,
+              pzDropDb: movePzCheck.worstDropDb,
+              currentCoverage: metrics.primaryCoverageRatio,
+              improvement: bestDelta.changePercent,
+            },
+          },
+          confidence: 0.6,
+        });
+        continue;
+      }
+
       const titleParams: Record<string, string | number> = {
         ap: apLabel(ap.id),
         x: Math.round(bestPos.x * 10) / 10,
@@ -1271,7 +1299,34 @@ function generateRotateApSuggestions(
       }
     }
 
-    if (bestDelta && bestDelta.changePercent > 3) {
+    if (bestDelta && bestDelta.changePercent >= 4) {
+      // BB-1/BB-3: PZ guard — skip if rotation would degrade mustHaveCoverage PZ
+      const rotatedAps = aps.map(a => a.id === ap.id ? { ...a, orientationDeg: bestDeg } : a);
+      const pzCheck = wouldHurtPriorityZone(aps, rotatedAps, walls, band, rfConfig, ctx.priorityZones);
+      if (pzCheck.hurts) {
+        recs.push({
+          id: genId(),
+          type: 'constraint_conflict',
+          priority: 'low',
+          severity: 'info',
+          titleKey: 'rec.pzBlockedPhysicalTitle',
+          titleParams: { ap: apLabel(ap.id) },
+          reasonKey: 'rec.pzBlockedPhysicalReason',
+          reasonParams: { ap: apLabel(ap.id), pz: pzCheck.worstZoneLabel, dropDb: pzCheck.worstDropDb },
+          affectedApIds: [ap.id],
+          affectedBand: band,
+          evidence: {
+            metrics: {
+              wouldHurtPriorityZone: 1,
+              pzDropDb: pzCheck.worstDropDb,
+              improvement: bestDelta.changePercent,
+            },
+          },
+          confidence: 0.6,
+        });
+        continue;
+      }
+
       recs.push({
         id: genId(),
         type: 'rotate_ap',
@@ -1352,7 +1407,37 @@ function generateMountingSuggestions(
       bestMountDelta = simulateChange(aps, walls, bounds, band, rfConfig, mod, weights);
     }
 
-    if (bestMountDelta && bestMountDelta.changePercent > 5) {
+    // BB-2: strict improvement AND changePercent >= 3
+    if (bestMountDelta && bestMountDelta.scoreAfter > bestMountDelta.scoreBefore && bestMountDelta.changePercent >= 3) {
+      // BB-1: PZ guard — skip if mounting change would degrade mustHaveCoverage PZ
+      const mountedAps = aps.map(a => a.id === ap.id
+        ? { ...a, mounting: otherMounting as 'ceiling' | 'wall', ...(bestOrientation !== undefined ? { orientationDeg: bestOrientation } : {}) }
+        : a);
+      const pzCheck = wouldHurtPriorityZone(aps, mountedAps, walls, band, rfConfig, ctx.priorityZones);
+      if (pzCheck.hurts) {
+        recs.push({
+          id: genId(),
+          type: 'constraint_conflict',
+          priority: 'low',
+          severity: 'info',
+          titleKey: 'rec.pzBlockedPhysicalTitle',
+          titleParams: { ap: apLabel(ap.id) },
+          reasonKey: 'rec.pzBlockedPhysicalReason',
+          reasonParams: { ap: apLabel(ap.id), pz: pzCheck.worstZoneLabel, dropDb: pzCheck.worstDropDb },
+          affectedApIds: [ap.id],
+          affectedBand: band,
+          evidence: {
+            metrics: {
+              wouldHurtPriorityZone: 1,
+              pzDropDb: pzCheck.worstDropDb,
+              improvement: bestMountDelta.changePercent,
+            },
+          },
+          confidence: 0.5,
+        });
+        continue;
+      }
+
       recs.push({
         id: genId(),
         type: 'change_mounting',
@@ -3106,7 +3191,7 @@ export const EVIDENCE_MINIMUMS: Partial<Record<RecommendationType, string[]>> = 
   coverage_warning: ['weakPercent'],
   overlap_warning: ['overlapPercent', 'componentSize', 'overlapRatio'],
   low_ap_value: ['primaryCoverageRatio'],
-  constraint_conflict: ['zoneWeight'],
+  constraint_conflict: ['zoneWeight', 'wouldHurtPriorityZone'],
   preferred_candidate_location: ['improvement'],
   blocked_recommendation: ['stickyRatio', 'currentCoverage', 'gapRatio'],
   roaming_hint: ['lowDeltaPercent'],

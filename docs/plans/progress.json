@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28ba-complete",
+  "currentPhase": "phase-28bb-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1489,6 +1489,25 @@
         "BA-3: Cross-fixture invariant — max 1 channel/width rec per target AP in main list",
         "BA-4: All 8 fixtures — combined TX + channel/width dedup invariant",
         "1187 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [91807fb]"
+      ]
+    },
+    "28bb": {
+      "name": "Instructional Correctness — PZ-Schutz fuer Physical Recs",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "BB-1: wouldHurtPriorityZone() guard fuer move_ap — emits informational pzBlockedPhysical note statt instructional move",
+        "BB-1: wouldHurtPriorityZone() guard fuer rotate_ap — emits informational pzBlockedPhysical note statt instructional rotate",
+        "BB-1: wouldHurtPriorityZone() guard fuer change_mounting — emits informational pzBlockedPhysical note statt instructional mounting",
+        "BB-2: change_mounting now requires strict improvement (scoreAfter > scoreBefore) AND changePercent >= 3 (was > 5)",
+        "BB-3: rotate_ap now requires changePercent >= 4 (was > 3)",
+        "2 neue i18n-Keys EN+DE: pzBlockedPhysicalTitle/Reason",
+        "BB-1a: PZ-blocked physical rec evidence test",
+        "BB-2a: cross-fixture change_mounting strict improvement invariant",
+        "BB-3a: cross-fixture rotate_ap changePercent >= 4 invariant",
+        "BB-4a: cross-fixture PZ-blocked physical recs never emitted as instructional",
+        "1191 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [6856b55]"
       ]
     }
   },

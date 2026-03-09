@@ -7362,6 +7362,139 @@ describe('generateRecommendations', () => {
     });
   });
 
+  // ─── Phase 28bb: Instructional Correctness — PZ-Schutz ─────────────
+
+  describe('BB-1: move_ap must not emit when it would hurt mustHaveCoverage PZ', () => {
+    it('BB-1a: F3-uplink with mustHaveCoverage PZ — move_ap blocked note has correct evidence', () => {
+      const f = createF3UplinkWithMustHavePZ();
+      const result = generateRecommendations(f.aps, f.apResps, f.walls, f.bounds, BAND, f.stats, RF_CONFIG, 'balanced', f.ctx);
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // Any rec with wouldHurtPriorityZone=1 must NOT be move_ap/rotate_ap/change_mounting (it must be informational note)
+      const pzBlockedPhysical = allRecs.filter(r =>
+        (r.evidence?.metrics as Record<string, unknown>)?.wouldHurtPriorityZone === 1,
+      );
+      for (const rec of pzBlockedPhysical) {
+        expect(
+          ['move_ap', 'rotate_ap', 'change_mounting'].includes(rec.type),
+          `PZ-blocked rec ${rec.id} must not be physical type (was: ${rec.type})`,
+        ).toBe(false);
+        // Must have pzDropDb in evidence
+        const m = rec.evidence?.metrics as Record<string, unknown>;
+        expect(m?.pzDropDb, `PZ-blocked rec ${rec.id} must have pzDropDb`).toBeDefined();
+      }
+    });
+  });
+
+  describe('BB-2: change_mounting requires strict improvement AND changePercent >= 3', () => {
+    it('BB-2a: cross-fixture — every change_mounting rec has changePercent >= 3 and strict improvement', () => {
+      const fixtures = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+      for (const create of fixtures) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const mountingRecs = allRecs.filter(r => r.type === 'change_mounting');
+
+        for (const rec of mountingRecs) {
+          if (rec.simulatedDelta) {
+            expect(
+              rec.simulatedDelta.changePercent,
+              `change_mounting for [${rec.affectedApIds}] must have changePercent >= 3`,
+            ).toBeGreaterThanOrEqual(3);
+            expect(
+              rec.simulatedDelta.scoreAfter,
+              `change_mounting for [${rec.affectedApIds}] must have scoreAfter > scoreBefore`,
+            ).toBeGreaterThan(rec.simulatedDelta.scoreBefore);
+          }
+        }
+      }
+    });
+  });
+
+  describe('BB-3: rotate_ap requires changePercent >= 4', () => {
+    it('BB-3a: cross-fixture — every rotate_ap rec has changePercent >= 4', () => {
+      const fixtures = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+      ];
+      for (const create of fixtures) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const rotateRecs = allRecs.filter(r => r.type === 'rotate_ap');
+
+        for (const rec of rotateRecs) {
+          if (rec.simulatedDelta) {
+            expect(
+              rec.simulatedDelta.changePercent,
+              `rotate_ap for [${rec.affectedApIds}] must have changePercent >= 4`,
+            ).toBeGreaterThanOrEqual(4);
+          }
+        }
+      }
+    });
+  });
+
+  describe('BB-4: PZ-blocked physical recs never emitted as instructional type', () => {
+    it('BB-4a: all fixtures with PZ — no instructional rec has wouldHurtPriorityZone=1', () => {
+      // Use fixtures that have PZ
+      const f3pz = createF3UplinkWithMustHavePZ();
+      const fixturesWithPZ = [f3pz];
+
+      // Also test regular fixtures with injected PZ
+      for (const create of [createF1DenseCluster, createF2RoamingConflict]) {
+        const f = create();
+        const ctx: RecommendationContext = {
+          ...EMPTY_CONTEXT,
+          candidatePolicy: f.ctx?.candidatePolicy ?? 'optional',
+          candidates: f.ctx?.candidates ?? [],
+          priorityZones: [{
+            zoneId: 'pz-test', label: 'Test Zone',
+            x: f.aps[0]!.x - 1, y: f.aps[0]!.y - 1, width: 2, height: 2,
+            weight: 2.0, targetBand: 'either', mustHaveCoverage: true,
+          }],
+        };
+        fixturesWithPZ.push({ ...f, ctx });
+      }
+
+      for (const f of fixturesWithPZ) {
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+
+        for (const rec of allRecs) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          if (m?.wouldHurtPriorityZone === 1) {
+            // Must not be an instructional physical type
+            expect(
+              ['move_ap', 'rotate_ap', 'change_mounting'].includes(rec.type),
+              `PZ-blocked rec ${rec.id} (${rec.type}) must not be physical instructional`,
+            ).toBe(false);
+            // Must be informational
+            expect(rec.severity, `PZ-blocked rec ${rec.id} must be info`).toBe('info');
+          }
+        }
+      }
+    });
+  });
+
   describe('BA-4: Cross-Fixture Invariant — parameter-family dedup holds everywhere', () => {
     it('BA-4a: all fixtures — max 1 TX + max 1 channel/width per AP in main list', () => {
       const TX_PARAMS = new Set(['tx_power_24ghz', 'tx_power_5ghz', 'tx_power_6ghz']);

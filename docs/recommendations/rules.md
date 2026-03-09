@@ -229,13 +229,23 @@ Helper: `wouldHurtPriorityZone()` — Samples 5 points per mustHaveCoverage PZ, 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
 | AM-13 | Wall-mount only | ap.mounting !== 'wall' | — | Skip (ceiling APs have no orientation effect) | :933 |
-| AM-14 | Improvement threshold | changePercent <= 3 | hasWallInFrontSector skip | Require >3% improvement | :959 |
+| AM-14 | Improvement threshold | changePercent < 4 | hasWallInFrontSector skip | Require changePercent >= 4 (BB-03) | :1302 |
+| BB-01a | PZ Guard rotate | worstDrop >= 3dB | mustHaveCoverage PZ | Emit constraint_conflict, skip rotate_ap | :1303-1328 |
 
-### Mounting (`change_mounting`) — `generateMountingSuggestions()` (generator.ts:940-1024)
+### Mounting (`change_mounting`) — `generateMountingSuggestions()` (generator.ts:1355-1469)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| AM-15 | Ceiling↔wall switch | changePercent > 5 | isActionAllowed, mounting zone constraints | Suggest alternative mounting | :1040 |
+| AM-15 | Ceiling↔wall switch | scoreAfter > scoreBefore AND changePercent >= 3 | isActionAllowed, mounting zone constraints | Suggest alternative mounting (BB-02) | :1411 |
+| BB-01b | PZ Guard mounting | worstDrop >= 3dB | mustHaveCoverage PZ | Emit constraint_conflict, skip change_mounting | :1412-1439 |
+
+### PZ Guard for Physical Recs (Phase 28bb)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BB-01 | PZ Guard: move/rotate/mount | wouldHurtPriorityZone.hurts | mustHaveCoverage PZ, worstDrop >= PZ_MAX_RSSI_DROP_DBM (3dB) | Emit constraint_conflict with pzBlockedPhysicalTitle, skip physical rec | :1104-1130, :1303-1328, :1412-1439 |
+| BB-02 | Mounting threshold strict | scoreAfter <= scoreBefore OR changePercent < 3 | — | Skip change_mounting (was >5%, now strict improvement + >=3%) | :1411 |
+| BB-03 | Rotate threshold strict | changePercent < 4 | — | Skip rotate_ap (was >3%, now >=4%) | :1302 |
 
 ### Tests
 - "should recommend adding AP for poor coverage areas" (generator.test.ts)
@@ -425,7 +435,7 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Roaming (Down) | RM-01..RM-09, RM-07b, RM-14, RM-15 | 12 | generateRoamingTxAdjustments |
 | Roaming (Boost) | RB-01..RB-08 | 8 | generateRoamingTxBoosts |
 | Roaming (Warnings) | RM-10..RM-13 | 4 | generateStickyClientWarnings + Gap |
-| Add/Move/Rotate/Mount | AM-01..AM-15 + 6 sub-rules | 21 | 4 generators |
+| Add/Move/Rotate/Mount | AM-01..AM-15 + 6 sub-rules + BB-01..BB-03 | 24 | 4 generators |
 | Uplink | UL-01..UL-05 | 5 | generateBandLimitWarnings + gating |
 | Disable AP | DA-01..DA-04 | 4 | generateDisableApSuggestions |
 | Constraint/Blocked | CB-01..CB-05 | 5 | generateConstraintConflictWarnings + Preferred |
@@ -438,7 +448,7 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Roaming Hint | RH-01 | 1 | generateRoamingHints |
 | Cross-Type | CT-01 | 1 | post-processing in main function |
 
-**Total: 90 rules across 17 clusters. 21 RecommendationType values.**
+**Total: 93 rules across 17 clusters. 21 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

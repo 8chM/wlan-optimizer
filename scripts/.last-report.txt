@@ -2,19 +2,19 @@
 ══════════════════════════════════════════════════════
   REPORT INTEGRITY — Single Source of Truth
 ══════════════════════════════════════════════════════
-  Timestamp:     2026-03-09T09:39:15Z
-  Phase:         phase-28ae
+  Timestamp:     2026-03-09T09:41:32Z
+  Phase:         phase-28af
   Branch:        main
-  Commit:        cd3d769 (cd3d76952c2968974e5904135673d1f6dfd0c9eb)
-  Dirty files:   9
+  Commit:        601cc30 (601cc3017e08f5c2f33b4ea72baf0a23750dc5ff)
+  Dirty files:   1
 ──────────────────────────────────────────────────────
-  Tests:         1006 passed, 0 failed (1006 total)
-  Test files:    29 / 29
-  Duration:      2.41s
+  Tests:         1008 passed, 1 failed (1009 total)
+  Test files:    28 / 29
+  Duration:      2.92s
   svelte-check:  0 errors, 2 warnings (590 files)
   Build:         OK
 ══════════════════════════════════════════════════════
   Copyable line for progress.json:
-  "1006 Tests pass (29 files), svelte-check 0 Errors 2 Warnings, Build OK [cd3d769]"
+  "1008 Tests pass (28 files), svelte-check 0 Errors 2 Warnings, Build OK [601cc30]"
 ══════════════════════════════════════════════════════
 

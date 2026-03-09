@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28au-complete",
+  "currentPhase": "phase-28av-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1382,6 +1382,24 @@
         "Task A verified: infra_required priority=high, max 2, best zones by cellCount*zoneRelevance",
         "Task B verified: move_ap blocked with full evidence (candidateCount, nearestDistance, maxDistance, policy)",
         "1162 Tests (1 flaky perf pre-existing), 0 svelte-check Errors, Build OK"
+      ]
+    },
+    "28av": {
+      "name": "Rule Drift Stopper — Catalog ↔ Code ↔ Golden ↔ Evidence Konsistenz",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "RC-7: Rule ID Uniqueness (detail-only scan, keine false-positives aus Summary)",
+        "RC-8: Cluster Ownership (jeder Prefix in Summary, kein Prefix in mehreren Clustern)",
+        "RC-9: Exakte Regelanzahl (RULE_IDS.length === stated total)",
+        "g9-g13 Shared Guardrails: no phantom add_ap, infra max 2, channel bounded, roaming non-regressing",
+        "g9-home-office Guardrails: no add_ap (required policy), evidenceKeys komplett",
+        "g10-rf2-user-house Guardrails: no add_ap (required policy), evidenceKeys + channel parameter",
+        "EVIDENCE_MINIMUMS: nearestDistance zu infrastructure_required hinzugefuegt",
+        "AV-1: infra_required evidence muss candidateCount/nearestDistance/allUnsuitable enthalten (4 Fixtures)",
+        "AV-2: move_ap interpolation → reasonKey=moveApInterpolationReason (2 Fixtures)",
+        "1162 Tests pass (38 files), 77 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     },
     "28as": {

@@ -100,7 +100,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| RM-01 | A1: Score guard / Z2 demotion | bestDelta.scoreAfter < scoreBefore | — | Downgrade to sticky_client_risk (informational, severity=info, priority=low, keys: stickyClientRiskTitle/Reason, overallRegression=1). No suggestedChange emitted. | :1828-1864 |
+| RM-01 | A1: Score guard / Z2 demotion | bestDelta.scoreAfter < scoreBefore OR changePercent < ROAMING_MIN_OVERALL_BENEFIT (0.5) | — | Downgrade to sticky_client_risk (informational, severity=info, priority=low, keys: stickyClientRiskTitle/Reason, overallRegression=1 or marginalBenefit=1). No suggestedChange emitted. | :1829-1866 |
 | RM-02 | A2: Minimum handoff zone | handoffZoneCells < 50 AND handoffZoneRatio < 0.01 | — | Skip (trivial pair) | :1514 |
 | RM-03 | A3: Critical gap rate probe | gapRatio >= 0.40 | probeDelta.changePercent < 0 | Skip (simulation worsens) | :1560-1568 |
 | RM-04 | A4: Trigger thresholds | stickyRatio < 0.30 AND gapRatio < 0.20 | — | Skip (no meaningful signal) | :1516-1517 |

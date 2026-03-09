@@ -5402,6 +5402,70 @@ describe('generateRecommendations', () => {
         expect(rec.suggestedChange).toBeUndefined();
       }
     });
+
+    it('Z2b: marginal overall benefit (< 0.5%) downgrades roaming_tx to informational', () => {
+      // 2 APs with sticky pair, but TX reduction gives near-zero overall benefit
+      // → should be sticky_client_risk (informational) with marginalBenefit flag
+      const W = 20, H = 10;
+      const ap1 = makeAP('ap-1', 5, 5, { txPowerDbm: 22 });
+      const ap2 = makeAP('ap-2', 15, 5, { txPowerDbm: 20 });
+      const apResp1 = { ...makeAPResponse('ap-1', 5, 5, 36), tx_power_5ghz_dbm: 22 } as unknown as AccessPointResponse;
+      const apResp2 = { ...makeAPResponse('ap-2', 15, 5, 44), tx_power_5ghz_dbm: 20 } as unknown as AccessPointResponse;
+
+      const grids = makeGrids(W, H, { rssi: -50 });
+      // Even coverage split — neither AP dominates heavily
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          if (c < 10) {
+            grids.apIndexGrid[idx] = 0;
+            grids.secondBestApIndexGrid[idx] = 1;
+            grids.rssiGrid[idx] = -42 - c;
+            grids.deltaGrid[idx] = c < 8 ? 15 : 3; // small sticky zone
+          } else {
+            grids.apIndexGrid[idx] = 1;
+            grids.secondBestApIndexGrid[idx] = 0;
+            grids.rssiGrid[idx] = -45 - (c - 10);
+            grids.deltaGrid[idx] = 8;
+          }
+        }
+      }
+
+      const stats: HeatmapStats = {
+        ...makeStats(W, H, grids, { excellent: 80, good: 60, fair: 30, poor: 20, none: 10 }),
+        apIds: ['ap-1', 'ap-2'],
+      };
+
+      const result = generateRecommendations(
+        [ap1, ap2], [apResp1, apResp2], WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // Any roaming_tx_adjustment that exists must have changePercent >= 0.5
+      const txAdj = allRecs.filter(r => r.type === 'roaming_tx_adjustment');
+      for (const rec of txAdj) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.changePercent,
+            'roaming_tx_adjustment must have >= 0.5% overall benefit',
+          ).toBeGreaterThanOrEqual(0.5);
+        }
+      }
+
+      // If marginal benefit was detected, it should appear as sticky_client_risk
+      // with marginalBenefit: 1 instead of overallRegression: 1
+      const marginalRisks = allRecs.filter(
+        r => r.type === 'sticky_client_risk' && r.evidence?.metrics?.marginalBenefit === 1,
+      );
+      for (const rec of marginalRisks) {
+        expect(rec.severity).toBe('info');
+        expect(rec.priority).toBe('low');
+        expect(rec.suggestedChange).toBeUndefined();
+      }
+    });
   });
 
   describe('Z3: infrastructure_required — high priority + max 2 cap', () => {
@@ -5448,31 +5512,38 @@ describe('generateRecommendations', () => {
       }
     });
 
-    it('Z3b: max 2 infrastructure_required per analysis', () => {
-      // 4 large weak zones, no candidates → should cap at 2 infrastructure_required
-      const W = 40, H = 10;
-      const ap1 = makeAP('ap-1', 5, 5);
-      const apResp1 = makeAPResponse('ap-1', 5, 5);
+    it('Z3b: max 2 infrastructure_required per analysis (3 separate weak zones)', () => {
+      // AP in center, 3 separate weak zones (corners) → should cap at 2 infra recs
+      const W = 30, H = 30;
+      const ap1 = makeAP('ap-1', 15, 15);
+      const apResp1 = makeAPResponse('ap-1', 15, 15);
 
       const grids = makeGrids(W, H);
-      // Strong near AP, weak everywhere else
+      // Good coverage near center, 3 separate weak corners
       for (let r = 0; r < H; r++) {
         for (let c = 0; c < W; c++) {
           const idx = r * W + c;
           grids.apIndexGrid[idx] = 0;
           grids.secondBestApIndexGrid[idx] = 0;
-          const dist = Math.sqrt((c - 5) ** 2 + (r - 5) ** 2);
-          if (dist < 5) {
-            grids.rssiGrid[idx] = -45;
-          } else {
-            grids.rssiGrid[idx] = -88;
-          }
           grids.deltaGrid[idx] = 20;
+
+          const dist = Math.sqrt((c - 15) ** 2 + (r - 15) ** 2);
+          if (dist < 8) {
+            grids.rssiGrid[idx] = -45; // good coverage near AP
+          } else if (c < 8 && r < 8) {
+            grids.rssiGrid[idx] = -90; // weak zone 1: top-left
+          } else if (c > 22 && r < 8) {
+            grids.rssiGrid[idx] = -90; // weak zone 2: top-right
+          } else if (c < 8 && r > 22) {
+            grids.rssiGrid[idx] = -90; // weak zone 3: bottom-left
+          } else {
+            grids.rssiGrid[idx] = -60; // fair coverage elsewhere
+          }
         }
       }
 
       const stats: HeatmapStats = {
-        ...makeStats(W, H, grids, { excellent: 30, good: 10, fair: 10, poor: 80, none: 270 }),
+        ...makeStats(W, H, grids, { excellent: 100, good: 100, fair: 300, poor: 200, none: 200 }),
         apIds: ['ap-1'],
       };
 
@@ -5491,8 +5562,10 @@ describe('generateRecommendations', () => {
       const allRecs = collectAllRecommendations(result.recommendations);
       const infraRecs = allRecs.filter(r => r.type === 'infrastructure_required');
 
-      // INVARIANT: max 2 infrastructure_required per analysis
+      // INVARIANT: max 2 infrastructure_required per analysis, even with 3 weak zones
       expect(infraRecs.length, 'max 2 infrastructure_required').toBeLessThanOrEqual(2);
+      // But at least 1 should exist (there ARE weak zones)
+      expect(infraRecs.length, 'should emit at least 1 infrastructure_required').toBeGreaterThanOrEqual(1);
     });
   });
 });

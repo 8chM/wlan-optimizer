@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28w-complete",
+  "currentPhase": "phase-28z-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1072,6 +1072,23 @@
         "scripts/report-integrity.sh: POSIX-kompatibel (macOS+Linux), svelte-check VOR vitest, maschinenlesbare + menschenlesbare Ausgabe",
         "scripts/.last-report.txt: 928 Tests pass (27 files), svelte-check 0 Errors 2 Warnings, Build OK [2b68ba6]",
         "Ursache: Linter-Timing — svelte-check auto-fixes muessen VOR vitest laufen, sonst koennen Dateien mit Typ-Fehlern nicht kompilieren und deren Tests fehlen in der Zaehlung"
+      ]
+    },
+    "28z": {
+      "name": "Recommendation-Qualitaet — Roaming/Channel/Infra Priorisierung & Spam-Unterdrueckung",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "Channel-Spam: max 2 actionable channel recs bei Pool-Exhaustion + 1 informational channel_exhaustion (bereits in 25e1d21)",
+        "Roaming-TX: ROAMING_MIN_OVERALL_BENEFIT=0.5 — marginaler Nutzen (<0.5%) wird zu informational sticky_client_risk degradiert",
+        "Infrastructure_required: MAX_INFRA_REQUIRED=2 Cap auch auf no-candidates-defined Pfad angewendet + infraRequiredCount++",
+        "Test Z1a/Z1b: Channel exhaustion max 2 recs + warning (bereits in 25e1d21)",
+        "Test Z2a: Overall regression → sticky_client_risk informational (bereits in 25e1d21)",
+        "Test Z2b: Marginal benefit (<0.5%) → kein actionable roaming_tx_adjustment (neu)",
+        "Test Z3a: No candidates → infrastructure_required priority high (bereits in 25e1d21)",
+        "Test Z3b: 3 separate Zonen → max 2 infrastructure_required (verbessert: echte 3-Zonen-Geometrie)",
+        "965 Tests pass (28 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

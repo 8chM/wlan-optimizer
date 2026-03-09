@@ -224,20 +224,18 @@ Helper: `wouldHurtPriorityZone()` — Samples 5 points per mustHaveCoverage PZ, 
 | AM-12b | Candidate policy gate (move_ap) | candidatePolicy === 'required_for_move_and_new_ap' | — | Block Strategy 2 interpolation fallback | :865-868 |
 | AM-12c | Move blocked — no candidate close enough | bestDelta === null AND candidates.length > 0 AND movePolicy === 'required_for_move_and_new_ap' | — | Emit blocked_recommendation with reason 'no_candidate_close_enough' | :909-928 |
 
-### Rotate AP (`rotate_ap`) — `generateRotateApSuggestions()` (generator.ts:875-938)
+### Rotate AP (`rotate_ap`) — `generateRotateApSuggestions()` (generator.ts:1263-1353)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
 | AM-13 | Wall-mount only | ap.mounting !== 'wall' | — | Skip (ceiling APs have no orientation effect) | :933 |
 | AM-14 | Improvement threshold | changePercent < 4 | hasWallInFrontSector skip | Require changePercent >= 4 (BB-03) | :1302 |
-| BB-01a | PZ Guard rotate | worstDrop >= 3dB | mustHaveCoverage PZ | Emit constraint_conflict, skip rotate_ap | :1303-1328 |
 
 ### Mounting (`change_mounting`) — `generateMountingSuggestions()` (generator.ts:1355-1469)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
 | AM-15 | Ceiling↔wall switch | scoreAfter > scoreBefore AND changePercent >= 3 | isActionAllowed, mounting zone constraints | Suggest alternative mounting (BB-02) | :1411 |
-| BB-01b | PZ Guard mounting | worstDrop >= 3dB | mustHaveCoverage PZ | Emit constraint_conflict, skip change_mounting | :1412-1439 |
 
 ### PZ Guard for Physical Recs (Phase 28bb)
 

@@ -1497,9 +1497,9 @@
       "gate": "passed",
       "completedAt": "2026-03-09",
       "deliverables": [
-        "BB-1: wouldHurtPriorityZone() guard fuer move_ap — emits informational pzBlockedPhysical note statt instructional move",
-        "BB-1: wouldHurtPriorityZone() guard fuer rotate_ap — emits informational pzBlockedPhysical note statt instructional rotate",
-        "BB-1: wouldHurtPriorityZone() guard fuer change_mounting — emits informational pzBlockedPhysical note statt instructional mounting",
+        "BB-1: wouldHurtPriorityZone() guard fuer move_ap — emits constraint_conflict pzBlockedPhysical statt instructional move",
+        "BB-1: wouldHurtPriorityZone() guard fuer rotate_ap — emits constraint_conflict pzBlockedPhysical statt instructional rotate",
+        "BB-1: wouldHurtPriorityZone() guard fuer change_mounting — emits constraint_conflict pzBlockedPhysical statt instructional mounting",
         "BB-2: change_mounting now requires strict improvement (scoreAfter > scoreBefore) AND changePercent >= 3 (was > 5)",
         "BB-3: rotate_ap now requires changePercent >= 4 (was > 3)",
         "2 neue i18n-Keys EN+DE: pzBlockedPhysicalTitle/Reason",

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28ac-complete",
+  "currentPhase": "phase-28ae-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1123,6 +1123,23 @@
         "GOLDEN_UPDATE=1 Env-Var fuer bewusste Akzeptanz von Engine-Aenderungen",
         "Cross-Case Invariant: alle 3 Golden Cases produzieren unterschiedliche Recommendation-Sets",
         "984 Tests pass (29 files), svelte-check 0 Errors 2 Warnings, Build OK [30ca20d]"
+      ]
+    },
+    "28ae": {
+      "name": "Candidate-/Zone-Realismus — keine Phantom-Ziele in Move/Add",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "Fix: Optional-Fallback add_ap evidence enthält jetzt candidateCount=0 + usedFallback=1",
+        "Fixtures F4 (no-new-cable) und F5 (far-candidates) fuer Regression-Tests",
+        "Golden Cases g4-no-new-cable (2 recs: infra+coverage) und g5-far-candidates (2 recs: infra+coverage)",
+        "AE1: Hard invariant — required policy emittiert nie add_ap ohne Candidate (3 Bands: 2.4/5/6 GHz)",
+        "AE2: Far candidates → infraNoCandidateCloseEnoughReason mit nearestDistance/maxDistance (3 Bands)",
+        "AE3a/b/c: Reason/Title Konsistenz — Candidate vs Fallback vs Infrastructure",
+        "AE4: Marginal zone skip greift auch bei optional policy fallback",
+        "AE5a/b: Golden fixture structural invariants (F4: kein add_ap, F5: distance info)",
+        "1006 Tests pass (29 files), svelte-check 0 Errors 2 Warnings, Build OK [cd3d769]"
       ]
     }
   },

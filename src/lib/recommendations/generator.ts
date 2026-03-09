@@ -119,9 +119,9 @@ function wouldHurtPriorityZone(
   band: FrequencyBand,
   rfConfig: RFConfig,
   pzs: PriorityZone[],
-): { hurts: boolean; worstZoneLabel: string } {
+): { hurts: boolean; worstZoneLabel: string; worstDropDb: number } {
   const mustHavePZs = pzs.filter(pz => pz.mustHaveCoverage);
-  if (mustHavePZs.length === 0) return { hurts: false, worstZoneLabel: '' };
+  if (mustHavePZs.length === 0) return { hurts: false, worstZoneLabel: '', worstDropDb: 0 };
 
   const { grid: spatialGrid, allSegments } = buildSpatialGrid(
     walls, 9999, 9999, 0, 0, // bounds only needed for grid size, not used in RF calc
@@ -177,6 +177,7 @@ function wouldHurtPriorityZone(
   return {
     hurts: worstDrop > PZ_MAX_RSSI_DROP_DBM,
     worstZoneLabel: worstLabel,
+    worstDropDb: Math.round(worstDrop * 10) / 10,
   };
 }
 
@@ -835,7 +836,7 @@ function generateAddApSuggestions(
           suggestedValue: `(${idealX.toFixed(1)}, ${idealY.toFixed(1)})`,
         },
         evidence: {
-          metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi },
+          metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi, candidateCount: 0, usedFallback: 1 },
           affectedCells: zone.cellIndices.slice(0, 2000),
           gridStep,
         },
@@ -1379,39 +1380,67 @@ function generateTxPowerSuggestions(
         // Gap check: skip if TX reduction would increase "none" coverage by >10%
         if (delta.coverageAfter.none > delta.coverageBefore.none + 10) {
           // Would create a coverage hole — skip
-        } else if (wouldHurtPriorityZone(
-          aps, aps.map(a => a.id === ap.id ? { ...a, txPowerDbm: lowerPower } : a),
-          walls, band, rfConfig, ctx.priorityZones,
-        ).hurts) {
-          // Would hurt a mustHaveCoverage PZ — skip
-        } else if (delta.changePercent > -5) {
-          const absImprove = Math.abs(delta.changePercent);
-          recs.push({
-            id: genId(),
-            type: 'adjust_tx_power',
-            priority: absImprove > 15 ? 'high' : absImprove > 8 ? 'medium' : 'low',
-            severity: absImprove > 15 ? 'critical' : absImprove > 8 ? 'warning' : 'info',
-            titleKey: 'rec.adjustTxPowerTitle',
-            titleParams: { ap: apLabel(ap.id), power: lowerPower },
-            reasonKey: 'rec.adjustTxPowerReason',
-            reasonParams: {
-              currentPower: ap.txPowerDbm,
-              suggestedPower: lowerPower,
-              overlapPercent: Math.round(overlapRatio * 100),
-            },
-            affectedApIds: [ap.id],
-            affectedBand: band,
-            suggestedChange: {
-              apId: ap.id,
-              parameter: txParamName,
-              currentValue: ap.txPowerDbm,
-              suggestedValue: lowerPower,
-            },
-            evidence: { metrics: { overlapRatio, improvement: delta.changePercent }, gridStep },
-            simulatedDelta: delta,
-            confidence: 0.6,
-          });
-          continue; // Don't also suggest increasing power for the same AP
+        } else {
+          const txPzCheck = wouldHurtPriorityZone(
+            aps, aps.map(a => a.id === ap.id ? { ...a, txPowerDbm: lowerPower } : a),
+            walls, band, rfConfig, ctx.priorityZones,
+          );
+          if (txPzCheck.hurts) {
+            // Emit informational note explaining WHY TX reduction was not applied
+            recs.push({
+              id: genId(),
+              type: 'sticky_client_risk',
+              priority: 'low',
+              severity: 'info',
+              titleKey: 'rec.pzBlockedTxTitle',
+              titleParams: { ap: apLabel(ap.id), pz: txPzCheck.worstZoneLabel },
+              reasonKey: 'rec.pzBlockedTxReason',
+              reasonParams: {
+                ap: apLabel(ap.id),
+                pz: txPzCheck.worstZoneLabel,
+                dropDb: txPzCheck.worstDropDb,
+                overlapPercent: Math.round(overlapRatio * 100),
+              },
+              affectedApIds: [ap.id],
+              affectedBand: band,
+              evidence: {
+                metrics: {
+                  overlapRatio,
+                  wouldHurtPriorityZone: 1,
+                  pzDropDb: txPzCheck.worstDropDb,
+                },
+              },
+              confidence: 0.6,
+            });
+          } else if (delta.changePercent > -5) {
+            const absImprove = Math.abs(delta.changePercent);
+            recs.push({
+              id: genId(),
+              type: 'adjust_tx_power',
+              priority: absImprove > 15 ? 'high' : absImprove > 8 ? 'medium' : 'low',
+              severity: absImprove > 15 ? 'critical' : absImprove > 8 ? 'warning' : 'info',
+              titleKey: 'rec.adjustTxPowerTitle',
+              titleParams: { ap: apLabel(ap.id), power: lowerPower },
+              reasonKey: 'rec.adjustTxPowerReason',
+              reasonParams: {
+                currentPower: ap.txPowerDbm,
+                suggestedPower: lowerPower,
+                overlapPercent: Math.round(overlapRatio * 100),
+              },
+              affectedApIds: [ap.id],
+              affectedBand: band,
+              suggestedChange: {
+                apId: ap.id,
+                parameter: txParamName,
+                currentValue: ap.txPowerDbm,
+                suggestedValue: lowerPower,
+              },
+              evidence: { metrics: { overlapRatio, improvement: delta.changePercent }, gridStep },
+              simulatedDelta: delta,
+              confidence: 0.6,
+            });
+            continue; // Don't also suggest increasing power for the same AP
+          }
         }
       }
     }
@@ -1930,13 +1959,14 @@ function generateRoamingTxAdjustments(
         type: 'sticky_client_risk',
         priority: 'low',
         severity: 'info',
-        titleKey: 'rec.stickyClientRiskTitle',
-        titleParams: { ap1: apLabel(dominantId), ap2: apLabel(otherId) },
-        reasonKey: 'rec.stickyClientRiskReason',
+        titleKey: 'rec.pzBlockedTxTitle',
+        titleParams: { ap: apLabel(dominantId), pz: pzCheck.worstZoneLabel },
+        reasonKey: 'rec.pzBlockedTxReason',
         reasonParams: {
-          ap1: apLabel(dominantId),
-          ap2: apLabel(otherId),
-          stickyPercent: Math.round(pair.stickyRatio * 100),
+          ap: apLabel(dominantId),
+          pz: pzCheck.worstZoneLabel,
+          dropDb: pzCheck.worstDropDb,
+          overlapPercent: Math.round(pair.stickyRatio * 100),
         },
         affectedApIds: [dominantId, otherId],
         affectedBand: band,
@@ -1944,7 +1974,9 @@ function generateRoamingTxAdjustments(
           metrics: {
             stickyRatio: pair.stickyRatio,
             handoffZoneCells: pair.handoffZoneCells,
+            gapRatio,
             wouldHurtPriorityZone: 1,
+            pzDropDb: pzCheck.worstDropDb,
           },
         },
         confidence: 0.5,
@@ -1971,20 +2003,31 @@ function generateRoamingTxAdjustments(
     const roamSeverity = shouldDowngrade ? 'info' : (pzFactor >= 0.7 ? 'warning' : 'info');
 
     if (shouldDowngrade) {
-      // Downgrade: emit informational sticky_client_risk instead of actionable adjustment
+      // Downgrade: emit informational note instead of actionable adjustment
+      // Use specific keys depending on the root cause
+      const isPhysicalRoot = gapIsPhysical && !overallRegresses;
       recs.push({
         id: genId(),
         type: 'sticky_client_risk',
         priority: 'low',
         severity: 'info',
-        titleKey: 'rec.stickyClientRiskTitle',
-        titleParams: { ap1: apLabel(dominantId), ap2: apLabel(otherId) },
-        reasonKey: 'rec.stickyClientRiskReason',
-        reasonParams: {
-          ap1: apLabel(dominantId),
-          ap2: apLabel(otherId),
-          stickyPercent: Math.round(pair.stickyRatio * 100),
-        },
+        titleKey: isPhysicalRoot ? 'rec.physicalGapNotEffectiveTitle' : 'rec.stickyClientRiskTitle',
+        titleParams: isPhysicalRoot
+          ? { ap1: apLabel(dominantId), ap2: apLabel(otherId) }
+          : { ap1: apLabel(dominantId), ap2: apLabel(otherId) },
+        reasonKey: isPhysicalRoot ? 'rec.physicalGapNotEffectiveReason' : 'rec.stickyClientRiskReason',
+        reasonParams: isPhysicalRoot
+          ? {
+              ap1: apLabel(dominantId),
+              ap2: apLabel(otherId),
+              gapPercent: Math.round(gapRatio * 100),
+              avgRssi: Math.round(pair.avgRssiInZone),
+            }
+          : {
+              ap1: apLabel(dominantId),
+              ap2: apLabel(otherId),
+              stickyPercent: Math.round(pair.stickyRatio * 100),
+            },
         affectedApIds: [dominantId, otherId],
         affectedBand: band,
         evidence: {
@@ -1992,7 +2035,7 @@ function generateRoamingTxAdjustments(
             stickyRatio: pair.stickyRatio,
             handoffZoneCells: pair.handoffZoneCells,
             gapCells: pair.gapCells,
-            ...(overallRegresses ? { overallRegression: 1 } : gapIsPhysical ? { physicalGap: 1 } : { marginalBenefit: 1 }),
+            ...(overallRegresses ? { overallRegression: 1 } : gapIsPhysical ? { physicalGap: 1, avgRssiInZone: pair.avgRssiInZone, suggestMove: 1 } : { marginalBenefit: 1 }),
           },
         },
         confidence: 0.5,
@@ -2140,13 +2183,14 @@ function generateRoamingTxBoosts(
         type: 'sticky_client_risk',
         priority: 'low',
         severity: 'info',
-        titleKey: 'rec.stickyClientRiskTitle',
+        titleKey: 'rec.physicalGapNotEffectiveTitle',
         titleParams: { ap1: apLabel(weakerId), ap2: apLabel(strongerId) },
-        reasonKey: 'rec.stickyClientRiskReason',
+        reasonKey: 'rec.physicalGapNotEffectiveReason',
         reasonParams: {
           ap1: apLabel(weakerId),
           ap2: apLabel(strongerId),
-          stickyPercent: Math.round(pair.stickyRatio * 100),
+          gapPercent: Math.round(gapRatio * 100),
+          avgRssi: Math.round(pair.avgRssiInZone),
         },
         affectedApIds: [weakerId, strongerId],
         affectedBand: band,
@@ -2155,6 +2199,7 @@ function generateRoamingTxBoosts(
             gapRatio,
             avgRssiInZone: pair.avgRssiInZone,
             physicalGap: 1,
+            suggestMove: 1,
           },
         },
         confidence: 0.4,
@@ -2212,10 +2257,16 @@ function generateStickyClientWarnings(
   band: FrequencyBand,
   apLabel: (id: string) => string,
 ): void {
-  // Collect pairs that have handoff_gap_warning (gap is more important than sticky)
-  const gapPairKeys = new Set(
-    recs.filter(r => r.type === 'handoff_gap_warning')
-      .map(r => [...r.affectedApIds].sort().join('|')),
+  // Collect pairs that already have a roaming note (gap/PZ-block/physical-gap/TX-adjustment)
+  // Prevents duplicate informational notes for the same pair.
+  // Priority: gap > PZ-block > physical-gap > sticky (only 1 note per pair)
+  const notedPairKeys = new Set(
+    recs.filter(r =>
+      r.type === 'handoff_gap_warning'
+      || r.type === 'sticky_client_risk'
+      || r.type === 'roaming_tx_adjustment'
+      || r.type === 'roaming_tx_boost',
+    ).map(r => [...r.affectedApIds].sort().join('|')),
   );
 
   for (const pair of pairs) {
@@ -2227,9 +2278,9 @@ function generateStickyClientWarnings(
     // Only warn if handoff zone is very small (<5% of pair cells)
     if (totalCells > 0 && pair.handoffZoneCells / totalCells >= 0.05) continue;
 
-    // Suppress sticky if a handoff_gap_warning already exists for this pair
+    // Suppress if this pair already has ANY roaming-related note
     const pairKey = [pair.ap1Id, pair.ap2Id].sort().join('|');
-    if (gapPairKeys.has(pairKey)) continue;
+    if (notedPairKeys.has(pairKey)) continue;
 
     recs.push({
       id: genId(),

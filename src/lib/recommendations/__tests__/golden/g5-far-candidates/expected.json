@@ -1,0 +1,29 @@
+[
+  {
+    "type": "infrastructure_required",
+    "affectedApIds": [],
+    "affectedBand": "5ghz",
+    "priority": "medium",
+    "severity": "warning",
+    "titleKey": "rec.infraRequiredTitle",
+    "reasonKey": "rec.infraNoCandidateCloseEnoughReason",
+    "evidenceKeys": [
+      "avgRssi",
+      "weakCells"
+    ]
+  },
+  {
+    "type": "coverage_warning",
+    "affectedApIds": [],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "critical",
+    "titleKey": "rec.coverageWarningTitle",
+    "reasonKey": "rec.coverageWarningReason",
+    "evidenceKeys": [
+      "totalWeakCells",
+      "weakPercent",
+      "weakZoneCount"
+    ]
+  }
+]

@@ -1,0 +1,66 @@
+{
+  "aps": [
+    {
+      "id": "ap-1",
+      "x": 3,
+      "y": 5,
+      "txPowerDbm": 17,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    }
+  ],
+  "accessPoints": [
+    {
+      "id": "ap-1",
+      "floor_id": "floor-1",
+      "ap_model_id": "test",
+      "x": 3,
+      "y": 5,
+      "label": "ap-1",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 17,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 36,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "test",
+        "name": "Test AP",
+        "manufacturer": "Test",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    }
+  ],
+  "walls": [],
+  "bounds": {
+    "width": 20,
+    "height": 10,
+    "originX": 0,
+    "originY": 0
+  },
+  "band": "5ghz",
+  "profile": "balanced",
+  "ctx": {
+    "candidates": [],
+    "constraintZones": [],
+    "apCapabilities": [],
+    "priorityZones": [],
+    "rejections": [],
+    "candidatePolicy": "required_for_new_ap"
+  }
+}

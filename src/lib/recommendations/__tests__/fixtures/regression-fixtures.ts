@@ -11,7 +11,7 @@
 import type { APConfig, WallData, FloorBounds } from '$lib/heatmap/worker-types';
 import type { HeatmapStats } from '$lib/heatmap/heatmap-manager';
 import type { AccessPointResponse } from '$lib/api/invoke';
-import type { RecommendationContext } from '../../types';
+import type { RecommendationContext, CandidateLocation } from '../../types';
 import { EMPTY_CONTEXT } from '../../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -194,6 +194,100 @@ export function createF3UplinkLimited() {
   }, ['ap-1']);
 
   return { aps, apResps, walls: [] as WallData[], bounds: { width: W, height: H, originX: 0, originY: 0 }, stats, ctx: EMPTY_CONTEXT };
+}
+
+// ─── F4: No-New-Cable (required policy, no candidates) ───────────
+
+export function createF4NoNewCable() {
+  const W = 20, H = 10;
+  // 1 AP in corner → large weak zone on opposite side, but NO candidates defined
+  // Policy: required_for_new_ap → only infrastructure_required, never add_ap
+  const aps = [ap('ap-1', 3, 5, { txPowerDbm: 17 })];
+  const apResps = [apResp('ap-1', 3, 5, 36, { tx_power_5ghz_dbm: 17 })];
+
+  const grids = makeGrids(W, H);
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const idx = r * W + c;
+      const dist = Math.sqrt((c - 3) ** 2 + (r - 5) ** 2);
+      grids.apIndexGrid[idx] = 0;
+      grids.secondBestApIndexGrid[idx] = 0;
+
+      if (dist < 4) {
+        grids.rssiGrid[idx] = -45;
+      } else if (dist < 8) {
+        grids.rssiGrid[idx] = -65;
+      } else {
+        grids.rssiGrid[idx] = -88; // Clearly weak zone on the right side
+      }
+    }
+  }
+
+  const stats = makeStats(W, H, grids, {
+    excellent: 25, good: 35, fair: 40, poor: 55, none: 45,
+  }, ['ap-1']);
+
+  const ctx: RecommendationContext = {
+    ...EMPTY_CONTEXT,
+    candidates: [],
+    candidatePolicy: 'required_for_new_ap',
+  };
+
+  return { aps, apResps, walls: [] as WallData[], bounds: { width: W, height: H, originX: 0, originY: 0 }, stats, ctx };
+}
+
+// ─── F5: Far Candidates (all candidates > maxDistance) ───────────
+
+export function createF5FarCandidates() {
+  const W = 20, H = 10;
+  // 1 AP in corner → weak zone on the right side
+  // 2 candidates defined, but both are > 8m from the weak zone ideal position
+  const aps = [ap('ap-1', 3, 5, { txPowerDbm: 17 })];
+  const apResps = [apResp('ap-1', 3, 5, 36, { tx_power_5ghz_dbm: 17 })];
+
+  const grids = makeGrids(W, H);
+  for (let r = 0; r < H; r++) {
+    for (let c = 0; c < W; c++) {
+      const idx = r * W + c;
+      const dist = Math.sqrt((c - 3) ** 2 + (r - 5) ** 2);
+      grids.apIndexGrid[idx] = 0;
+      grids.secondBestApIndexGrid[idx] = 0;
+
+      if (dist < 4) {
+        grids.rssiGrid[idx] = -45;
+      } else if (dist < 8) {
+        grids.rssiGrid[idx] = -65;
+      } else {
+        grids.rssiGrid[idx] = -88;
+      }
+    }
+  }
+
+  const stats = makeStats(W, H, grids, {
+    excellent: 25, good: 35, fair: 40, poor: 55, none: 45,
+  }, ['ap-1']);
+
+  // Candidates at (1,1) and (2,9) — both far from weak zone (right side, around x=15)
+  const candidates: CandidateLocation[] = [
+    {
+      id: 'cand-1', x: 1, y: 1, label: 'Near-AP Spot',
+      mountingOptions: ['ceiling'], hasLan: true, hasPoe: true, hasPower: true,
+      preferred: false, forbidden: false,
+    },
+    {
+      id: 'cand-2', x: 2, y: 9, label: 'Corner Spot',
+      mountingOptions: ['ceiling'], hasLan: true, hasPoe: true, hasPower: true,
+      preferred: false, forbidden: false,
+    },
+  ];
+
+  const ctx: RecommendationContext = {
+    ...EMPTY_CONTEXT,
+    candidates,
+    candidatePolicy: 'required_for_new_ap',
+  };
+
+  return { aps, apResps, walls: [] as WallData[], bounds: { width: W, height: H, originX: 0, originY: 0 }, stats, ctx };
 }
 
 // ─── F3b: Uplink-Limited with mustHaveCoverage PZ ────────────────

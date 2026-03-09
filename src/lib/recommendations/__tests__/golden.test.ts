@@ -27,6 +27,8 @@ import {
   createF1DenseCluster,
   createF2RoamingConflict,
   createF3UplinkLimited,
+  createF4NoNewCable,
+  createF5FarCandidates,
 } from './fixtures/regression-fixtures';
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
@@ -210,6 +212,8 @@ const GOLDEN_CASES: GoldenCase[] = [
   { name: 'g1-dense-cluster', create: createF1DenseCluster },
   { name: 'g2-roaming-conflict', create: createF2RoamingConflict },
   { name: 'g3-uplink-limited', create: createF3UplinkLimited },
+  { name: 'g4-no-new-cable', create: createF4NoNewCable },
+  { name: 'g5-far-candidates', create: createF5FarCandidates },
 ];
 
 /** Generate golden input files (project.json + stats.json) from fixture. */

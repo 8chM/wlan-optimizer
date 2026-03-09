@@ -1660,12 +1660,12 @@
         "BK-2: TX power overrides → convertApsToConfig → txPowerDbm aendert sich (24ghz/5ghz/6ghz)",
         "BK-3: channel_width override → korrekte override keys + apUpdate field",
         "BK-4: enabled=false → AP wird in convertApsToConfig ausgefiltert (disable_ap Preview korrekt)",
-        "BK-5: Cross-fixture (RF2/RF3/RF5) — jede actionable_config rec hat non-empty overrides + apUpdate",
-        "BK-5b: Cross-fixture — heatmap-affecting overrides aendern tatsaechlich APConfig (no silent no-op)",
+        "BK-5: Cross-fixture (RF2/RF3/RF5/RF6) — jede actionable_config rec hat non-empty overrides + apUpdate",
+        "BK-5b: Cross-fixture (RF2/RF3/RF5/RF6) — heatmap-affecting overrides aendern tatsaechlich APConfig (no silent no-op)",
         "BK-6: Alle 11 SuggestedParameter Typen → non-empty override + apUpdate (kein toter Pfad)",
         "g14-user-myhouse golden generiert (3 recs, RF6 Fixture)",
         "E2E validierte Parameter: tx_power (3 Bands), channel (3 Bands), channel_width, enabled, position, orientationDeg, mounting",
-        "1248 Tests pass (39 files), svelte-check 0 Errors, Build OK"
+        "1263 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

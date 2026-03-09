@@ -21,6 +21,7 @@ import type { FrequencyBand } from '$lib/heatmap/color-schemes';
 import { createRf2UserHouse } from './fixtures/create-rf2';
 import { createRf3MyHouse } from './fixtures/create-rf3';
 import { createRf5UserLiveV2 } from './fixtures/create-rf5';
+import { createRf6UserMyhouse } from './fixtures/create-rf6-user-myhouse';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -191,6 +192,7 @@ describe('Phase 28bk — Preview/Apply Consistency', () => {
       { name: 'RF2', create: createRf2UserHouse, expectConfig: true },
       { name: 'RF3', create: createRf3MyHouse, expectConfig: false },
       { name: 'RF5', create: createRf5UserLiveV2, expectConfig: false },
+      { name: 'RF6', create: createRf6UserMyhouse, expectConfig: false },
     ];
 
     for (const { name, create, expectConfig } of fixtures) {

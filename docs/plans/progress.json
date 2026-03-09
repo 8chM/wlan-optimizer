@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28bi-complete",
+  "currentPhase": "phase-28bk-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1628,6 +1628,25 @@
         "g6 golden correctly empty (BI-1 suppresses width-only recs), g11 test updated",
         "rules.md: 99 Regeln, 20 Cluster, CW-02 dokumentiert",
         "1210 Tests pass (38 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bk": {
+      "name": "Preview/Apply Konsistenz — E2E Roundtrip Tests",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "preview-apply-consistency.test.ts: 25 neue Tests fuer Preview/Apply Mapping-Kette",
+        "BK-1: channel override keys korrekt pro Band (24ghz/5ghz/6ghz) + apUpdate konsistent",
+        "BK-2: TX power overrides → convertApsToConfig → txPowerDbm aendert sich (24ghz/5ghz/6ghz)",
+        "BK-3: channel_width override → korrekte override keys + apUpdate field",
+        "BK-4: enabled=false → AP wird in convertApsToConfig ausgefiltert (disable_ap Preview korrekt)",
+        "BK-5: Cross-fixture (RF2/RF3/RF5) — jede actionable_config rec hat non-empty overrides + apUpdate",
+        "BK-5b: Cross-fixture — heatmap-affecting overrides aendern tatsaechlich APConfig (no silent no-op)",
+        "BK-6: Alle 11 SuggestedParameter Typen → non-empty override + apUpdate (kein toter Pfad)",
+        "g14-user-myhouse golden generiert (3 recs, RF6 Fixture)",
+        "E2E validierte Parameter: tx_power (3 Bands), channel (3 Bands), channel_width, enabled, position, orientationDeg, mounting",
+        "1248 Tests pass (39 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

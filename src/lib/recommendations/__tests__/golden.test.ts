@@ -38,6 +38,7 @@ import { createRf2UserHouse } from './fixtures/create-rf2';
 import { createRf3MyHouse } from './fixtures/create-rf3';
 import { createRf4UserLive } from './fixtures/create-rf4';
 import { createRf5UserLiveV2 } from './fixtures/create-rf5';
+import { createRf6UserMyhouse } from './fixtures/create-rf6-user-myhouse';
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
 const GOLDEN_DIR = join(__testdir, 'golden');
@@ -230,6 +231,7 @@ const GOLDEN_CASES: GoldenCase[] = [
   { name: 'g11-rf3-my-house', create: createRf3MyHouse },
   { name: 'g12-rf4-user-live', create: createRf4UserLive },
   { name: 'g13-rf5-user-live-v2', create: createRf5UserLiveV2 },
+  { name: 'g14-user-myhouse', create: createRf6UserMyhouse },
 ];
 
 /** Generate golden input files (project.json + stats.json) from fixture. */
@@ -403,7 +405,7 @@ describe('Golden File Regression Tests', () => {
     }
   });
 
-  // ─── g9-g13 shared guardrails (Phase 28av) ──────────────────────
+  // ─── g9-g14 shared guardrails (Phase 28av/28bj) ─────────────────
 
   const REAL_WORLD_CASES = [
     'g9-home-office',
@@ -411,9 +413,10 @@ describe('Golden File Regression Tests', () => {
     'g11-rf3-my-house',
     'g12-rf4-user-live',
     'g13-rf5-user-live-v2',
+    'g14-user-myhouse',
   ] as const;
 
-  describe('g9-g13 shared guardrails', () => {
+  describe('g9-g14 shared guardrails', () => {
     for (const name of REAL_WORLD_CASES) {
       it(`${name}: no phantom add_ap without evidence`, () => {
         const expected = loadExpected(name);
@@ -608,6 +611,7 @@ describe('Golden File Regression Tests', () => {
       { name: 'g10-rf2-user-house', policy: 'required_for_new_ap' },
       { name: 'g11-rf3-my-house', policy: 'required_for_move_and_new_ap' },
       { name: 'g13-rf5-user-live-v2', policy: 'required_for_new_ap' },
+      { name: 'g14-user-myhouse', policy: 'required_for_new_ap' },
     ] as const;
 
     for (const { name, policy } of REQUIRED_CASES) {
@@ -685,6 +689,63 @@ describe('Golden File Regression Tests', () => {
 
       const channelRecs = expected!.filter(r => r.type === 'change_channel');
       expect(channelRecs.length, 'channel recs bounded').toBeLessThanOrEqual(5);
+    });
+  });
+
+  // ─── g14 (RF6 User My House) specific guardrails ─────────────────
+  describe('g14-user-myhouse guardrails', () => {
+    it('g14: no phantom add_ap in golden output (required_for_new_ap)', () => {
+      const expected = loadExpected('g14-user-myhouse');
+      expect(expected, 'g14 expected.json must exist').not.toBeNull();
+
+      const addApRecs = expected!.filter(r => r.type === 'add_ap');
+      for (const rec of addApRecs) {
+        expect(
+          rec.evidenceKeys.includes('weakCells') || rec.evidenceKeys.includes('candidateCount'),
+          `g14: add_ap must have weakCells or candidateCount`,
+        ).toBe(true);
+      }
+    });
+
+    it('g14: all recs have valid type and evidenceKeys', () => {
+      const expected = loadExpected('g14-user-myhouse');
+      expect(expected, 'g14 expected.json must exist').not.toBeNull();
+
+      for (const rec of expected!) {
+        expect(rec.type, 'type must be non-empty').toBeTruthy();
+        expect(Array.isArray(rec.evidenceKeys), `${rec.type} must have evidenceKeys array`).toBe(true);
+        expect(rec.evidenceKeys.length, `${rec.type} must have ≥1 evidenceKey`).toBeGreaterThan(0);
+      }
+    });
+
+    it('g14: channel recs bounded and correct parameter', () => {
+      const expected = loadExpected('g14-user-myhouse');
+      expect(expected, 'g14 expected.json must exist').not.toBeNull();
+
+      const channelRecs = expected!.filter(r => r.type === 'change_channel');
+      expect(channelRecs.length, 'channel recs bounded at 5').toBeLessThanOrEqual(5);
+      for (const rec of channelRecs) {
+        expect(rec.suggestedChange?.parameter).toBe('channel_5ghz');
+      }
+    });
+
+    it('g14: infrastructure_required bounded', () => {
+      const expected = loadExpected('g14-user-myhouse');
+      expect(expected, 'g14 expected.json must exist').not.toBeNull();
+
+      const infraRecs = expected!.filter(r => r.type === 'infrastructure_required');
+      expect(infraRecs.length, 'infra_required bounded at 2').toBeLessThanOrEqual(2);
+    });
+
+    it('g14: sticky_client_risk recs are informational', () => {
+      const expected = loadExpected('g14-user-myhouse');
+      expect(expected, 'g14 expected.json must exist').not.toBeNull();
+
+      const stickyRecs = expected!.filter(r => r.type === 'sticky_client_risk');
+      for (const rec of stickyRecs) {
+        expect(rec.severity, 'sticky severity').toBe('info');
+        expect(rec.priority, 'sticky priority').toBe('low');
+      }
     });
   });
 });

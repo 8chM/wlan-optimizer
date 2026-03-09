@@ -1,0 +1,56 @@
+[
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-flur",
+      "ap-wohn"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "overallRegression",
+      "stickyRatio"
+    ]
+  },
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-flur",
+      "ap-kueche"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "overallRegression",
+      "stickyRatio"
+    ]
+  },
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-ess",
+      "ap-kueche"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "overallRegression",
+      "stickyRatio"
+    ]
+  }
+]

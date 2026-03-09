@@ -505,6 +505,8 @@
     "bandLimitReason": "{percent}% of cells are uplink-limited on {band} — consider lower band or client-side improvements",
     "bandLimitClientAdviceTitle": "Client-side optimization recommended",
     "bandLimitClientAdviceReason": "{percent}% of cells are uplink-limited — position client devices near APs, use {band}-capable devices, and avoid obstructions between client and AP",
+    "uplinkGapAdviceTitle": "Handoff gaps are uplink-related",
+    "uplinkGapAdviceReason": "Many handoff gaps between APs are caused by client-side limitations ({percent}% uplink-limited). TX power and channel changes have limited effect — client positioning and band selection matter more.",
     "channelExhaustionTitle": "Channel pool exhausted ({count} APs, {poolSize} channels)",
     "channelExhaustionReason": "{count} nearby APs compete for {poolSize} available {band} channels — some co-channel interference is unavoidable. Consider reducing channel width or TX power to limit overlap.",
     "sixGhzChannelNoteTitle": "6 GHz channel planning note",

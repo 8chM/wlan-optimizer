@@ -362,11 +362,51 @@ export function generateRecommendations(
     }
   }
 
+  // 16b. BM-02: Uplink-aware demotion — when heavy uplink limitation, gap/sticky notes are noise
+  if (uplinkLimitedRatio > 0.60) {
+    let hasGapNotes = false;
+    for (const rec of recommendations) {
+      if (rec.type !== 'handoff_gap_warning') continue;
+      hasGapNotes = true;
+      const m = rec.evidence?.metrics as Record<string, number> | undefined;
+      const gapCells = m?.gapCells ?? 0;
+      const handoffCells = m?.handoffZoneCells ?? 1;
+      const gapRatio = gapCells / Math.max(handoffCells, 1);
+      // Exception: very high gapRatio (>0.50) or PZ-relevant (priority already high)
+      if (gapRatio > 0.50 || rec.priority === 'high') continue;
+      rec.priority = 'low';
+      rec.severity = 'info';
+    }
+    // Emit uplink-gap advice note (once) if gap notes exist
+    if (hasGapNotes) {
+      recommendations.push({
+        id: genId(),
+        type: 'band_limit_warning',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.uplinkGapAdviceTitle',
+        titleParams: {},
+        reasonKey: 'rec.uplinkGapAdviceReason',
+        reasonParams: { percent: Math.round(uplinkLimitedRatio * 100) },
+        affectedApIds: [],
+        affectedBand: band,
+        evidence: { metrics: { uplinkLimitedPercent: uplinkLimitedRatio * 100 } },
+        confidence: 0.7,
+      });
+    }
+  }
+
   // 17. Channel cluster cap: max 2 channel recs per conflict cluster, rest → informational note
   capChannelRecsPerCluster(recommendations);
 
+  // 17b. BL-01: Channel vs Width deconfliction — width wins over channel per AP/cluster
+  deconflictChannelVsWidth(recommendations);
+
   // 18. Roaming note dedup: exactly 1 roaming note per AP pair
   deduplicateRoamingNotes(recommendations);
+
+  // 18b. BM-01: Gap note budgeting — max 2 gap notes globally, max 1 per AP
+  capGapNotes(recommendations);
 
   // 19. Per-AP config budget: max 2 actionable_config recs per AP
   capConfigBudgetPerAp(recommendations);
@@ -3132,6 +3172,82 @@ function capChannelRecsPerCluster(recs: Recommendation[]): void {
   }
 }
 
+// ─── Channel vs Width Deconfliction ─────────────────────────────
+
+/**
+ * BL-01: When adjust_channel_width exists for an AP or cluster, channel-change
+ * recs are either moved to alternatives (same AP) or degraded to informational
+ * (same cluster, low conflict pressure).
+ *
+ * Rules:
+ * - BL-01a: Same AP has width rec → change_channel → alternativeRecommendation
+ * - BL-01b: Same cluster has width rec AND conflictScore < threshold → degrade
+ */
+const WIDTH_CHANNEL_DECONFLICT_THRESHOLD = 0.45;
+
+function deconflictChannelVsWidth(recs: Recommendation[]): void {
+  // 1. Collect width recs by target AP
+  const widthByAp = new Map<string, Recommendation>();
+  for (const rec of recs) {
+    if (rec.type === 'adjust_channel_width' && rec.suggestedChange?.apId) {
+      widthByAp.set(rec.suggestedChange.apId, rec);
+    }
+  }
+  if (widthByAp.size === 0) return;
+
+  // 2. Build cluster membership from change_channel recs (affectedApIds → componentIndex)
+  const apToCluster = new Map<string, number>();
+  for (const rec of recs) {
+    if (rec.type !== 'change_channel') continue;
+    const ci = (rec.evidence?.metrics as Record<string, unknown>)?.componentIndex;
+    if (typeof ci !== 'number') continue;
+    for (const apId of (rec.affectedApIds ?? [])) {
+      apToCluster.set(apId, ci);
+    }
+  }
+
+  // 3. Find clusters that contain at least one width rec
+  const clustersWithWidth = new Set<number>();
+  for (const [apId] of widthByAp) {
+    const ci = apToCluster.get(apId);
+    if (ci != null) clustersWithWidth.add(ci);
+  }
+
+  // 4. Deconflict
+  const toRemove = new Set<string>();
+  for (const rec of recs) {
+    if (rec.type !== 'change_channel') continue;
+    const apId = rec.suggestedChange?.apId;
+    if (!apId) continue;
+
+    // BL-01a: Same AP has width rec → channel becomes alternative of width
+    if (widthByAp.has(apId)) {
+      const widthRec = widthByAp.get(apId)!;
+      widthRec.alternativeRecommendations = [
+        ...(widthRec.alternativeRecommendations ?? []),
+        rec,
+      ];
+      toRemove.add(rec.id);
+      continue;
+    }
+
+    // BL-01b: Same cluster has width rec AND conflictScore < threshold → degrade
+    const ci = (rec.evidence?.metrics as Record<string, unknown>)?.componentIndex;
+    if (typeof ci === 'number' && clustersWithWidth.has(ci)) {
+      const conflictScore = (rec.evidence?.metrics as Record<string, number>)?.conflictScore ?? 0;
+      if (conflictScore < WIDTH_CHANNEL_DECONFLICT_THRESHOLD) {
+        rec.priority = 'low';
+        rec.severity = 'info';
+      }
+    }
+  }
+
+  // 5. Remove channel recs that became alternatives
+  for (let i = recs.length - 1; i >= 0; i--) {
+    if (toRemove.has(recs[i]!.id)) recs.splice(i, 1);
+  }
+}
+
 // ─── Roaming Note Dedup ─────────────────────────────────────────
 
 /** Roaming note types in priority order (highest first) */
@@ -3189,6 +3305,56 @@ function deduplicateRoamingNotes(recs: Recommendation[]): void {
   }
 
   if (removeIds.size > 0) {
+    for (let i = recs.length - 1; i >= 0; i--) {
+      if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
+    }
+  }
+}
+
+// ─── Gap Note Budgeting ─────────────────────────────────────────
+
+/** BM-01: Global max gap notes and per-AP max 1 gap note (stricter wins) */
+const MAX_GAP_NOTES_GLOBAL = 2;
+
+function capGapNotes(recs: Recommendation[]): void {
+  const gapNotes = recs.filter(r => r.type === 'handoff_gap_warning');
+  if (gapNotes.length <= 1) return; // 0 or 1 → nothing to cap
+
+  // Sort: gapRatio desc, gapCells desc, avgRssiInZone asc (lower RSSI = worse = higher priority)
+  gapNotes.sort((a, b) => {
+    const ma = a.evidence?.metrics as Record<string, number> | undefined;
+    const mb = b.evidence?.metrics as Record<string, number> | undefined;
+    const gapRatioA = (ma?.gapCells ?? 0) / Math.max(ma?.handoffZoneCells ?? 1, 1);
+    const gapRatioB = (mb?.gapCells ?? 0) / Math.max(mb?.handoffZoneCells ?? 1, 1);
+    if (gapRatioA !== gapRatioB) return gapRatioB - gapRatioA;
+    if ((ma?.gapCells ?? 0) !== (mb?.gapCells ?? 0)) return (mb?.gapCells ?? 0) - (ma?.gapCells ?? 0);
+    return (ma?.avgRssiInZone ?? 0) - (mb?.avgRssiInZone ?? 0);
+  });
+
+  // Keep top-K respecting both global cap and per-AP cap (max 1 per AP)
+  const apSeen = new Set<string>();
+  const kept: Recommendation[] = [];
+  const removeIds = new Set<string>();
+
+  for (const note of gapNotes) {
+    const alreadySeen = note.affectedApIds.some(id => apSeen.has(id));
+    if (kept.length >= MAX_GAP_NOTES_GLOBAL || alreadySeen) {
+      removeIds.add(note.id);
+    } else {
+      kept.push(note);
+      for (const id of note.affectedApIds) apSeen.add(id);
+    }
+  }
+
+  if (removeIds.size > 0) {
+    // Add suppressedGapNotesCount to surviving notes
+    for (const note of kept) {
+      const m = (note.evidence?.metrics ?? {}) as Record<string, number>;
+      m.suppressedGapNotesCount = removeIds.size;
+      if (!note.evidence) note.evidence = { metrics: m };
+      else note.evidence.metrics = m;
+    }
+    // Remove suppressed notes
     for (let i = recs.length - 1; i >= 0; i--) {
       if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
     }

@@ -505,6 +505,8 @@
     "bandLimitReason": "{percent}% der Zellen sind uplink-limitiert auf {band} — niedrigeres Band oder Client-seitige Verbesserungen erwaegen",
     "bandLimitClientAdviceTitle": "Client-seitige Optimierung empfohlen",
     "bandLimitClientAdviceReason": "{percent}% der Zellen sind uplink-limitiert — Endgeraete naeher an APs positionieren, {band}-faehige Geraete verwenden und Hindernisse zwischen Geraet und AP vermeiden",
+    "uplinkGapAdviceTitle": "Handoff-Gaps sind uplink-bedingt",
+    "uplinkGapAdviceReason": "Viele Handoff-Gaps zwischen APs sind durch Client-seitige Einschraenkungen bedingt ({percent}% uplink-limitiert). TX- und Kanalaenderungen haben begrenzten Einfluss — Geraetepositionierung und Bandwahl sind wichtiger.",
     "channelExhaustionTitle": "Kanalpool erschoepft ({count} APs, {poolSize} Kanaele)",
     "channelExhaustionReason": "{count} nahe APs konkurrieren um {poolSize} verfuegbare {band}-Kanaele — Co-Channel-Interferenz ist unvermeidbar. Kanalbreite oder Sendeleistung reduzieren, um Ueberlappung zu verringern.",
     "sixGhzChannelNoteTitle": "Hinweis zur 6-GHz-Kanalplanung",

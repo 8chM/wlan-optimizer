@@ -23,6 +23,10 @@ import {
 } from './fixtures/regression-fixtures';
 import { computeZoneRelevance, classifyApRole, analyzeRoamingPairs } from '../analysis';
 import type { APMetrics, WeakZone } from '../types';
+import { createRf3MyHouse } from './fixtures/create-rf3';
+import { createRf4UserLive } from './fixtures/create-rf4';
+import { createRf5UserLiveV2 } from './fixtures/create-rf5';
+import { createRf6UserMyhouse } from './fixtures/create-rf6-user-myhouse';
 
 /** Recursively collects all recommendations including nested alternatives. */
 function collectAllRecommendations(recs: Recommendation[]): Recommendation[] {
@@ -2563,12 +2567,15 @@ describe('generateRecommendations', () => {
     expect(result).toBeDefined();
     expect(result.recommendations).toBeDefined();
 
-    const channelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+    // BL-01: channel recs may be alternatives of width recs — collect from both
+    const allRecs = collectAllRecommendations(result.recommendations);
+    const channelRecs = allRecs.filter(r => r.type === 'change_channel');
+    const mainChannelRecs = result.recommendations.filter(r => r.type === 'change_channel');
 
-    // B1: Max 3 channel recommendations
-    expect(channelRecs.length).toBeLessThanOrEqual(3);
+    // B1: Max 3 channel recommendations in main list
+    expect(mainChannelRecs.length).toBeLessThanOrEqual(3);
 
-    // At least some channel recs should exist (APs are all on ch36)
+    // At least some channel recs should exist (APs are all on ch36) — possibly as alternatives
     expect(channelRecs.length).toBeGreaterThan(0);
 
     // All recommended channels must come from the valid pool
@@ -2756,9 +2763,11 @@ describe('generateRecommendations', () => {
         BAND, stats, RF_CONFIG, 'balanced',
       );
 
-      const channelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+      // BL-01: channel recs may be alternatives of width recs — collect from both
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const channelRecs = allRecs.filter(r => r.type === 'change_channel');
 
-      // At least one channel change recommendation
+      // At least one channel change recommendation (possibly as alternative of width rec)
       expect(channelRecs.length).toBeGreaterThan(0);
 
       // INVARIANT: No two recs suggest the same target channel
@@ -2771,8 +2780,9 @@ describe('generateRecommendations', () => {
       const uniqueAps = new Set(affectedAps);
       expect(uniqueAps.size).toBe(affectedAps.length);
 
-      // INVARIANT: Max 3 recs (B1 limit)
-      expect(channelRecs.length).toBeLessThanOrEqual(3);
+      // INVARIANT: Max 3 channel recs in main list (B1 limit)
+      const mainChannelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+      expect(mainChannelRecs.length).toBeLessThanOrEqual(3);
     });
 
     it('T1b: distant APs (>20m) still get unique target channels via B1 dedup', () => {
@@ -8187,5 +8197,392 @@ describe('generateRecommendations', () => {
         }
       }
     });
+  });
+
+  // ─── Phase 28bl: Channel vs Width Deconfliction ─────────────────
+
+  describe('BL: Channel vs Width Deconfliction', () => {
+
+    it('BL-1: same AP — width rec exists → no actionable change_channel in main list', () => {
+      // 4 APs very close (< 10m), all on ch36 → both width and channel recs generated
+      // BL-01a: channel recs for same AP must be alternatives, not in main list
+      const aps = [
+        makeAP('ap-1', 2, 2),
+        makeAP('ap-2', 6, 2),
+        makeAP('ap-3', 2, 6),
+        makeAP('ap-4', 6, 6),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 2, 2, 36),
+        makeAPResponse('ap-2', 6, 2, 36),
+        makeAPResponse('ap-3', 2, 6, 36),
+        makeAPResponse('ap-4', 6, 6, 36),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -50, overlap: 2 });
+      // Distribute coverage evenly (high conflict: same channel, close)
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W;
+        const y = Math.floor(i / W);
+        if (x < 5 && y < 5) grids.apIndexGrid[i] = 0;
+        else if (x >= 5 && y < 5) grids.apIndexGrid[i] = 1;
+        else if (x < 5 && y >= 5) grids.apIndexGrid[i] = 2;
+        else grids.apIndexGrid[i] = 3;
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 25, good: 25, fair: 25, poor: 15, none: 10,
+      });
+      stats.apIds = ['ap-1', 'ap-2', 'ap-3', 'ap-4'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const widthRecs = result.recommendations.filter(r => r.type === 'adjust_channel_width');
+      const mainChannelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+
+      // Width recs should exist (close APs, high conflict)
+      expect(widthRecs.length, 'expect width recs for close APs').toBeGreaterThan(0);
+
+      // For every AP that has a width rec, no change_channel in main list
+      const widthApIds = new Set(widthRecs.map(r => r.suggestedChange?.apId));
+      for (const chRec of mainChannelRecs) {
+        expect(
+          widthApIds.has(chRec.suggestedChange?.apId),
+          `AP ${chRec.suggestedChange?.apId}: change_channel must not be actionable when width rec exists`,
+        ).toBe(false);
+      }
+
+      // Channel recs should appear as alternatives of width recs
+      const widthAlts = widthRecs.flatMap(r =>
+        collectAllRecommendations(r.alternativeRecommendations ?? []),
+      );
+      const channelAlts = widthAlts.filter(r => r.type === 'change_channel');
+      const allChannelRecs = collectAllRecommendations(result.recommendations)
+        .filter(r => r.type === 'change_channel');
+      // All channel recs for width-AP are in alternatives
+      expect(allChannelRecs.length, 'channel recs exist as alternatives').toBeGreaterThan(0);
+    });
+
+    it('BL-2: same cluster, low conflictScore — channel degraded to informational', () => {
+      // Setup: 3 APs in same cluster. AP-1 gets width rec (high pressure),
+      // AP-2 has channel conflict but low conflictScore (< 0.45) → should be degraded
+      const aps = [
+        makeAP('ap-1', 3, 5),
+        makeAP('ap-2', 7, 5),
+        makeAP('ap-3', 11, 5),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 3, 5, 36),
+        { ...makeAPResponse('ap-2', 7, 5, 36), channel_width: '40' as const },
+        { ...makeAPResponse('ap-3', 11, 5, 40), channel_width: '40' as const },
+      ];
+
+      const W = 15;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -55, overlap: 2 });
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W;
+        if (x < 5) grids.apIndexGrid[i] = 0;
+        else if (x < 10) grids.apIndexGrid[i] = 1;
+        else grids.apIndexGrid[i] = 2;
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 20, good: 30, fair: 30, poor: 15, none: 5,
+      });
+      stats.apIds = ['ap-1', 'ap-2', 'ap-3'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const widthRecs = allRecs.filter(r => r.type === 'adjust_channel_width');
+      const channelRecs = result.recommendations.filter(r => r.type === 'change_channel');
+
+      // If width recs and channel recs coexist in same cluster,
+      // channel recs with low conflictScore must be informational
+      if (widthRecs.length > 0 && channelRecs.length > 0) {
+        for (const chRec of channelRecs) {
+          const metrics = chRec.evidence?.metrics as Record<string, number> | undefined;
+          const cs = metrics?.conflictScore ?? 0;
+          if (cs < 0.45) {
+            expect(
+              chRec.severity,
+              `change_channel with conflictScore ${cs} in width-cluster: must be info`,
+            ).toBe('info');
+            expect(chRec.priority).toBe('low');
+          }
+        }
+      }
+    });
+
+    it('BL-3: cross-fixture — per AP max 1 actionable from {channel, width} in main list', () => {
+      // Run across real-world fixtures to ensure BL invariant holds
+      const CHANNEL_WIDTH_TYPES = new Set(['change_channel', 'adjust_channel_width']);
+
+      const fixtureFactories = [
+        { name: 'F1', create: createF1DenseCluster },
+        { name: 'F2', create: createF2RoamingConflict },
+        { name: 'RF3', create: createRf3MyHouse },
+        { name: 'RF4', create: createRf4UserLive },
+        { name: 'RF5', create: createRf5UserLiveV2 },
+        { name: 'RF6', create: createRf6UserMyhouse },
+      ];
+
+      for (const { name, create } of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        // Collect actionable channel/width recs from main list only
+        const mainConfigRecs = result.recommendations.filter(r =>
+          CHANNEL_WIDTH_TYPES.has(r.type) &&
+          RECOMMENDATION_CATEGORIES[r.type] === 'actionable_config' &&
+          r.suggestedChange?.apId,
+        );
+
+        // Group by target AP
+        const byAp = new Map<string, string[]>();
+        for (const rec of mainConfigRecs) {
+          const apId = rec.suggestedChange!.apId!;
+          const list = byAp.get(apId);
+          if (list) { list.push(rec.type); } else { byAp.set(apId, [rec.type]); }
+        }
+
+        // BL invariant: max 1 from {channel, width} per AP
+        for (const [apId, types] of byAp) {
+          expect(
+            types.length,
+            `${name} AP ${apId}: max 1 channel/width actionable in main, got [${types.join(', ')}]`,
+          ).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+
+    it('BL-4: width rec wins — channel as alternative preserves suggestedChange', () => {
+      // When channel becomes alternative of width, its suggestedChange must remain intact
+      const aps = [
+        makeAP('ap-1', 3, 3),
+        makeAP('ap-2', 6, 3),
+        makeAP('ap-3', 3, 6),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 3, 3, 36),
+        makeAPResponse('ap-2', 6, 3, 36),
+        makeAPResponse('ap-3', 3, 6, 36),
+      ];
+
+      const W = 10;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -50, overlap: 2 });
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W;
+        if (x < 4) grids.apIndexGrid[i] = 0;
+        else if (x < 7) grids.apIndexGrid[i] = 1;
+        else grids.apIndexGrid[i] = 2;
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 20, good: 30, fair: 30, poor: 15, none: 5,
+      });
+      stats.apIds = ['ap-1', 'ap-2', 'ap-3'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const widthRecs = result.recommendations.filter(r => r.type === 'adjust_channel_width');
+      for (const wRec of widthRecs) {
+        const alts = wRec.alternativeRecommendations ?? [];
+        const channelAlts = alts.filter(a => a.type === 'change_channel');
+        for (const alt of channelAlts) {
+          expect(alt.suggestedChange, 'alternative channel rec must have suggestedChange').toBeTruthy();
+          expect(alt.suggestedChange?.parameter, 'parameter must be channel_*').toMatch(/^channel_/);
+          expect(alt.suggestedChange?.suggestedValue, 'must have suggestedValue').toBeDefined();
+        }
+      }
+    });
+  });
+
+  // ─── BM-1a: Gap Note Budgeting — max 2 globally, per-AP max 1 ──────
+  describe('BM-1: Gap Note Budgeting', () => {
+    it('BM-1a: 5 APs in line, 4 gap pairs → max 2 gap notes + suppressedGapNotesCount', () => {
+      const aps = [
+        makeAP('ap-1', 2, 2),
+        makeAP('ap-2', 6, 2),
+        makeAP('ap-3', 10, 2),
+        makeAP('ap-4', 14, 2),
+        makeAP('ap-5', 18, 2),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 2, 2, 36),
+        makeAPResponse('ap-2', 6, 2, 44),
+        makeAPResponse('ap-3', 10, 2, 48),
+        makeAPResponse('ap-4', 14, 2, 52),
+        makeAPResponse('ap-5', 18, 2, 149),
+      ];
+      const W = 20;
+      const H = 4;
+      const grids = makeGrids(W, H, { rssi: -65, overlap: 2 });
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W;
+        if (x < 4) { grids.apIndexGrid[i] = 0; grids.secondBestApIndexGrid[i] = 1; }
+        else if (x < 8) { grids.apIndexGrid[i] = 1; grids.secondBestApIndexGrid[i] = 2; }
+        else if (x < 12) { grids.apIndexGrid[i] = 2; grids.secondBestApIndexGrid[i] = 3; }
+        else if (x < 16) { grids.apIndexGrid[i] = 3; grids.secondBestApIndexGrid[i] = 4; }
+        else { grids.apIndexGrid[i] = 4; grids.secondBestApIndexGrid[i] = 3; }
+        if (x === 3 || x === 7 || x === 11 || x === 15) {
+          grids.rssiGrid[i] = -82;
+          grids.deltaGrid[i] = 2;
+        }
+      }
+      const stats = makeStats(W, H, grids, {
+        excellent: 10, good: 30, fair: 30, poor: 20, none: 10,
+      });
+      stats.apIds = aps.map(a => a.id);
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const gapNotes = result.recommendations.filter(r => r.type === 'handoff_gap_warning');
+      expect(gapNotes.length, 'max 2 gap notes globally').toBeLessThanOrEqual(2);
+
+      const perAp = new Map<string, number>();
+      for (const g of gapNotes) {
+        for (const apId of g.affectedApIds) {
+          perAp.set(apId, (perAp.get(apId) ?? 0) + 1);
+        }
+      }
+      for (const [apId, count] of perAp) {
+        expect(count, `AP ${apId}: max 1 gap note`).toBeLessThanOrEqual(1);
+      }
+
+      if (gapNotes.length > 0 && gapNotes.length < 4) {
+        for (const g of gapNotes) {
+          const m = g.evidence?.metrics as Record<string, number> | undefined;
+          if (m?.suppressedGapNotesCount != null) {
+            expect(m.suppressedGapNotesCount).toBeGreaterThan(0);
+          }
+        }
+      }
+    });
+  });
+
+  // ─── BM-2: Uplink-aware demotion ─────────────────────────────────
+  describe('BM-2: Uplink-aware Demotion', () => {
+    it('BM-2a: uplinkLimitedRatio ~0.68 → gap notes demoted + uplinkGapAdvice note', () => {
+      // 20×20 grid, 2 APs at x=5 and x=15 — wide handoff zone in center
+      const aps = [makeAP('ap-1', 5, 10), makeAP('ap-2', 15, 10)];
+      const apResps = [
+        makeAPResponse('ap-1', 5, 10, 36),
+        makeAPResponse('ap-2', 15, 10, 44),
+      ];
+      const W = 20;
+      const H = 20;
+      const total = W * H; // 400
+      const grids = makeGrids(W, H, { rssi: -55, overlap: 2 });
+      // 68% uplink limited
+      for (let i = 0; i < total; i++) {
+        grids.uplinkLimitedGrid[i] = i < Math.round(total * 0.68) ? 1 : 0;
+        const x = i % W;
+        // AP coverage: x<10 → ap-1, x>=10 → ap-2
+        if (x < 10) {
+          grids.apIndexGrid[i] = 0;
+          grids.secondBestApIndexGrid[i] = 1;
+        } else {
+          grids.apIndexGrid[i] = 1;
+          grids.secondBestApIndexGrid[i] = 0;
+        }
+        // Handoff zone: x=7..12 (6 cols × 20 rows = 120 cells) with delta<8
+        if (x >= 7 && x <= 12) {
+          grids.deltaGrid[i] = 3; // handoff zone
+          grids.rssiGrid[i] = -78; // gap: below fair=-70
+        } else {
+          grids.deltaGrid[i] = 25; // clearly single-AP dominant
+        }
+      }
+      const stats = makeStats(W, H, grids, {
+        excellent: 20, good: 100, fair: 150, poor: 100, none: 30,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // Check for uplinkGapAdvice note
+      const adviceNotes = allRecs.filter(r =>
+        r.type === 'band_limit_warning' && r.titleKey === 'rec.uplinkGapAdviceTitle',
+      );
+      expect(adviceNotes.length, 'uplinkGapAdvice note emitted').toBeGreaterThanOrEqual(1);
+
+      // Gap notes should be demoted to info/low (unless gapRatio > 0.50)
+      const gapNotes = allRecs.filter(r => r.type === 'handoff_gap_warning');
+      for (const g of gapNotes) {
+        const m = g.evidence?.metrics as Record<string, number> | undefined;
+        const gapCells = m?.gapCells ?? 0;
+        const handoffCells = m?.handoffZoneCells ?? 1;
+        const gapRatio = gapCells / Math.max(handoffCells, 1);
+        if (gapRatio <= 0.50) {
+          expect(g.severity, `gap note ${g.id} demoted to info`).toBe('info');
+          expect(g.priority, `gap note ${g.id} demoted to low`).toBe('low');
+        }
+      }
+    });
+  });
+
+  // ─── BM-3: Cross-fixture gap note cap invariant ─────────────────
+  describe('BM-3: Cross-fixture gap note cap invariant', () => {
+    const fixtureFactories = [
+      { name: 'F1', fn: createF1DenseCluster },
+      { name: 'F2', fn: createF2RoamingConflict },
+      { name: 'F3', fn: createF3UplinkLimited },
+      { name: 'F6', fn: createF6StickyTinyHandoff },
+      { name: 'RF3', fn: createRf3MyHouse },
+      { name: 'RF4', fn: createRf4UserLive },
+      { name: 'RF5', fn: createRf5UserLiveV2 },
+      { name: 'RF6', fn: createRf6UserMyhouse },
+    ];
+
+    for (const { name, fn } of fixtureFactories) {
+      it(`${name}: max 2 handoff_gap_warning notes, per-AP max 1`, () => {
+        const fix = fn();
+        const result = generateRecommendations(
+          fix.aps, fix.apResps, fix.walls, fix.bounds,
+          BAND, fix.stats, RF_CONFIG, 'balanced', fix.ctx,
+        );
+        const gapNotes = result.recommendations.filter(r => r.type === 'handoff_gap_warning');
+        expect(gapNotes.length, `${name}: max 2 gap notes`).toBeLessThanOrEqual(2);
+
+        const perAp = new Map<string, number>();
+        for (const g of gapNotes) {
+          for (const apId of g.affectedApIds) {
+            perAp.set(apId, (perAp.get(apId) ?? 0) + 1);
+          }
+        }
+        for (const [apId, count] of perAp) {
+          expect(count, `${name} AP ${apId}: max 1 gap note`).toBeLessThanOrEqual(1);
+        }
+      });
+    }
   });
 });

@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-09 (Phase 28bh — Roaming Sanity)
+Last updated: 2026-03-09 (Phase 28bl — Channel vs Width Deconfliction)
 
 ---
 
@@ -372,6 +372,13 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 | CW-01 | Width reduction | nearbyCount >= 2 + width >= 80 → suggest 40; veryCloseCount >= 3 + width > 20 → suggest 20 | band !== '2.4ghz' | Emit adjust_channel_width | :2183-2187 |
 | CW-02 | Conflict pressure guard (BI-1) | AP worstScore from channelAnalysis < 0.35 | — | Skip adjust_channel_width (no meaningful conflict) | generateChannelWidthRecommendations |
 
+### Channel vs Width Deconfliction — `deconflictChannelVsWidth()` (Phase 28bl)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BL-01a | Same-AP deconfliction | AP has both adjust_channel_width and change_channel | — | change_channel → alternativeRecommendation of width rec | deconflictChannelVsWidth |
+| BL-01b | Same-cluster low pressure | Cluster has width rec AND change_channel conflictScore < 0.45 | — | Degrade change_channel to informational (priority=low, severity=info) | deconflictChannelVsWidth |
+
 ### Channel Cluster Cap — `capChannelRecsPerCluster()` (Phase 28bc)
 
 | ID | Description | Trigger | Guards | Action | Reference |
@@ -384,6 +391,21 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | BC-02a | Actionable suppresses notes | roaming_tx_adjustment/boost exists for pair | — | Remove all informational notes for that pair | deduplicateRoamingNotes |
 | BC-02b | Max 1 note per pair | >1 informational note for same pair | — | Keep highest priority: handoff_gap_warning > sticky_client_risk | deduplicateRoamingNotes |
+
+### Gap Note Budgeting — `capGapNotes()` (Phase 28bm)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BM-01a | Global gap note cap | >2 handoff_gap_warning in recs | — | Keep top 2 sorted by gapRatio desc, gapCells desc, avgRssiInZone asc; remove rest | capGapNotes |
+| BM-01b | Per-AP gap note cap | AP already has 1 gap note | — | Skip additional gap notes for same AP (per-AP max 1) | capGapNotes |
+| BM-01c | Suppressed count evidence | Gap notes suppressed | — | Add suppressedGapNotesCount to surviving notes' evidence.metrics | capGapNotes |
+
+### Uplink-aware Demotion (Phase 28bm)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BM-02a | Uplink gap demotion | uplinkLimitedRatio > 0.60 + handoff_gap_warning exists | gapRatio > 0.50 or priority='high' → keep | Demote gap notes to info/low | step 16b in main function |
+| BM-02b | Uplink gap advice note | uplinkLimitedRatio > 0.60 + hasGapNotes | — | Emit band_limit_warning with uplinkGapAdviceTitle | step 16b in main function |
 
 ### Per-AP Config Budget — `capConfigBudgetPerAp()` (Phase 28bd)
 
@@ -474,10 +496,12 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Roaming Hint | RH-01 | 1 | generateRoamingHints |
 | Cross-Type | CT-01 | 1 | post-processing in main function |
 | Noise & Dedup (BC) | BC-01, BC-02a, BC-02b | 3 | capChannelRecsPerCluster + deduplicateRoamingNotes |
+| Gap Budgeting (BM) | BM-01a..BM-01c, BM-02a, BM-02b | 5 | capGapNotes + uplink demotion |
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
 | Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
+| Channel vs Width Deconfliction (BL) | BL-01a, BL-01b | 2 | deconflictChannelVsWidth |
 
-**Total: 101 rules across 20 clusters. 23 RecommendationType values.**
+**Total: 108 rules across 22 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

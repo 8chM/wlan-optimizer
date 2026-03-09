@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28bk-complete",
+  "currentPhase": "phase-28bm-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1666,6 +1666,24 @@
         "g14-user-myhouse golden generiert (3 recs, RF6 Fixture)",
         "E2E validierte Parameter: tx_power (3 Bands), channel (3 Bands), channel_width, enabled, position, orientationDeg, mounting",
         "1263 Tests pass (40 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bm": {
+      "name": "Roaming/Gap Noise Reduction — Pair Caps + Uplink-aware Notes",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "capGapNotes(): max 2 handoff_gap_warning global, per-AP max 1, sorted by gapRatio/gapCells/avgRssiInZone",
+        "suppressedGapNotesCount in surviving gap notes evidence.metrics",
+        "Uplink-aware demotion (step 16b): uplinkLimitedRatio > 0.60 → gap notes demoted to info/low (exception: gapRatio > 0.50 or priority=high)",
+        "uplinkGapAdvice note (band_limit_warning) emitted when uplink heavy + gap notes exist",
+        "2 neue i18n-Keys EN+DE: uplinkGapAdviceTitle, uplinkGapAdviceReason",
+        "BM-1a: 5 APs, 4 gap pairs → max 2 gap notes + suppressedGapNotesCount",
+        "BM-2a: uplinkLimitedRatio ~0.68 → gap notes demoted + uplinkGapAdvice note emitted",
+        "BM-3: Cross-fixture invariant (8 Fixtures) — gap note count <= 2, per-AP <= 1",
+        "rules.md: BM-01a..BM-01c, BM-02a, BM-02b (5 neue Regeln, Total 106, 21 Cluster)",
+        "1277 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

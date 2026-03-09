@@ -48,6 +48,24 @@ GOLDEN_UPDATE=1 npx vitest run golden.test.ts
 Dies ueberschreibt alle `expected.json` Dateien unter `__tests__/golden/g*-*/`.
 Die Aenderungen sind im Git-Diff reviewbar.
 
+## Neue Fixture anlegen (Schritt-fuer-Schritt)
+
+### Variante A: Programmatischer Generator
+
+1. `create-rfN.ts` in `__tests__/fixtures/` anlegen (Muster: `create-rf3.ts`)
+2. `createRfNName()` exportieren — liefert `{ aps, apResps, walls, bounds, stats, ctx }`
+3. Optional: JSON per Script exportieren nach `real-fixtures/rfN-name-5ghz.json`
+4. `rfN-name.test.ts` schreiben (JSON via `loadExportedFixture` laden)
+5. Golden: Import in `golden.test.ts`, neuen Eintrag in `GOLDEN_CASES` einfuegen
+6. `GOLDEN_UPDATE=1 npx vitest run golden.test.ts` — generiert `expected.json`
+
+### Variante B: DEV Export direkt nutzen
+
+1. DEV Export im Browser herunterladen (siehe "How to capture")
+2. JSON nach `real-fixtures/` kopieren und umbenennen
+3. Test-Datei schreiben (Muster: `rf2-user-house.test.ts`)
+4. Kein `create-rfN.ts` noetig — Golden Case benoetigt aber einen Generator
+
 ## Vorhandene Fixtures
 
 | Name | Quelle | Beschreibung | Golden |
@@ -55,4 +73,5 @@ Die Aenderungen sind im Git-Diff reviewbar.
 | RF1 | `create-rf1.ts` | Home-Office (3 APs, 2 Waende, 1 PZ) | g9 |
 | RF2 | `create-rf2.ts` + `rf2-user-house-5ghz.json` | User House (4 APs, 3 Waende, 2 PZ, ch36-Konflikt) | g10 |
 | RF3 | `create-rf3.ts` + `rf3-my-house-5ghz.json` | My House (3 APs, 6 Waende, 3 PZ, strict policy, ch36-Konflikt) | g11 |
+| RF4 | `create-rf4.ts` + `rf4-user-live-5ghz.json` | User Live (5 APs, 5 Waende, 2 PZ, optional policy, 2 Kanal-Konflikte) | g12 |
 | F1-F8 | `regression-fixtures.ts` | Synthetische Szenarien | g1-g8 |

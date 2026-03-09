@@ -726,7 +726,7 @@ function generateAddApSuggestions(
         recs.push({
           id: genId(),
           type: 'infrastructure_required',
-          priority: 'medium',
+          priority: 'high',
           severity: 'warning',
           titleKey: infraLabel ? 'rec.infraRequiredAtCandidateTitle' : 'rec.infraRequiredTitle',
           titleParams: {
@@ -737,16 +737,20 @@ function generateAddApSuggestions(
           reasonKey: allTooFar ? 'rec.infraNoCandidateCloseEnoughReason' : 'rec.infraNoValidCandidateReason',
           reasonParams: {
             cells: zone.cellCount,
-            count: ctx.candidates.length,
+            candidateCount: ctx.candidates.length,
             reasons: rejectionReasons.join(', ') || 'all_candidates_filtered',
             no_candidate_valid: 1,
             maxDistance: MAX_IDEAL_DISTANCE_ADD_AP_M,
             nearestDistance: Math.round(nearestDist * 10) / 10,
+            candidatePolicy: policy,
           },
           affectedApIds: [],
           affectedBand: band,
           evidence: {
-            metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi },
+            metrics: {
+              weakCells: zone.cellCount, avgRssi: zone.avgRssi,
+              candidateCount: ctx.candidates.length,
+            },
             affectedCells: zone.cellIndices.slice(0, 2000),
             gridStep,
           },
@@ -780,11 +784,16 @@ function generateAddApSuggestions(
         reasonParams: {
           cells: zone.cellCount,
           policy,
+          candidateCount: 0,
+          candidatePolicy: policy,
         },
         affectedApIds: [],
         affectedBand: band,
         evidence: {
-          metrics: { weakCells: zone.cellCount, avgRssi: zone.avgRssi },
+          metrics: {
+            weakCells: zone.cellCount, avgRssi: zone.avgRssi,
+            candidateCount: 0,
+          },
           affectedCells: zone.cellIndices.slice(0, 2000),
           gridStep,
         },
@@ -1023,6 +1032,10 @@ function generateMoveApSuggestions(
       const blockReason = ctx.candidates.length === 0
         ? 'no_candidates_defined'
         : 'no_candidate_close_enough';
+      const nearestMoveDist = ctx.candidates.length > 0
+        ? Math.min(...ctx.candidates.filter(c => !c.forbidden).map(c =>
+            Math.sqrt((c.x - bestTarget.x) ** 2 + (c.y - bestTarget.y) ** 2)))
+        : Infinity;
       recs.push({
         id: genId(),
         type: 'blocked_recommendation',
@@ -1034,11 +1047,20 @@ function generateMoveApSuggestions(
         reasonParams: {
           ap: apLabel(ap.id),
           reason: blockReason,
+          candidateCount: ctx.candidates.length,
+          candidatePolicy: movePolicy,
+          nearestDistance: nearestMoveDist === Infinity ? -1 : Math.round(nearestMoveDist * 10) / 10,
+          maxDistance: MAX_IDEAL_DISTANCE_MOVE_AP_M,
         },
         affectedApIds: [ap.id],
         affectedBand: band,
         evidence: {
-          metrics: { currentCoverage: metrics.primaryCoverageRatio },
+          metrics: {
+            currentCoverage: metrics.primaryCoverageRatio,
+            candidateCount: ctx.candidates.length,
+            nearestDistance: nearestMoveDist === Infinity ? -1 : Math.round(nearestMoveDist * 10) / 10,
+            maxDistance: MAX_IDEAL_DISTANCE_MOVE_AP_M,
+          },
           gridStep,
         },
         confidence: 0.5,

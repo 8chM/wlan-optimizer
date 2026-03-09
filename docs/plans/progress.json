@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28ao-complete",
+  "currentPhase": "phase-28ar-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1311,6 +1311,22 @@
         "CS-9: usedFallback nur auf add_ap, nie auf move_ap (Cross-Type-Konsistenz)",
         "CS-10: EVIDENCE_MINIMUMS deckt add_ap, move_ap, infrastructure_required, preferred_candidate_location, blocked_recommendation ab",
         "1094 Tests pass (36 files), 38 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [a163f44]"
+      ]
+    },
+    "28ar": {
+      "name": "Real-World Tuning Loop — RF4 Fixture + Golden g12 + Workflow-Doku",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "create-rf4.ts: User Live Fixture (5 APs, 5 Waende, 2 PZ, optional policy, 2 Kanal-Konflikte)",
+        "rf4-user-live-5ghz.json: ExportedFixture JSON (38KB)",
+        "rf4-user-live.test.ts: 6 Invarianz-Tests (RF4-1..RF4-6)",
+        "golden.test.ts: g12-rf4-user-live + 4 Guardrails",
+        "fixtures.md: Workflow-Doku (Variante A: Generator, Variante B: DEV Export)",
+        "generator.ts: Type-Fix — candidatePolicy aus evidence.metrics entfernt (string vs number)",
+        "candidateRealismIntegrity.test.ts: AQ-4 korrigiert (candidatePolicy in reasonParams statt metrics)",
+        "1112 Tests pass (37 files), 45 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

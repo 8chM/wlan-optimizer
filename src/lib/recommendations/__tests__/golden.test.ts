@@ -36,6 +36,7 @@ import {
 import { createRf1HomeOffice } from './fixtures/create-rf1';
 import { createRf2UserHouse } from './fixtures/create-rf2';
 import { createRf3MyHouse } from './fixtures/create-rf3';
+import { createRf4UserLive } from './fixtures/create-rf4';
 
 const __testdir = dirname(fileURLToPath(import.meta.url));
 const GOLDEN_DIR = join(__testdir, 'golden');
@@ -226,6 +227,7 @@ const GOLDEN_CASES: GoldenCase[] = [
   { name: 'g9-home-office', create: createRf1HomeOffice },
   { name: 'g10-rf2-user-house', create: createRf2UserHouse },
   { name: 'g11-rf3-my-house', create: createRf3MyHouse },
+  { name: 'g12-rf4-user-live', create: createRf4UserLive },
 ];
 
 /** Generate golden input files (project.json + stats.json) from fixture. */
@@ -438,6 +440,56 @@ describe('Golden File Regression Tests', () => {
       for (const rec of stickyRecs) {
         expect(rec.severity, `sticky_client_risk severity`).toBe('info');
         expect(rec.priority, `sticky_client_risk priority`).toBe('low');
+      }
+    });
+  });
+
+  // ─── g12 (RF4 User Live) specific guardrails ───────────────────
+  describe('g12-rf4-user-live guardrails', () => {
+    it('g12: no phantom add_ap without evidence', () => {
+      const expected = loadExpected('g12-rf4-user-live');
+      expect(expected, 'g12 expected.json must exist').not.toBeNull();
+
+      // With optional policy, add_ap may exist but must be traceable
+      const addApRecs = expected!.filter(r => r.type === 'add_ap');
+      for (const rec of addApRecs) {
+        // Must have either suggestedChange or evidenceKeys with weakCells
+        expect(
+          rec.evidenceKeys.length > 0,
+          `add_ap must have evidenceKeys`,
+        ).toBe(true);
+      }
+    });
+
+    it('g12: all recs have valid evidenceKeys', () => {
+      const expected = loadExpected('g12-rf4-user-live');
+      expect(expected, 'g12 expected.json must exist').not.toBeNull();
+
+      for (const rec of expected!) {
+        expect(rec.type, 'type must be non-empty').toBeTruthy();
+        expect(Array.isArray(rec.evidenceKeys), `${rec.type} must have evidenceKeys array`).toBe(true);
+        expect(rec.evidenceKeys.length, `${rec.type} must have at least 1 evidenceKey`).toBeGreaterThan(0);
+      }
+    });
+
+    it('g12: bounded infrastructure_required recs', () => {
+      const expected = loadExpected('g12-rf4-user-live');
+      expect(expected, 'g12 expected.json must exist').not.toBeNull();
+
+      const infraRecs = expected!.filter(r => r.type === 'infrastructure_required');
+      expect(infraRecs.length, 'infra_required bounded').toBeLessThanOrEqual(3);
+    });
+
+    it('g12: bounded channel recs', () => {
+      const expected = loadExpected('g12-rf4-user-live');
+      expect(expected, 'g12 expected.json must exist').not.toBeNull();
+
+      const channelRecs = expected!.filter(r => r.type === 'change_channel');
+      expect(channelRecs.length, 'channel recs bounded').toBeLessThanOrEqual(5);
+
+      // Each must have correct parameter
+      for (const rec of channelRecs) {
+        expect(rec.suggestedChange?.parameter).toBe('channel_5ghz');
       }
     });
   });

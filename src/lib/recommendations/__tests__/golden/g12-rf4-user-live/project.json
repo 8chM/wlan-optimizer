@@ -1,0 +1,347 @@
+{
+  "aps": [
+    {
+      "id": "ap-arbeit",
+      "x": 3,
+      "y": 4,
+      "txPowerDbm": 20,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-wohn",
+      "x": 11,
+      "y": 4,
+      "txPowerDbm": 22,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-schlaf",
+      "x": 19,
+      "y": 4,
+      "txPowerDbm": 18,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-flur",
+      "x": 11,
+      "y": 12,
+      "txPowerDbm": 15,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-kind",
+      "x": 19,
+      "y": 12,
+      "txPowerDbm": 19,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    }
+  ],
+  "accessPoints": [
+    {
+      "id": "ap-arbeit",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 3,
+      "y": 4,
+      "label": "ap-arbeit",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 20,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 36,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-wohn",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 11,
+      "y": 4,
+      "label": "ap-wohn",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 22,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 44,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-schlaf",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 19,
+      "y": 4,
+      "label": "ap-schlaf",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 18,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 36,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-flur",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 11,
+      "y": 12,
+      "label": "ap-flur",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 15,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 48,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-kind",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 19,
+      "y": 12,
+      "label": "ap-kind",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 19,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 44,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    }
+  ],
+  "walls": [
+    {
+      "segments": [
+        {
+          "x1": 7,
+          "y1": 0,
+          "x2": 7,
+          "y2": 8
+        }
+      ],
+      "attenuationDb": 6,
+      "baseThicknessCm": 12,
+      "actualThicknessCm": 12,
+      "materialLabel": "Brick"
+    },
+    {
+      "segments": [
+        {
+          "x1": 15,
+          "y1": 0,
+          "x2": 15,
+          "y2": 16
+        }
+      ],
+      "attenuationDb": 5,
+      "baseThicknessCm": 10,
+      "actualThicknessCm": 10,
+      "materialLabel": "Drywall"
+    },
+    {
+      "segments": [
+        {
+          "x1": 0,
+          "y1": 8,
+          "x2": 7,
+          "y2": 8
+        }
+      ],
+      "attenuationDb": 4,
+      "baseThicknessCm": 8,
+      "actualThicknessCm": 8,
+      "materialLabel": "Wood"
+    },
+    {
+      "segments": [
+        {
+          "x1": 15,
+          "y1": 8,
+          "x2": 22,
+          "y2": 8
+        }
+      ],
+      "attenuationDb": 5,
+      "baseThicknessCm": 10,
+      "actualThicknessCm": 10,
+      "materialLabel": "Drywall"
+    },
+    {
+      "segments": [
+        {
+          "x1": 0,
+          "y1": 0,
+          "x2": 22,
+          "y2": 0
+        }
+      ],
+      "attenuationDb": 12,
+      "baseThicknessCm": 20,
+      "actualThicknessCm": 20,
+      "materialLabel": "Concrete (exterior)"
+    }
+  ],
+  "bounds": {
+    "width": 22,
+    "height": 16,
+    "originX": 0,
+    "originY": 0
+  },
+  "band": "5ghz",
+  "profile": "balanced",
+  "ctx": {
+    "candidates": [
+      {
+        "id": "cand-flur-sued",
+        "x": 11,
+        "y": 14,
+        "label": "Flur Sued (Decke)",
+        "mountingOptions": [
+          "ceiling"
+        ],
+        "hasLan": true,
+        "hasPoe": true,
+        "hasPower": true,
+        "preferred": false,
+        "forbidden": false
+      }
+    ],
+    "constraintZones": [],
+    "apCapabilities": [],
+    "priorityZones": [
+      {
+        "zoneId": "pz-arbeit",
+        "label": "Arbeitszimmer",
+        "x": 1,
+        "y": 1,
+        "width": 5,
+        "height": 6,
+        "weight": 1,
+        "targetBand": "either",
+        "mustHaveCoverage": true
+      },
+      {
+        "zoneId": "pz-kind",
+        "label": "Kinderzimmer",
+        "x": 16,
+        "y": 9,
+        "width": 5,
+        "height": 6,
+        "weight": 0.8,
+        "targetBand": "either",
+        "mustHaveCoverage": false
+      }
+    ],
+    "rejections": [],
+    "candidatePolicy": "optional"
+  }
+}

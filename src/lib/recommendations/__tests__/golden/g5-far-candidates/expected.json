@@ -3,12 +3,13 @@
     "type": "infrastructure_required",
     "affectedApIds": [],
     "affectedBand": "5ghz",
-    "priority": "medium",
+    "priority": "high",
     "severity": "warning",
     "titleKey": "rec.infraRequiredTitle",
     "reasonKey": "rec.infraNoCandidateCloseEnoughReason",
     "evidenceKeys": [
       "avgRssi",
+      "candidateCount",
       "weakCells"
     ]
   },

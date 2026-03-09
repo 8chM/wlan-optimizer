@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28ab-complete",
+  "currentPhase": "phase-28ac-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1107,6 +1107,22 @@
         "Test AB4a: Z2-Demotion sticky_client_risk hat immer stickyRatio + handoffZoneCells + gapCells",
         "Test AB5a: Keine leere evidence.metrics ueber alle 4 Fixtures (F1/F2/F3/F3b)",
         "974 Tests pass (28 files), svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28ac": {
+      "name": "Recommendation Correctness — Real Project Replay (Golden Files)",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "golden.test.ts: 10 Golden File Regression Tests mit Auto-Generate + Diff-Ausgabe",
+        "3 Golden Cases: g1-dense-cluster (8 recs), g2-roaming-conflict (1 rec), g3-uplink-limited (3 recs)",
+        "Serialize/Deserialize Helpers: TypedArrays + Map⇔JSON round-trip",
+        "Normalization: stabile Felder (type, affectedApIds, priority, severity, titleKey, reasonKey, evidenceKeys, suggestedChange)",
+        "Diff-freundlich: computeDiff mit added/removed/changed + formatDiff (top 5 pro Kategorie)",
+        "GOLDEN_UPDATE=1 Env-Var fuer bewusste Akzeptanz von Engine-Aenderungen",
+        "Cross-Case Invariant: alle 3 Golden Cases produzieren unterschiedliche Recommendation-Sets",
+        "984 Tests pass (29 files), svelte-check 0 Errors 2 Warnings, Build OK [30ca20d]"
       ]
     }
   },

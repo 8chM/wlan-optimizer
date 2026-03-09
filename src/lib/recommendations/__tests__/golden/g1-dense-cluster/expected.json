@@ -1,0 +1,155 @@
+[
+  {
+    "type": "change_channel",
+    "affectedApIds": [
+      "ap-1",
+      "ap-2"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "critical",
+    "titleKey": "rec.changeChannelTitle",
+    "reasonKey": "rec.changeChannelTxAlternativeReason",
+    "evidenceKeys": [
+      "conflictScore",
+      "distance"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_5ghz",
+      "suggestedValue": 40
+    }
+  },
+  {
+    "type": "change_channel",
+    "affectedApIds": [
+      "ap-1",
+      "ap-2"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "critical",
+    "titleKey": "rec.changeChannelTitle",
+    "reasonKey": "rec.changeChannelTxAlternativeReason",
+    "evidenceKeys": [
+      "conflictScore",
+      "distance"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_5ghz",
+      "suggestedValue": 44
+    }
+  },
+  {
+    "type": "change_channel",
+    "affectedApIds": [
+      "ap-1",
+      "ap-3"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "critical",
+    "titleKey": "rec.changeChannelTitle",
+    "reasonKey": "rec.changeChannelTxAlternativeReason",
+    "evidenceKeys": [
+      "conflictScore",
+      "distance"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_5ghz",
+      "suggestedValue": 48
+    }
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-1"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "20"
+    }
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-2"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "20"
+    }
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-3"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "20"
+    }
+  },
+  {
+    "type": "adjust_channel_width",
+    "affectedApIds": [
+      "ap-4"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "high",
+    "severity": "warning",
+    "titleKey": "rec.adjustChannelWidthTitle",
+    "reasonKey": "rec.adjustChannelWidthReason",
+    "evidenceKeys": [
+      "currentWidth",
+      "nearbyApCount",
+      "veryCloseApCount"
+    ],
+    "suggestedChange": {
+      "parameter": "channel_width",
+      "suggestedValue": "20"
+    }
+  },
+  {
+    "type": "roaming_hint",
+    "affectedApIds": [],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.roamingHintTitle",
+    "reasonKey": "rec.roamingHintReason",
+    "evidenceKeys": [
+      "lowDeltaCells",
+      "lowDeltaPercent"
+    ]
+  }
+]

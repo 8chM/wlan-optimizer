@@ -1,0 +1,20 @@
+[
+  {
+    "type": "sticky_client_risk",
+    "affectedApIds": [
+      "ap-1",
+      "ap-2"
+    ],
+    "affectedBand": "5ghz",
+    "priority": "low",
+    "severity": "info",
+    "titleKey": "rec.stickyClientRiskTitle",
+    "reasonKey": "rec.stickyClientRiskReason",
+    "evidenceKeys": [
+      "gapCells",
+      "handoffZoneCells",
+      "marginalBenefit",
+      "stickyRatio"
+    ]
+  }
+]

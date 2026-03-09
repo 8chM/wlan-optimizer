@@ -1313,6 +1313,25 @@
         "1094 Tests pass (36 files), 38 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [a163f44]"
       ]
     },
+    "28aq": {
+      "name": "No-Cable Reality Pack — Candidate/Policy Gates + Infra-Spam Cap + Evidence Enrichment",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "generator.ts: Far-candidates infra_required priority medium→high",
+        "generator.ts: candidatePolicy + candidateCount in reasonParams + evidence.metrics (3 Pfade)",
+        "generator.ts: Move-blocked evidence enriched mit nearestDistance, maxDistance, candidatePolicy, candidateCount",
+        "EVIDENCE_MINIMUMS: candidatePolicy zu infrastructure_required hinzugefuegt",
+        "AQ-1: required_for_new_ap + 0 candidates → max 2 infra_required, kein add_ap, alle high/warning",
+        "AQ-2: required_for_move_and_new_ap + far candidates → blocked mit nearestDistance/maxDistance",
+        "AQ-3: optional + 0 candidates → add_ap fallback mit usedFallback=1, candidateCount=0",
+        "AQ-4: infra_required evidence includes candidateCount, reasonParams includes candidatePolicy",
+        "AQ-5: infra_required capped at 2 even with large weak area (50×30 grid)",
+        "Golden g4 + g5 aktualisiert (candidateCount, candidatePolicy in evidenceKeys, priority fix)",
+        "1112 Tests pass (37 files), 45 Golden pass, 0 Errors, Build OK"
+      ]
+    },
     "28ar": {
       "name": "Real-World Tuning Loop — RF4 Fixture + Golden g12 + Workflow-Doku",
       "status": "completed",

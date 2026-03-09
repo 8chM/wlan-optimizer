@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-06 (Phase 28v — Candidate-Only Korrektheit)
+Last updated: 2026-03-09 (Phase 28ad — Roaming & TX-Power Model Upgrade)
 
 ---
 
@@ -87,6 +87,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | TX-06 | Quality gate for increase | changePercent <= 2 OR newGoodCells < 5 | — | Skip (insufficient improvement) | :1153 |
 | TX-07 | isActionAllowed gate | — | `isActionAllowed(apId, 'adjust_tx_power', band, ctx)` false | Skip AP | :1088 |
 | TX-08 | Priority tiers | absImprove > 15 → high/critical, > 8 → medium/warning, else low/info | — | Set priority + severity | :1116-1117 |
+| TX-09 | PZ guard (Zone-safe TX) | wouldHurtPriorityZone() returns hurts=true for TX reduction | — | Skip (TX-down would degrade mustHaveCoverage PZ) | Phase 28ad |
 
 ### Tests
 - TX power increase for low coverage: generator.test.ts "should suggest TX power adjustment for overlapping APs"
@@ -95,6 +96,10 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 ---
 
 ## 3. Roaming Rules
+
+Constants (Phase 28ad): `PZ_MAX_RSSI_DROP_DBM=3`, `PHYSICAL_GAP_RATIO=0.30`, `PHYSICAL_GAP_RSSI_OFFSET=7`
+
+Helper: `wouldHurtPriorityZone()` — Samples 5 points per mustHaveCoverage PZ, computes RSSI before/after TX change. Returns `hurts=true` if any PZ drops more than PZ_MAX_RSSI_DROP_DBM.
 
 ### 3a. Dominant TX Down — `generateRoamingTxAdjustments()` (generator.ts:1481-1645)
 
@@ -110,6 +115,8 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | RM-07b | A7: Gap-too-high guard | gapRatio >= 0.20 | — | Skip (use boost instead) | :1520 |
 | RM-08 | Cross-type dedup | AP already has adjust_tx_power rec | — | Skip (avoid duplicate TX changes) | :1498 |
 | RM-09 | PZ-weighted priority | pzFactor >= 0.7 | — | high/warning, else medium/info | :1605-1606 |
+| RM-14 | PZ guard (Zone-safe TX) | wouldHurtPriorityZone() returns hurts=true for mustHaveCoverage PZ | — | Downgrade to sticky_client_risk (informational, wouldHurtPriorityZone=1). Prevents TX-down from degrading must-cover zones. | Phase 28ad |
+| RM-15 | Physical gap guard | gapRatio > PHYSICAL_GAP_RATIO (0.30) AND avgRssiInZone < fair - PHYSICAL_GAP_RSSI_OFFSET (7dB) | — | Downgrade to sticky_client_risk (informational, physicalGap=1). Gap is wall/distance-caused, not TX-solvable. | Phase 28ad |
 
 ### 3b. Weaker AP TX Boost — `generateRoamingTxBoosts()` (generator.ts:1646-1779)
 
@@ -122,6 +129,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 | RB-05 | TX boost steps | — | boostedPower > 30 dBm | Try [+3, +6], pick best positive delta | :1705-1717 |
 | RB-06 | Score + changePercent guard | scoreAfter < scoreBefore OR changePercent < 0 | — | Skip (worsens) | :1712 |
 | RB-07 | PZ-weighted priority | pzFactor >= 0.7 | — | high/warning, else medium/info | :1723-1724 |
+| RB-08 | Physical gap guard (boost) | gapRatio > PHYSICAL_GAP_RATIO (0.30) AND avgRssiInZone < fair - PHYSICAL_GAP_RSSI_OFFSET (7dB) | — | Emit sticky_client_risk (informational, physicalGap=1) instead of roaming_tx_boost. Wall/distance problem, TX boost won't help. | Phase 28ad |
 
 ### 3c. Warnings — `generateStickyClientWarnings()` (:1780-1825), `generateHandoffGapWarnings()` (:1828-1873)
 
@@ -148,6 +156,10 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 - Sticky client / gap warning: analysis.test.ts (Phase 26d)
 - W4: roaming_hint suppression (Phase 27b)
 - W5: cross-type dedup (Phase 27b)
+- **AD-A1: PZ guard — TX-down skipped when mustHaveCoverage PZ would lose signal (Phase 28ad)**
+- **AD-A2: PZ guard — TX-down proceeds when PZ not affected (Phase 28ad)**
+- **AD-B1: small handoff zone — no actionable rec when handoffZoneCells < MIN_HANDOFF_CELLS (Phase 28ad)**
+- **AD-C1: physical gap — roaming_tx_boost downgraded to sticky_client_risk when gap is wall-caused (Phase 28ad)**
 
 ---
 

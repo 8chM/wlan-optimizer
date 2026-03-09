@@ -12,7 +12,8 @@
 
 import type { HeatmapStats } from '$lib/heatmap/heatmap-manager';
 import type { APConfig, WallData, FloorBounds } from '$lib/heatmap/worker-types';
-import type { RFConfig } from '$lib/heatmap/rf-engine';
+import { computeRSSI, type RFConfig } from '$lib/heatmap/rf-engine';
+import { buildSpatialGrid } from '$lib/heatmap/spatial-grid';
 import type { FrequencyBand } from '$lib/heatmap/color-schemes';
 import type { AccessPointResponse } from '$lib/api/invoke';
 import type { AnalysisBand } from '$lib/heatmap/channel-analysis';
@@ -57,6 +58,7 @@ import type {
   ApRole,
   CandidateLocation,
   ConstraintZone,
+  PriorityZone,
 } from './types';
 import { EXPERT_PROFILES, EMPTY_CONTEXT, EFFORT_LEVELS, EFFORT_SCORES, RECOMMENDATION_CATEGORIES } from './types';
 
@@ -89,10 +91,93 @@ const MAX_IDEAL_DISTANCE_PREFERRED_CAND_M = 6;
 /** Max distance (m) from ideal target to candidate for move_ap recommendations */
 const MAX_IDEAL_DISTANCE_MOVE_AP_M = 8;
 
+// ─── PZ Zone Safety Guards ──────────────────────────────────────
+/** Max RSSI drop in a mustHaveCoverage PZ before a TX change is blocked */
+const PZ_MAX_RSSI_DROP_DBM = 3;
+/** Gap ratio above which the problem is likely physical (not TX-solvable) */
+const PHYSICAL_GAP_RATIO = 0.30;
+/** RSSI offset below "fair" threshold indicating physical gap */
+const PHYSICAL_GAP_RSSI_OFFSET = 7;
+
 let nextRecId = 0;
 function genId(): string {
   nextRecId++;
   return `rec-${nextRecId}`;
+}
+
+/**
+ * Check if a TX power modification would hurt any mustHaveCoverage PriorityZone.
+ *
+ * Samples 5 points per PZ (center + 4 inner quadrant centers).
+ * Compares best RSSI before and after modification.
+ * Returns true if any PZ's average RSSI drops by more than PZ_MAX_RSSI_DROP_DBM.
+ */
+function wouldHurtPriorityZone(
+  aps: APConfig[],
+  modifiedAps: APConfig[],
+  walls: WallData[],
+  band: FrequencyBand,
+  rfConfig: RFConfig,
+  pzs: PriorityZone[],
+): { hurts: boolean; worstZoneLabel: string } {
+  const mustHavePZs = pzs.filter(pz => pz.mustHaveCoverage);
+  if (mustHavePZs.length === 0) return { hurts: false, worstZoneLabel: '' };
+
+  const { grid: spatialGrid, allSegments } = buildSpatialGrid(
+    walls, 9999, 9999, 0, 0, // bounds only needed for grid size, not used in RF calc
+  );
+
+  let worstDrop = 0;
+  let worstLabel = '';
+
+  for (const pz of mustHavePZs) {
+    // 5 sample points: center + 4 inner quadrant centers
+    const cx = pz.x + pz.width / 2;
+    const cy = pz.y + pz.height / 2;
+    const dx = pz.width / 4;
+    const dy = pz.height / 4;
+    const samplePoints = [
+      { x: cx, y: cy },
+      { x: cx - dx, y: cy - dy },
+      { x: cx + dx, y: cy - dy },
+      { x: cx - dx, y: cy + dy },
+      { x: cx + dx, y: cy + dy },
+    ];
+
+    let sumBefore = 0;
+    let sumAfter = 0;
+
+    for (const pt of samplePoints) {
+      let bestBefore = -Infinity;
+      let bestAfter = -Infinity;
+
+      for (const ap of aps.filter(a => a.enabled)) {
+        const rssi = computeRSSI(pt.x, pt.y, ap, rfConfig, spatialGrid, allSegments);
+        if (rssi > bestBefore) bestBefore = rssi;
+      }
+      for (const ap of modifiedAps.filter(a => a.enabled)) {
+        const rssi = computeRSSI(pt.x, pt.y, ap, rfConfig, spatialGrid, allSegments);
+        if (rssi > bestAfter) bestAfter = rssi;
+      }
+
+      sumBefore += bestBefore === -Infinity ? -100 : bestBefore;
+      sumAfter += bestAfter === -Infinity ? -100 : bestAfter;
+    }
+
+    const avgBefore = sumBefore / samplePoints.length;
+    const avgAfter = sumAfter / samplePoints.length;
+    const drop = avgBefore - avgAfter;
+
+    if (drop > worstDrop) {
+      worstDrop = drop;
+      worstLabel = pz.label || pz.zoneId;
+    }
+  }
+
+  return {
+    hurts: worstDrop > PZ_MAX_RSSI_DROP_DBM,
+    worstZoneLabel: worstLabel,
+  };
 }
 
 // ─── Main Entry Point ─────────────────────────────────────────────
@@ -1294,6 +1379,11 @@ function generateTxPowerSuggestions(
         // Gap check: skip if TX reduction would increase "none" coverage by >10%
         if (delta.coverageAfter.none > delta.coverageBefore.none + 10) {
           // Would create a coverage hole — skip
+        } else if (wouldHurtPriorityZone(
+          aps, aps.map(a => a.id === ap.id ? { ...a, txPowerDbm: lowerPower } : a),
+          walls, band, rfConfig, ctx.priorityZones,
+        ).hurts) {
+          // Would hurt a mustHaveCoverage PZ — skip
         } else if (delta.changePercent > -5) {
           const absImprove = Math.abs(delta.changePercent);
           recs.push({
@@ -1829,12 +1919,51 @@ function generateRoamingTxAdjustments(
     // C2: Block roaming TX when uplink is heavily limited and benefit is marginal
     if (uplinkLimitedRatio > UPLINK_BLOCK_ROAMING && bestDelta.changePercent < 2) continue;
 
+    // PZ Guard: Skip if TX reduction would hurt a mustHaveCoverage PriorityZone
+    const pzCheck = wouldHurtPriorityZone(
+      aps, aps.map(a => a.id === dominantId ? { ...a, txPowerDbm: bestPower } : a),
+      walls, band, rfConfig, ctx.priorityZones,
+    );
+    if (pzCheck.hurts) {
+      recs.push({
+        id: genId(),
+        type: 'sticky_client_risk',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.stickyClientRiskTitle',
+        titleParams: { ap1: apLabel(dominantId), ap2: apLabel(otherId) },
+        reasonKey: 'rec.stickyClientRiskReason',
+        reasonParams: {
+          ap1: apLabel(dominantId),
+          ap2: apLabel(otherId),
+          stickyPercent: Math.round(pair.stickyRatio * 100),
+        },
+        affectedApIds: [dominantId, otherId],
+        affectedBand: band,
+        evidence: {
+          metrics: {
+            stickyRatio: pair.stickyRatio,
+            handoffZoneCells: pair.handoffZoneCells,
+            wouldHurtPriorityZone: 1,
+          },
+        },
+        confidence: 0.5,
+      });
+      continue;
+    }
+
+    // Physical gap guard: if gap is large AND zone RSSI is very weak,
+    // the problem is physical (wall/distance), not TX-solvable — downgrade
+    const fairThreshold = (BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz']).fair;
+    const gapIsPhysical = gapRatio > PHYSICAL_GAP_RATIO
+      && pair.avgRssiInZone < fairThreshold - PHYSICAL_GAP_RSSI_OFFSET;
+
     // A1: If overall score regresses OR benefit is marginal, downgrade to
     // informational hint. Roaming improvement alone doesn't justify a coverage
     // regression or near-zero change — the user should decide.
     const overallRegresses = bestDelta.scoreAfter < bestDelta.scoreBefore;
     const overallMarginal = !overallRegresses && bestDelta.changePercent < ROAMING_MIN_OVERALL_BENEFIT;
-    const shouldDowngrade = overallRegresses || overallMarginal;
+    const shouldDowngrade = overallRegresses || overallMarginal || gapIsPhysical;
 
     // PZ-weighted severity/priority
     const pzFactor = pair.pzRelevanceScore ?? 0.5;
@@ -1863,7 +1992,7 @@ function generateRoamingTxAdjustments(
             stickyRatio: pair.stickyRatio,
             handoffZoneCells: pair.handoffZoneCells,
             gapCells: pair.gapCells,
-            ...(overallRegresses ? { overallRegression: 1 } : { marginalBenefit: 1 }),
+            ...(overallRegresses ? { overallRegression: 1 } : gapIsPhysical ? { physicalGap: 1 } : { marginalBenefit: 1 }),
           },
         },
         confidence: 0.5,
@@ -2002,6 +2131,36 @@ function generateRoamingTxBoosts(
 
     // No positive step found → skip
     if (!bestDelta) continue;
+
+    // Physical gap guard: if zone RSSI is very weak, TX boost alone won't solve it
+    const boostFairThreshold = (BAND_THRESHOLDS[band] ?? BAND_THRESHOLDS['5ghz']).fair;
+    if (gapRatio > PHYSICAL_GAP_RATIO && pair.avgRssiInZone < boostFairThreshold - PHYSICAL_GAP_RSSI_OFFSET) {
+      recs.push({
+        id: genId(),
+        type: 'sticky_client_risk',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.stickyClientRiskTitle',
+        titleParams: { ap1: apLabel(weakerId), ap2: apLabel(strongerId) },
+        reasonKey: 'rec.stickyClientRiskReason',
+        reasonParams: {
+          ap1: apLabel(weakerId),
+          ap2: apLabel(strongerId),
+          stickyPercent: Math.round(pair.stickyRatio * 100),
+        },
+        affectedApIds: [weakerId, strongerId],
+        affectedBand: band,
+        evidence: {
+          metrics: {
+            gapRatio,
+            avgRssiInZone: pair.avgRssiInZone,
+            physicalGap: 1,
+          },
+        },
+        confidence: 0.4,
+      });
+      continue;
+    }
 
     // PZ-weighted severity/priority
     const pzFactor = pair.pzRelevanceScore ?? 0.5;

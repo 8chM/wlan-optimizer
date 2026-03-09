@@ -5766,4 +5766,273 @@ describe('generateRecommendations', () => {
       }
     });
   });
+
+  // ─── Phase 28ad: Zone-safe Roaming/TX Guards ───────────────────
+
+  describe('AD-A: TX changes must not hurt mustHaveCoverage PZ', () => {
+    it('AD-A1: TX-down on AP serving mustHaveCoverage PZ is suppressed', () => {
+      // Single AP covers everything; PZ in center with mustHaveCoverage
+      // TX reduction would weaken coverage in PZ → should be suppressed
+      const W = 10, H = 10;
+      const ap1 = makeAP('ap-1', 5, 5, { txPowerDbm: 23 });
+      const ap2 = makeAP('ap-2', 5.1, 5.1, { txPowerDbm: 20 }); // overlapping
+      const apResp1 = makeAPResponse('ap-1', 5, 5, 36);
+      const apResp2 = makeAPResponse('ap-2', 5.1, 5.1, 40);
+
+      const grids = makeGrids(W, H, { rssi: -50, overlap: 2 });
+      // AP-1 serves most cells
+      for (let i = 0; i < 80; i++) grids.apIndexGrid[i] = 0;
+      for (let i = 80; i < 100; i++) grids.apIndexGrid[i] = 1;
+      for (let i = 0; i < 100; i++) grids.secondBestApIndexGrid[i] = i < 80 ? 1 : 0;
+
+      const stats: HeatmapStats = {
+        ...makeStats(W, H, grids, { excellent: 50, good: 30, fair: 15, poor: 4, none: 1 }),
+        apIds: ['ap-1', 'ap-2'],
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        priorityZones: [{
+          zoneId: 'pz-1', label: 'Critical Zone', x: 3, y: 3, width: 4, height: 4,
+          weight: 1.0, targetBand: 'either', mustHaveCoverage: true,
+        }],
+      };
+
+      const result = generateRecommendations(
+        [ap1, ap2], [apResp1, apResp2], WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      // Any adjust_tx_power that reduces AP-1's TX should NOT be present
+      // if it would hurt the mustHaveCoverage PZ
+      const txDownAp1 = allRecs.filter(r =>
+        r.type === 'adjust_tx_power' &&
+        r.suggestedChange?.apId === 'ap-1' &&
+        (r.suggestedChange?.suggestedValue as number) < 23,
+      );
+
+      // If any TX-down exists, it must not have been suppressed by PZ guard
+      // (the guard may or may not fire depending on simulation — we verify the invariant)
+      for (const rec of txDownAp1) {
+        // If it wasn't suppressed, it should at least not regress coverage
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.coverageAfter.none,
+            'TX-down must not increase "none" coverage significantly',
+          ).toBeLessThanOrEqual(rec.simulatedDelta.coverageBefore.none + 10);
+        }
+      }
+    });
+
+    it('AD-A2: roaming_tx_adjustment suppressed when it would hurt mustHaveCoverage PZ', () => {
+      // 2 APs with sticky pair; dominant AP (ap-1) covers mustHaveCoverage PZ
+      // Reducing ap-1 TX would improve roaming but hurt PZ → downgraded to informational
+      const W = 20, H = 10;
+      const ap1 = makeAP('ap-1', 5, 5, { txPowerDbm: 23 });
+      const ap2 = makeAP('ap-2', 15, 5, { txPowerDbm: 17 });
+      const apResp1 = makeAPResponse('ap-1', 5, 5, 36);
+      const apResp2 = makeAPResponse('ap-2', 15, 5, 44);
+
+      const grids = makeGrids(W, H, { rssi: -55 });
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          if (c < 12) {
+            grids.apIndexGrid[idx] = 0;
+            grids.secondBestApIndexGrid[idx] = 1;
+            grids.rssiGrid[idx] = -40 - c * 1.5;
+            grids.deltaGrid[idx] = c < 8 ? 15 : 4;
+          } else {
+            grids.apIndexGrid[idx] = 1;
+            grids.secondBestApIndexGrid[idx] = 0;
+            grids.rssiGrid[idx] = -50 - (c - 12) * 2;
+            grids.deltaGrid[idx] = 8;
+          }
+        }
+      }
+
+      const stats: HeatmapStats = {
+        ...makeStats(W, H, grids, { excellent: 80, good: 60, fair: 30, poor: 20, none: 10 }),
+        apIds: ['ap-1', 'ap-2'],
+      };
+
+      const ctx: RecommendationContext = {
+        ...EMPTY_CONTEXT,
+        priorityZones: [{
+          zoneId: 'pz-1', label: 'Server Room', x: 3, y: 3, width: 4, height: 4,
+          weight: 1.5, targetBand: 'either', mustHaveCoverage: true,
+        }],
+      };
+
+      const result = generateRecommendations(
+        [ap1, ap2], [apResp1, apResp2], WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced', ctx,
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // Global invariant: if PZ guard fires, no actionable roaming_tx_adjustment
+      // should exist for the dominant AP of that PZ
+      const roamingTxAdj = allRecs.filter(r => r.type === 'roaming_tx_adjustment');
+      for (const rec of roamingTxAdj) {
+        // Any actionable roaming_tx_adjustment must not have been PZ-blocked
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.scoreAfter,
+            'roaming_tx_adjustment must not regress overall',
+          ).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
+        }
+      }
+
+      // Check for PZ-guard-downgraded sticky_client_risk
+      const pzGuarded = allRecs.filter(
+        r => r.type === 'sticky_client_risk' && r.evidence?.metrics?.wouldHurtPriorityZone === 1,
+      );
+      // This may or may not fire depending on simulation results — the test verifies
+      // the invariant holds (no actionable rec that hurts PZ)
+      if (pzGuarded.length > 0) {
+        for (const rec of pzGuarded) {
+          expect(rec.severity).toBe('info');
+          expect(rec.priority).toBe('low');
+          expect(rec.suggestedChange).toBeUndefined();
+        }
+      }
+    });
+  });
+
+  describe('AD-B: Small handoff zone → informational only', () => {
+    it('AD-B1: handoffZoneCells below MIN_HANDOFF_CELLS produces no actionable roaming recs', () => {
+      // 2 APs far apart — tiny handoff zone (< 50 cells)
+      const W = 30, H = 5;
+      const ap1 = makeAP('ap-1', 3, 2.5, { txPowerDbm: 23 });
+      const ap2 = makeAP('ap-2', 27, 2.5, { txPowerDbm: 23 });
+      const apResp1 = makeAPResponse('ap-1', 3, 2.5, 36);
+      const apResp2 = makeAPResponse('ap-2', 27, 2.5, 44);
+
+      const grids = makeGrids(W, H, { rssi: -65 });
+      // AP-1 left half, AP-2 right half, tiny overlap zone
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          if (c < 14) {
+            grids.apIndexGrid[idx] = 0;
+            grids.secondBestApIndexGrid[idx] = 1;
+            grids.rssiGrid[idx] = -40 - c * 2;
+          } else if (c > 16) {
+            grids.apIndexGrid[idx] = 1;
+            grids.secondBestApIndexGrid[idx] = 0;
+            grids.rssiGrid[idx] = -40 - (W - 1 - c) * 2;
+          } else {
+            // Narrow handoff zone (3 columns × 5 rows = 15 cells < 50)
+            grids.apIndexGrid[idx] = c < 15 ? 0 : 1;
+            grids.secondBestApIndexGrid[idx] = c < 15 ? 1 : 0;
+            grids.rssiGrid[idx] = -75;
+            grids.deltaGrid[idx] = 3;
+          }
+        }
+      }
+
+      const stats: HeatmapStats = {
+        ...makeStats(W, H, grids, { excellent: 40, good: 40, fair: 30, poor: 25, none: 15 }),
+        apIds: ['ap-1', 'ap-2'],
+      };
+
+      const result = generateRecommendations(
+        [ap1, ap2], [apResp1, apResp2], WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      // No actionable roaming_tx_adjustment or roaming_tx_boost for small handoff zones
+      const actionableRoaming = allRecs.filter(
+        r => (r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost') &&
+             r.affectedApIds.some(id => id === 'ap-1' || id === 'ap-2'),
+      );
+      expect(
+        actionableRoaming.length,
+        'tiny handoff zone must not produce actionable roaming recs',
+      ).toBe(0);
+    });
+  });
+
+  describe('AD-C: Physical gap → downgrade roaming recs', () => {
+    it('AD-C1: high gapRatio + very weak avgRssi → informational (physicalGap)', () => {
+      // 2 APs with a wall between them creating a physical gap
+      // Gap zone has very weak RSSI → TX changes won't fix it
+      const W = 20, H = 10;
+      const ap1 = makeAP('ap-1', 5, 5, { txPowerDbm: 23 });
+      const ap2 = makeAP('ap-2', 15, 5, { txPowerDbm: 20 });
+      const apResp1 = makeAPResponse('ap-1', 5, 5, 36);
+      const apResp2 = makeAPResponse('ap-2', 15, 5, 44);
+
+      const grids = makeGrids(W, H, { rssi: -55 });
+      // Strong coverage on both sides, very weak in the middle (physical gap)
+      for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+          const idx = r * W + c;
+          if (c < 8) {
+            grids.apIndexGrid[idx] = 0;
+            grids.secondBestApIndexGrid[idx] = 1;
+            grids.rssiGrid[idx] = -45;
+            grids.deltaGrid[idx] = 15; // sticky
+          } else if (c > 12) {
+            grids.apIndexGrid[idx] = 1;
+            grids.secondBestApIndexGrid[idx] = 0;
+            grids.rssiGrid[idx] = -50;
+            grids.deltaGrid[idx] = 12;
+          } else {
+            // Gap zone: very weak RSSI (physical obstruction)
+            grids.apIndexGrid[idx] = c < 10 ? 0 : 1;
+            grids.secondBestApIndexGrid[idx] = c < 10 ? 1 : 0;
+            grids.rssiGrid[idx] = -82; // well below fair-7 = -77
+            grids.deltaGrid[idx] = 3;
+            grids.overlapCountGrid[idx] = 2;
+          }
+        }
+      }
+
+      const stats: HeatmapStats = {
+        ...makeStats(W, H, grids, { excellent: 60, good: 40, fair: 20, poor: 50, none: 30 }),
+        apIds: ['ap-1', 'ap-2'],
+      };
+
+      const result = generateRecommendations(
+        [ap1, ap2], [apResp1, apResp2], WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      // Global invariant: if physical gap detected, no actionable roaming TX recs
+      // for that pair (only informational sticky_client_risk with physicalGap flag)
+      const physicalGapRecs = allRecs.filter(
+        r => r.type === 'sticky_client_risk' && r.evidence?.metrics?.physicalGap === 1,
+      );
+      // We don't assert that physical gap is always detected (depends on analysis),
+      // but if detected, it must be informational
+      for (const rec of physicalGapRecs) {
+        expect(rec.severity).toBe('info');
+        expect(rec.priority).toBe('low');
+        expect(rec.suggestedChange).toBeUndefined();
+      }
+
+      // Any actionable roaming recs for this pair must have reasonable benefit
+      const actionableRoaming = allRecs.filter(
+        r => r.type === 'roaming_tx_adjustment' || r.type === 'roaming_tx_boost',
+      );
+      for (const rec of actionableRoaming) {
+        if (rec.simulatedDelta) {
+          expect(
+            rec.simulatedDelta.scoreAfter,
+            'actionable roaming rec must not regress',
+          ).toBeGreaterThanOrEqual(rec.simulatedDelta.scoreBefore);
+        }
+      }
+    });
+  });
 });

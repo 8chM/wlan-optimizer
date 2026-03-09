@@ -1592,6 +1592,25 @@
         "1202 Tests pass (38 files), svelte-check 0 Errors, Build OK"
       ]
     },
+    "28bh": {
+      "name": "Roaming Sanity & Pair-Interpretation",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "RB-09: Marginal benefit guard for boost path — changePercent < 0.5% → sticky_client_risk informational (marginalBenefit=1)",
+        "RB-10: PZ guard for boost path — wouldHurtPriorityZone → sticky_client_risk informational (wouldHurtPriorityZone=1)",
+        "Removed redundant gapCells < 5 check in generateHandoffGapWarnings (covered by <= 10)",
+        "BH-1a: F6 tiny handoff → no actionable roaming_tx_adjustment or boost",
+        "BH-2a: cross-fixture — boost exists → no sticky for same pair in main list",
+        "BH-3a: cross-fixture — physicalGap=1 recs never actionable_config",
+        "BH-4a: cross-fixture — marginalBenefit=1 recs not actionable_config",
+        "BH-4b: cross-fixture — max 1 roaming note per pair, gap > sticky",
+        "Golden files regenerated (g1, g6, g9, g10, g11, g12, g13), g6 correctly 0 recs",
+        "rules.md: 101 Regeln, 20 Cluster, RB-09/RB-10 dokumentiert",
+        "1210 Tests pass (38 files), svelte-check 0 Errors, Build OK [f811057]"
+      ]
+    },
     "28bi": {
       "name": "Channel Width Practicality — Conflict Pressure Guard",
       "status": "completed",

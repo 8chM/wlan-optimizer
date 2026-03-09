@@ -1630,6 +1630,23 @@
         "1210 Tests pass (38 files), svelte-check 0 Errors, Build OK"
       ]
     },
+    "28bj": {
+      "name": "User My House — Real-World Golden Gate",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "RF6: create-rf6-user-myhouse.ts — 4 APs, 6 Waende, 3 PZ, 3 Candidates, 1 ConstraintZone, required_for_new_ap",
+        "rf-user-myhouse.test.ts: 12 harte Invarianten (U1-U12)",
+        "U1: CandidatePolicy, U2: No Phantom, U3: Infra Cap, U4: Channel Bounded",
+        "U5: Width Pressure >=0.35, U6: No-New-Cable, U7: Roaming Actionability",
+        "U8: Max 1 Note/Pair, U9: Evidence Minimums, U10: Budget Notes BG-01",
+        "U11: Config Budget BD-01, U12: Cross-Type TX Dedup",
+        "Golden g14-user-myhouse (3 recs: sticky_client_risk), g9-g14 shared guardrails",
+        "fixtures.md: RF6 Eintrag",
+        "1260 Tests pass (40 files), svelte-check 0 Errors, Build OK [734449b]"
+      ]
+    },
     "28bk": {
       "name": "Preview/Apply Konsistenz — E2E Roundtrip Tests",
       "status": "completed",

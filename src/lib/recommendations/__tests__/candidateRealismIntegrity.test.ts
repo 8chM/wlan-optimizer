@@ -26,7 +26,9 @@ import {
   createF5FarCandidates,
   createF8CandidateRequiredNoNear,
 } from './fixtures/regression-fixtures';
+import { createRf1HomeOffice } from './fixtures/create-rf1';
 import { createRf2UserHouse } from './fixtures/create-rf2';
+import { createRf3MyHouse } from './fixtures/create-rf3';
 import { loadExportedFixture } from './fixtures/load-exported-fixture';
 import type { ExportedFixture } from '../fixture-export';
 
@@ -447,6 +449,134 @@ describe('AQ: No-Cable Reality Pack (Phase 28aq)', () => {
     for (const rec of infraRecs) {
       expect(rec.priority, `infra_required ${rec.id} must be high priority`).toBe('high');
       expect(rec.severity, `infra_required ${rec.id} must be warning`).toBe('warning');
+    }
+  });
+});
+
+// ─── AS: Candidate-Realismus Hard Mode (Phase 28as) ───────────────
+
+describe('AS: Candidate-Realismus Hard Mode (Phase 28as)', () => {
+  // AS-1: required_for_new_ap + 0 candidates → multi-fixture hard invariant
+  it('AS-1: required_for_new_ap + 0 candidates → kein add_ap, max 2 infra, evidence komplett (multi-fixture)', () => {
+    const fixtures = [
+      { name: 'F4', create: createF4NoNewCable },
+      { name: 'RF1', create: createRf1HomeOffice },
+      { name: 'RF2', create: createRf2UserHouse },
+    ];
+
+    for (const { name, create } of fixtures) {
+      const f = create();
+      const ctx: RecommendationContext = {
+        ...f.ctx,
+        candidates: [],
+        candidatePolicy: 'required_for_new_ap',
+      };
+      const result = run(f, ctx);
+      const allRecs = collectAll(result.recommendations);
+
+      // ZERO add_ap under required policy with no candidates
+      expect(allRecs.filter(r => r.type === 'add_ap').length, `${name}: no add_ap`).toBe(0);
+      // ZERO preferred_candidate_location
+      expect(
+        allRecs.filter(r => r.type === 'preferred_candidate_location').length,
+        `${name}: no preferred_candidate`,
+      ).toBe(0);
+
+      // infra_required capped at 2
+      const infra = allRecs.filter(r => r.type === 'infrastructure_required');
+      expect(infra.length, `${name}: infra_required capped at 2`).toBeLessThanOrEqual(2);
+
+      // Evidence completeness on every infra_required
+      for (const rec of infra) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        const p = rec.reasonParams as Record<string, unknown> | undefined;
+        expect(m?.candidateCount != null, `${name}: ${rec.id} candidateCount in evidence`).toBe(true);
+        expect(p?.candidatePolicy != null, `${name}: ${rec.id} candidatePolicy in reasonParams`).toBe(true);
+        expect(rec.priority, `${name}: ${rec.id} priority high`).toBe('high');
+        expect(rec.severity, `${name}: ${rec.id} severity warning`).toBe('warning');
+      }
+    }
+  });
+
+  // AS-2: required_for_move_and_new_ap multi-fixture → kein move_ap ohne candidate, blocked korrekt
+  it('AS-2: required_for_move_and_new_ap → kein interpolation move_ap, blocked evidence komplett (multi-fixture)', () => {
+    const fixtures = [
+      { name: 'F8', create: createF8CandidateRequiredNoNear },
+      { name: 'RF3', create: createRf3MyHouse },
+    ];
+
+    for (const { name, create } of fixtures) {
+      const f = create();
+      const ctx: RecommendationContext = {
+        ...f.ctx,
+        candidatePolicy: 'required_for_move_and_new_ap',
+      };
+      const result = run(f, ctx);
+      const allRecs = collectAll(result.recommendations);
+
+      // ZERO move_ap without selectedCandidatePosition
+      for (const rec of allRecs.filter(r => r.type === 'move_ap')) {
+        expect(
+          rec.selectedCandidatePosition,
+          `${name}: move_ap ${rec.id} must have selectedCandidatePosition`,
+        ).toBeDefined();
+      }
+
+      // ZERO add_ap without selectedCandidatePosition
+      for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+        expect(
+          rec.selectedCandidatePosition,
+          `${name}: add_ap ${rec.id} must have selectedCandidatePosition`,
+        ).toBeDefined();
+      }
+
+      // blocked_recommendation with candidate-reason must have full evidence
+      for (const rec of allRecs.filter(r => r.type === 'blocked_recommendation')) {
+        const p = rec.reasonParams as Record<string, unknown> | undefined;
+        if (p?.reason === 'no_candidate_close_enough' || p?.reason === 'no_candidates_defined') {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          expect(m?.candidateCount != null, `${name}: blocked ${rec.id} candidateCount`).toBe(true);
+          expect(p?.candidatePolicy != null, `${name}: blocked ${rec.id} candidatePolicy`).toBe(true);
+          expect(p?.maxDistance != null, `${name}: blocked ${rec.id} maxDistance`).toBe(true);
+        }
+      }
+    }
+  });
+
+  // AS-3: optional + 0 candidates multi-fixture → fallback completeness
+  it('AS-3: optional + 0 candidates → fallback add_ap korrekt markiert, kein selectedCandidatePosition (multi-fixture)', () => {
+    const fixtures = [
+      { name: 'F4', create: createF4NoNewCable },
+      { name: 'RF2', create: createRf2UserHouse },
+    ];
+
+    for (const { name, create } of fixtures) {
+      const f = create();
+      const ctx: RecommendationContext = {
+        ...f.ctx,
+        candidates: [],
+        candidatePolicy: 'optional',
+      };
+      const result = run(f, ctx);
+      const allRecs = collectAll(result.recommendations);
+
+      // Every add_ap must be fallback-marked
+      for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        expect(m?.usedFallback, `${name}: add_ap ${rec.id} usedFallback=1`).toBe(1);
+        expect(m?.candidateCount, `${name}: add_ap ${rec.id} candidateCount=0`).toBe(0);
+        expect(
+          rec.selectedCandidatePosition,
+          `${name}: add_ap ${rec.id} no selectedCandidatePosition`,
+        ).toBeUndefined();
+        expect(rec.reasonKey, `${name}: add_ap ${rec.id} fallback reasonKey`).toBe('rec.addApFallbackReason');
+      }
+
+      // No move_ap should carry usedFallback
+      for (const rec of allRecs.filter(r => r.type === 'move_ap')) {
+        const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+        expect(m?.usedFallback, `${name}: move_ap ${rec.id} no usedFallback`).toBeUndefined();
+      }
     }
   });
 });

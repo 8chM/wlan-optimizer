@@ -16,9 +16,12 @@ import type { AccessPointResponse } from '$lib/api/invoke';
 import type { Recommendation, RecommendationContext, CandidateLocation } from '../types';
 import { EMPTY_CONTEXT } from '../types';
 import {
+  createF4NoNewCable,
   createF5FarCandidates,
   createF8CandidateRequiredNoNear,
 } from './fixtures/regression-fixtures';
+import { createRf1HomeOffice } from './fixtures/create-rf1';
+import { createRf2UserHouse } from './fixtures/create-rf2';
 import { createRf3MyHouse } from './fixtures/create-rf3';
 
 const BAND = '5ghz' as const;
@@ -540,6 +543,111 @@ describe('Candidate Semantics Integrity', () => {
         EVIDENCE_MINIMUMS[t]!.length,
         `EVIDENCE_MINIMUMS[${t}] must have at least 1 required key`,
       ).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
+
+// ─── AS: Global Candidate Hard Invariants (Phase 28as) ────────────
+
+describe('AS: Global Candidate Hard Invariants (Phase 28as)', () => {
+  // AS-4: Global hard invariant — required policies ban phantom positions across all fixtures
+  it('AS-4: required policies → kein add_ap/preferred_candidate ohne selectedCandidatePosition (cross-fixture)', () => {
+    const fixtures = [
+      { name: 'F4', create: createF4NoNewCable },
+      { name: 'F5', create: createF5FarCandidates },
+      { name: 'F8', create: createF8CandidateRequiredNoNear },
+      { name: 'RF1', create: createRf1HomeOffice },
+      { name: 'RF2', create: createRf2UserHouse },
+      { name: 'RF3', create: createRf3MyHouse },
+    ];
+
+    const policies = ['required_for_new_ap', 'required_for_move_and_new_ap'] as const;
+
+    for (const { name, create } of fixtures) {
+      for (const policy of policies) {
+        const f = create();
+        const ctx: RecommendationContext = {
+          ...f.ctx,
+          candidatePolicy: policy,
+        };
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', ctx,
+        );
+        const allRecs = collectAll(result.recommendations);
+
+        // No add_ap without selectedCandidatePosition
+        for (const rec of allRecs.filter(r => r.type === 'add_ap')) {
+          expect(
+            rec.selectedCandidatePosition,
+            `${name}/${policy}: add_ap ${rec.id} must have selectedCandidatePosition`,
+          ).toBeDefined();
+        }
+
+        // No preferred_candidate without selectedCandidatePosition
+        for (const rec of allRecs.filter(r => r.type === 'preferred_candidate_location')) {
+          expect(
+            rec.selectedCandidatePosition,
+            `${name}/${policy}: preferred_candidate ${rec.id} must have selectedCandidatePosition`,
+          ).toBeDefined();
+        }
+
+        // Mutual exclusion: selectedCandidatePosition and usedFallback never co-exist
+        for (const rec of allRecs) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+          if (rec.selectedCandidatePosition && m?.usedFallback) {
+            expect.fail(
+              `${name}/${policy}: ${rec.type} ${rec.id} has BOTH selectedCandidatePosition AND usedFallback`,
+            );
+          }
+        }
+      }
+    }
+  });
+
+  // AS-5: move_ap interpolation uses distinct reasonKey
+  it('AS-5: move_ap interpolation → reasonKey markiert Interpolation', () => {
+    const { W, H, rssiGrid, ...gridRest } = makeTwoApGrid();
+    const aps_ = [
+      ap('ap-1', 5, 7, { txPowerDbm: 20 }),
+      ap('ap-2', 25, 7, { txPowerDbm: 8 }),
+    ];
+    const apResps_ = [
+      apResp('ap-1', 5, 7, 36, { tx_power_5ghz_dbm: 20 }),
+      apResp('ap-2', 25, 7, 44, { tx_power_5ghz_dbm: 8 }),
+    ];
+    const stats = makeStats(W, H, rssiGrid, gridRest, ['ap-1', 'ap-2']);
+    const bounds = { width: W, height: H, originX: 0, originY: 0 };
+
+    // No candidates → interpolation path for move_ap
+    const ctx: RecommendationContext = {
+      ...EMPTY_CONTEXT,
+      candidates: [],
+      candidatePolicy: 'required_for_new_ap', // allows move interpolation
+    };
+
+    const result = generateRecommendations(aps_, apResps_, [], bounds, BAND, stats, RF_CONFIG, 'balanced', ctx);
+    const allRecs = collectAll(result.recommendations);
+    const moves = allRecs.filter(r => r.type === 'move_ap');
+
+    // Interpolation moves (no selectedCandidatePosition) must use interpolation reasonKey
+    for (const rec of moves) {
+      if (!rec.selectedCandidatePosition) {
+        expect(
+          rec.reasonKey,
+          `move_ap ${rec.id}: interpolation path must use moveApInterpolationReason`,
+        ).toBe('rec.moveApInterpolationReason');
+      }
+    }
+
+    // Candidate-based moves (with selectedCandidatePosition) must keep original reasonKey
+    for (const rec of moves) {
+      if (rec.selectedCandidatePosition) {
+        expect(
+          rec.reasonKey,
+          `move_ap ${rec.id}: candidate path must use moveApReason`,
+        ).toBe('rec.moveApReason');
+      }
     }
   });
 });

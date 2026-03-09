@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28at-complete",
+  "currentPhase": "phase-28as-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1366,6 +1366,22 @@
         "golden.test.ts: g13-rf5-user-live-v2 (12 recs) + 4 Guardrails",
         "fixtures.md: RF5 Eintrag ergaenzt",
         "1125 Tests pass (38 files), 52 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28as": {
+      "name": "Candidate-Realismus Hard Mode — Move/Add/Infra vollstaendig konsistent",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "generator.ts: move_ap interpolation → eigener reasonKey (moveApInterpolationReason)",
+        "i18n EN+DE: moveApInterpolationReason Key hinzugefuegt",
+        "AS-1: required_for_new_ap + 0 candidates → kein add_ap, max 2 infra, evidence komplett (F4, RF1, RF2)",
+        "AS-2: required_for_move_and_new_ap → kein interpolation move_ap, blocked evidence komplett (F8, RF3)",
+        "AS-3: optional + 0 candidates → fallback add_ap korrekt markiert, kein selectedCandidatePosition (F4, RF2)",
+        "AS-4: Global cross-fixture invariant — required policies verbieten phantom positions (6 Fixtures × 2 Policies)",
+        "AS-5: move_ap interpolation reasonKey markiert Interpolation klar",
+        "1130 Tests pass (38 files), 52 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

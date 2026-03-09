@@ -463,6 +463,7 @@
     "moveApTitle": "Move {ap} to ({x}, {y})",
     "moveApToCandidateTitle": "Move {ap} to \"{candidate}\" ({x}, {y})",
     "moveApReason": "Current coverage only {coverage}%, improvement +{improvement}%",
+    "moveApInterpolationReason": "Estimated position (no candidate defined) — coverage {coverage}%, improvement +{improvement}%",
     "rotateApTitle": "Rotate {ap} to {deg}°",
     "rotateApReason": "Better orientation: {currentDeg}° → {suggestedDeg}°, +{improvement}% score",
     "changeMountingTitle": "Switch {ap} to {mounting}",

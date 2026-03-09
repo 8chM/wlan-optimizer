@@ -463,6 +463,7 @@
     "moveApTitle": "{ap} nach ({x}, {y}) verschieben",
     "moveApToCandidateTitle": "{ap} nach \"{candidate}\" ({x}, {y}) verschieben",
     "moveApReason": "Aktuelle Abdeckung nur {coverage}%, Verbesserung +{improvement}%",
+    "moveApInterpolationReason": "Geschaetzte Position (kein Candidate definiert) — Abdeckung {coverage}%, Verbesserung +{improvement}%",
     "rotateApTitle": "{ap} auf {deg}° drehen",
     "rotateApReason": "Bessere Ausrichtung: {currentDeg}° → {suggestedDeg}°, +{improvement}% Score",
     "changeMountingTitle": "{ap} auf {mounting} umstellen",

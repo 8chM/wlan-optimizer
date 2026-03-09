@@ -1127,7 +1127,7 @@ function generateMoveApSuggestions(
         severity: bestDelta.changePercent > 10 ? 'critical' : 'warning',
         titleKey: selectedCandidateLabel ? 'rec.moveApToCandidateTitle' : 'rec.moveApTitle',
         titleParams,
-        reasonKey: 'rec.moveApReason',
+        reasonKey: selectedCandidateLabel ? 'rec.moveApReason' : 'rec.moveApInterpolationReason',
         reasonParams: {
           coverage: Math.round(metrics.primaryCoverageRatio * 100),
           improvement: Math.round(bestDelta.changePercent),

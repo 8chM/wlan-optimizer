@@ -1,0 +1,418 @@
+{
+  "aps": [
+    {
+      "id": "ap-mtg1",
+      "x": 3,
+      "y": 5,
+      "txPowerDbm": 20,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-open1",
+      "x": 10,
+      "y": 5,
+      "txPowerDbm": 22,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-open2",
+      "x": 20,
+      "y": 5,
+      "txPowerDbm": 22,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-mtg2",
+      "x": 27,
+      "y": 5,
+      "txPowerDbm": 20,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-lo1",
+      "x": 10,
+      "y": 15,
+      "txPowerDbm": 16,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    },
+    {
+      "id": "ap-lo2",
+      "x": 20,
+      "y": 15,
+      "txPowerDbm": 16,
+      "antennaGainDbi": 4,
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientationDeg": 0,
+      "heightM": 2.5
+    }
+  ],
+  "accessPoints": [
+    {
+      "id": "ap-mtg1",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 3,
+      "y": 5,
+      "label": "ap-mtg1",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 20,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 36,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-open1",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 10,
+      "y": 5,
+      "label": "ap-open1",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 22,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 44,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-open2",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 20,
+      "y": 5,
+      "label": "ap-open2",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 22,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 36,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-mtg2",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 27,
+      "y": 5,
+      "label": "ap-mtg2",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 20,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 48,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-lo1",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 10,
+      "y": 15,
+      "label": "ap-lo1",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 16,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 52,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    },
+    {
+      "id": "ap-lo2",
+      "floor_id": "floor-1",
+      "ap_model_id": "dap-x2810",
+      "x": 20,
+      "y": 15,
+      "label": "ap-lo2",
+      "enabled": true,
+      "mounting": "ceiling",
+      "orientation_deg": 0,
+      "height_m": 2.5,
+      "tx_power_5ghz_dbm": 16,
+      "tx_power_24ghz_dbm": 17,
+      "tx_power_6ghz_dbm": null,
+      "channel_5ghz": 44,
+      "channel_24ghz": 1,
+      "channel_6ghz": null,
+      "channel_width": "80",
+      "band_steering_enabled": false,
+      "ip_address": null,
+      "ssid": null,
+      "created_at": "",
+      "updated_at": "",
+      "ap_model": {
+        "id": "dap-x2810",
+        "name": "DAP-X2810",
+        "manufacturer": "D-Link",
+        "antenna_gain_24ghz_dbi": 3.2,
+        "antenna_gain_5ghz_dbi": 4.3,
+        "antenna_gain_6ghz_dbi": 4.3
+      }
+    }
+  ],
+  "walls": [
+    {
+      "segments": [
+        {
+          "x1": 7,
+          "y1": 0,
+          "x2": 7,
+          "y2": 10
+        }
+      ],
+      "attenuationDb": 8,
+      "baseThicknessCm": 12,
+      "actualThicknessCm": 12,
+      "materialLabel": "Glass+Frame"
+    },
+    {
+      "segments": [
+        {
+          "x1": 23,
+          "y1": 0,
+          "x2": 23,
+          "y2": 10
+        }
+      ],
+      "attenuationDb": 8,
+      "baseThicknessCm": 12,
+      "actualThicknessCm": 12,
+      "materialLabel": "Glass+Frame"
+    },
+    {
+      "segments": [
+        {
+          "x1": 7,
+          "y1": 10,
+          "x2": 7,
+          "y2": 20
+        }
+      ],
+      "attenuationDb": 6,
+      "baseThicknessCm": 12,
+      "actualThicknessCm": 12,
+      "materialLabel": "Brick"
+    },
+    {
+      "segments": [
+        {
+          "x1": 23,
+          "y1": 10,
+          "x2": 23,
+          "y2": 20
+        }
+      ],
+      "attenuationDb": 10,
+      "baseThicknessCm": 20,
+      "actualThicknessCm": 20,
+      "materialLabel": "Concrete"
+    },
+    {
+      "segments": [
+        {
+          "x1": 0,
+          "y1": 10,
+          "x2": 7,
+          "y2": 10
+        }
+      ],
+      "attenuationDb": 4,
+      "baseThicknessCm": 8,
+      "actualThicknessCm": 8,
+      "materialLabel": "Wood"
+    },
+    {
+      "segments": [
+        {
+          "x1": 23,
+          "y1": 10,
+          "x2": 30,
+          "y2": 10
+        }
+      ],
+      "attenuationDb": 4,
+      "baseThicknessCm": 8,
+      "actualThicknessCm": 8,
+      "materialLabel": "Wood"
+    }
+  ],
+  "bounds": {
+    "width": 30,
+    "height": 20,
+    "originX": 0,
+    "originY": 0
+  },
+  "band": "5ghz",
+  "profile": "balanced",
+  "ctx": {
+    "candidates": [
+      {
+        "id": "cand-lounge-mitte",
+        "x": 15,
+        "y": 15,
+        "label": "Lounge Mitte (Decke)",
+        "mountingOptions": [
+          "ceiling"
+        ],
+        "hasLan": true,
+        "hasPoe": true,
+        "hasPower": true,
+        "preferred": false,
+        "forbidden": false
+      },
+      {
+        "id": "cand-kitchen",
+        "x": 3,
+        "y": 15,
+        "label": "Kitchen Decke",
+        "mountingOptions": [
+          "ceiling"
+        ],
+        "hasLan": false,
+        "hasPoe": false,
+        "hasPower": true,
+        "preferred": false,
+        "forbidden": false
+      }
+    ],
+    "constraintZones": [],
+    "apCapabilities": [],
+    "priorityZones": [
+      {
+        "zoneId": "pz-open",
+        "label": "Open Space",
+        "x": 8,
+        "y": 1,
+        "width": 14,
+        "height": 8,
+        "weight": 1,
+        "targetBand": "either",
+        "mustHaveCoverage": true
+      },
+      {
+        "zoneId": "pz-mtg1",
+        "label": "Meeting 1",
+        "x": 1,
+        "y": 1,
+        "width": 5,
+        "height": 8,
+        "weight": 0.9,
+        "targetBand": "either",
+        "mustHaveCoverage": false
+      }
+    ],
+    "rejections": [],
+    "candidatePolicy": "required_for_new_ap"
+  }
+}

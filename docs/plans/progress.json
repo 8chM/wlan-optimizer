@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28ar-complete",
+  "currentPhase": "phase-28at-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1346,6 +1346,26 @@
         "generator.ts: Type-Fix — candidatePolicy aus evidence.metrics entfernt (string vs number)",
         "candidateRealismIntegrity.test.ts: AQ-4 korrigiert (candidatePolicy in reasonParams statt metrics)",
         "1112 Tests pass (37 files), 45 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
+      ]
+    },
+    "28at": {
+      "name": "Real-World Fix Loop — RF5 Fixture (Uplink-Limited) + Golden g13",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "create-rf5.ts: User Live v2 (6 APs, 6 Waende, 2 PZ, required_for_new_ap, 47% uplink-limited)",
+        "rf5-user-live-5ghz.json: ExportedFixture JSON (62KB) — erstes RF mit Uplink-Limitation",
+        "rf5-user-live.test.ts: 6 Invarianz-Tests (RF5-1..RF5-6)",
+        "RF5-1: Keine phantom add_ap (required policy + selectedCandidatePosition)",
+        "RF5-2: Kein move_ap Interpolation unter strict policy",
+        "RF5-3: infra_required max 2, high priority bei candidateCount=0",
+        "RF5-4: Roaming informational only bei demotion",
+        "RF5-5: Channel bounded (max 1/AP, max 5 total, channel_5ghz param)",
+        "RF5-6: Evidence minimums erfuellt",
+        "golden.test.ts: g13-rf5-user-live-v2 (12 recs) + 4 Guardrails",
+        "fixtures.md: RF5 Eintrag ergaenzt",
+        "1125 Tests pass (38 files), 52 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

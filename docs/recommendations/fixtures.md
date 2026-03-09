@@ -74,4 +74,5 @@ Die Aenderungen sind im Git-Diff reviewbar.
 | RF2 | `create-rf2.ts` + `rf2-user-house-5ghz.json` | User House (4 APs, 3 Waende, 2 PZ, ch36-Konflikt) | g10 |
 | RF3 | `create-rf3.ts` + `rf3-my-house-5ghz.json` | My House (3 APs, 6 Waende, 3 PZ, strict policy, ch36-Konflikt) | g11 |
 | RF4 | `create-rf4.ts` + `rf4-user-live-5ghz.json` | User Live (5 APs, 5 Waende, 2 PZ, optional policy, 2 Kanal-Konflikte) | g12 |
+| RF5 | `create-rf5.ts` + `rf5-user-live-5ghz.json` | User Live v2 (6 APs, 6 Waende, 2 PZ, required_for_new_ap, 47% uplink-limited) | g13 |
 | F1-F8 | `regression-fixtures.ts` | Synthetische Szenarien | g1-g8 |

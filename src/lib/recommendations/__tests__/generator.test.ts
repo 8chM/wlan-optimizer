@@ -7816,7 +7816,7 @@ describe('generateRecommendations', () => {
       }
     });
 
-    it('BD-1b: config_budget_note has required evidence when budget exceeded', () => {
+    it('BD-1b: config_budget_note has required evidence when budget exceeded (if any emitted)', () => {
       // Use all fixtures; check that if config_budget_note exists, it has valid evidence
       const fixtureFactories = [
         createF1DenseCluster,
@@ -7845,6 +7845,95 @@ describe('generateRecommendations', () => {
           expect((m?.suppressedCount as number)).toBeGreaterThan(0);
           // apId is in affectedApIds, not metrics
           expect(note.affectedApIds.length).toBeGreaterThan(0);
+        }
+      }
+    });
+  });
+
+  // ─── BG: Postprocessing Harmonisierung ──────────────────────────
+
+  describe('BG-1: Budget note dedup — max 1 budget/limit note per AP', () => {
+    it('BG-1a: cross-fixture — no AP has both channel_deprioritized_note and config_budget_note', () => {
+      const BUDGET_NOTES = new Set(['channel_deprioritized_note', 'config_budget_note']);
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF4NoNewCable,
+        createF5FarCandidates,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+        createF8CandidateRequiredNoNear,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        // Count budget notes per AP
+        const notesByAp = new Map<string, Set<string>>();
+        for (const rec of result.recommendations) {
+          if (!BUDGET_NOTES.has(rec.type)) continue;
+          for (const apId of rec.affectedApIds) {
+            const types = notesByAp.get(apId);
+            if (types) { types.add(rec.type); } else { notesByAp.set(apId, new Set([rec.type])); }
+          }
+        }
+
+        for (const [apId, types] of notesByAp) {
+          expect(
+            types.size,
+            `${create.name} — AP ${apId}: max 1 budget note type (got: ${[...types].join(', ')})`,
+          ).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+
+    it('BG-1b: sort invariant — no informational note before last instructional rec', () => {
+      const fixtureFactories = [
+        createF1DenseCluster,
+        createF2RoamingConflict,
+        createF3UplinkLimited,
+        createF4NoNewCable,
+        createF5FarCandidates,
+        createF6StickyTinyHandoff,
+        createF7UplinkWeakCoverage,
+        createF8CandidateRequiredNoNear,
+      ];
+
+      for (const create of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        // Non-blocked recs only
+        const nonBlocked = result.recommendations.filter(r => !r.blockedByConstraints?.length);
+        const categoryTier: Record<string, number> = {
+          actionable_config: 0, actionable_create: 0, instructional: 1, informational: 2,
+        };
+
+        let lastNonInformationalIdx = -1;
+        for (let i = 0; i < nonBlocked.length; i++) {
+          const cat = RECOMMENDATION_CATEGORIES[nonBlocked[i]!.type] ?? 'informational';
+          const tier = categoryTier[cat] ?? 2;
+          if (tier < 2) lastNonInformationalIdx = i;
+        }
+
+        if (lastNonInformationalIdx === -1) continue; // All informational, nothing to check
+
+        // No informational rec should appear before lastNonInformationalIdx
+        for (let i = 0; i < lastNonInformationalIdx; i++) {
+          const cat = RECOMMENDATION_CATEGORIES[nonBlocked[i]!.type] ?? 'informational';
+          const tier = categoryTier[cat] ?? 2;
+          expect(
+            tier,
+            `${create.name} — rec[${i}] (${nonBlocked[i]!.type}) is informational but appears before instructional rec[${lastNonInformationalIdx}] (${nonBlocked[lastNonInformationalIdx]!.type})`,
+          ).toBeLessThan(2);
         }
       }
     });

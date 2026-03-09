@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28bf-complete",
+  "currentPhase": "phase-28bg-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1575,6 +1575,21 @@
         "Root cause 'different test counts': concurrent sessions adding tests (1197 vs 1200) — not exclusion or skip",
         "5/5 local runs of perf test stable after fix",
         "1200 Tests pass (38 files), 82 Golden pass, svelte-check 0 Errors 2 Warnings, Build OK [ad0d126]"
+      ]
+    },
+    "28bg": {
+      "name": "Postprocessing Harmonisierung — Keine Doppel-Notes",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "BG-01: deduplicateBudgetNotes() — max 1 budget/limit note per AP (channel_deprioritized_note > config_budget_note)",
+        "Postprocessing step 20: deduplicateBudgetNotes after capConfigBudgetPerAp",
+        "Losing note removed, winner gets otherNotesSuppressed count in evidence",
+        "BG-1a: cross-fixture invariant — no AP has both channel_deprioritized_note and config_budget_note",
+        "BG-1b: sort invariant — no informational note before last instructional rec (all 8 fixtures)",
+        "rules.md: 98 Regeln, 20 Cluster, BG-01 dokumentiert",
+        "1202 Tests pass (38 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

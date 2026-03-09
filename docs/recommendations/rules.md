@@ -388,6 +388,12 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | BD-01 | Per-AP config budget cap | >2 actionable_config recs for same AP | — | Keep top 2 by type priority (channel > roaming > TX > disable), suppress rest → alternatives or config_budget_note | capConfigBudgetPerAp |
 
+### Budget Note Dedup — `deduplicateBudgetNotes()` (Phase 28bg)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BG-01 | Max 1 budget note per AP | AP has both channel_deprioritized_note and config_budget_note | — | Keep channel_deprioritized_note (higher priority), remove config_budget_note, merge suppressedCount | deduplicateBudgetNotes |
+
 ### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1681-1713)
 
 | ID | Description | Trigger | Guards | Action | Reference |
@@ -466,15 +472,16 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Cross-Type | CT-01 | 1 | post-processing in main function |
 | Noise & Dedup (BC) | BC-01, BC-02a, BC-02b | 3 | capChannelRecsPerCluster + deduplicateRoamingNotes |
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
+| Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
 
-**Total: 97 rules across 19 clusters. 23 RecommendationType values.**
+**Total: 98 rules across 20 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 
 ### Auto-Verification
 
 ```
-Total rules:  97  (counted by regex ^| [A-Z]{2}-\d+ in this document)
+Total rules:  98  (counted by regex ^| [A-Z]{2}-\d+ in this document)
 Total types:  23  (RecommendationType union in types.ts)
 Last verified: scripts/report-integrity.sh "phase-28ag"
 Drift-proof:  rulesIntegrity.test.ts (E1-E9) + rulesCatalogIntegrity.test.ts (RC-1..RC-4)

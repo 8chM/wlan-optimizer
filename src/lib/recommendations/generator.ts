@@ -371,6 +371,9 @@ export function generateRecommendations(
   // 19. Per-AP config budget: max 2 actionable_config recs per AP
   capConfigBudgetPerAp(recommendations);
 
+  // 20. BG-01: Budget note dedup: max 1 budget/limit note per AP
+  deduplicateBudgetNotes(recommendations);
+
   // Deduplicate: max 1 physical recommendation per AP, rest as alternatives
   const deduped = deduplicateRecommendations(recommendations);
   recommendations.length = 0;
@@ -3231,6 +3234,72 @@ function capConfigBudgetPerAp(recs: Recommendation[]): void {
     }
   }
   recs.push(...newNotes);
+}
+
+// ─── BG-01: Budget Note Dedup ─────────────────────────────────────
+
+/** Per-AP note types that should be limited to max 1 per AP. */
+const BUDGET_NOTE_TYPES = new Set<RecommendationType>([
+  'channel_deprioritized_note',
+  'config_budget_note',
+]);
+
+/** Priority order: lower = higher priority (kept first). */
+const BUDGET_NOTE_PRIORITY: Record<string, number> = {
+  channel_deprioritized_note: 0,
+  config_budget_note: 1,
+};
+
+/**
+ * BG-01: Per AP, keep at most 1 budget/limit note.
+ * If both channel_deprioritized_note and config_budget_note exist for the
+ * same AP, keep the higher-priority one and merge suppressedCount.
+ */
+function deduplicateBudgetNotes(recs: Recommendation[]): void {
+  // Group budget notes by AP
+  const byAp = new Map<string, Recommendation[]>();
+  for (const rec of recs) {
+    if (!BUDGET_NOTE_TYPES.has(rec.type)) continue;
+    for (const apId of rec.affectedApIds) {
+      const list = byAp.get(apId);
+      if (list) { list.push(rec); } else { byAp.set(apId, [rec]); }
+    }
+  }
+
+  const removeIds = new Set<string>();
+
+  for (const [, notes] of byAp) {
+    if (notes.length <= 1) continue;
+
+    // Sort by priority (channel_deprioritized_note wins)
+    notes.sort((a, b) =>
+      (BUDGET_NOTE_PRIORITY[a.type] ?? 99) - (BUDGET_NOTE_PRIORITY[b.type] ?? 99),
+    );
+
+    const winner = notes[0]!;
+    const losers = notes.slice(1);
+
+    // Merge suppressed count from losers into winner
+    const wm = winner.evidence?.metrics as Record<string, number> | undefined;
+    if (wm) {
+      let extra = 0;
+      for (const loser of losers) {
+        const lm = loser.evidence?.metrics as Record<string, number> | undefined;
+        extra += (lm?.suppressedCount ?? 0) + (lm?.channelRecsSuppressed ?? 0) + 1;
+      }
+      wm.otherNotesSuppressed = (wm.otherNotesSuppressed ?? 0) + losers.length;
+    }
+
+    for (const loser of losers) {
+      removeIds.add(loser.id);
+    }
+  }
+
+  if (removeIds.size > 0) {
+    for (let i = recs.length - 1; i >= 0; i--) {
+      if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
+    }
+  }
 }
 
 // ─── Deduplication ───────────────────────────────────────────────

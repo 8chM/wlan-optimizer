@@ -1685,6 +1685,27 @@
         "rules.md: BM-01a..BM-01c, BM-02a, BM-02b (5 neue Regeln, Total 106, 21 Cluster)",
         "1277 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
+    },
+    "28bl": {
+      "name": "Config-Rec Deconfliction — Channel vs Width",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "deconflictChannelVsWidth() — Cluster-basierte Deconfliction zwischen change_channel und adjust_channel_width",
+        "BL-01a: Same AP has width rec → change_channel wird alternativeRecommendation der width rec",
+        "BL-01b: Same cluster has width rec AND conflictScore < 0.45 → change_channel degradiert zu informational",
+        "WIDTH_CHANNEL_DECONFLICT_THRESHOLD = 0.45 Konstante",
+        "Aufruf nach capChannelRecsPerCluster (Step 17b)",
+        "Fix: titleParams fuer band_limit_warning (BM-02 uplink-gap advice) hinzugefuegt",
+        "BL-1: same AP — width rec vorhanden → kein actionable change_channel in main list",
+        "BL-2: same cluster, low conflictScore — channel degradiert zu informational",
+        "BL-3: cross-fixture (F1/F2/RF3/RF4/RF5/RF6) — per AP max 1 actionable {channel,width}",
+        "BL-4: width wins — channel als alternative behaelt suggestedChange",
+        "D9/T1a Tests angepasst: channel recs als alternatives von width recs akzeptiert",
+        "rules.md: BL-01a/BL-01b Regeln, Cluster 22 (Channel vs Width Deconfliction), 108 Regeln total",
+        "1277 Tests pass (40 files), 95 Golden, svelte-check 0 Errors, Build OK"
+      ]
     }
   },
   "functionalAuditFixes": {

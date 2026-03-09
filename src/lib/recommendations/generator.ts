@@ -79,6 +79,7 @@ const ROAMING_TX_BOOST_STEPS = [3, 6] as const;
 const ROAMING_TX_MAX_DBM = 30;
 const GAP_BOOST_TRIGGER = 0.25;     // Gap ratio threshold for TX boost
 const GAP_MAX_FOR_ADJUSTMENT = 0.20; // Max gap ratio for dominant-down adjustment
+const ROAMING_MIN_OVERALL_BENEFIT = 0.5; // Min changePercent for actionable roaming rec
 
 // ─── Candidate Distance Guards ──────────────────────────────────
 /** Max distance (m) from ideal target to candidate for add_ap recommendations */
@@ -507,6 +508,8 @@ function generateAddApSuggestions(
   // Multi-zone: process top 3 zones instead of only the largest
   const topZones = largeZones.slice(0, 3);
   let addApCount = 0;
+  let infraRequiredCount = 0;
+  const MAX_INFRA_REQUIRED = 2;
 
   for (const zone of topZones) {
     // Exhaust existing infrastructure: check if a nearby AP with existing config rec could address this
@@ -571,9 +574,10 @@ function generateAddApSuggestions(
           let stackSeverity: 'critical' | 'warning' | 'info' = match.requiresInfrastructure ? 'warning' : 'info';
           if (addApCount >= 2) stackPriority = 'low';
           if (addApCount >= 1 && stackSeverity !== 'info') stackSeverity = 'info';
-          const hasLabel = !!match.candidate.label;
-          const addTitleKey = hasLabel ? 'rec.addApAtCandidateTitle' : 'rec.addApTitle';
-          const infraTitleKey = hasLabel ? 'rec.infraRequiredAtCandidateTitle' : 'rec.infraRequiredTitle';
+          // Always show candidate label when candidate is selected (coordinates as detail only)
+          const candidateLabel = match.candidate.label || `Candidate ${match.candidate.id}`;
+          const addTitleKey = 'rec.addApAtCandidateTitle';
+          const infraTitleKey = 'rec.infraRequiredAtCandidateTitle';
           recs.push({
             id: genId(),
             type: match.requiresInfrastructure ? 'infrastructure_required' : 'add_ap',
@@ -583,13 +587,13 @@ function generateAddApSuggestions(
             titleParams: {
               x: Math.round(match.candidate.x * 10) / 10,
               y: Math.round(match.candidate.y * 10) / 10,
-              ...(hasLabel ? { candidate: match.candidate.label } : {}),
+              candidate: candidateLabel,
             },
             reasonKey: addApCount > 0 ? 'rec.addApCandidateStackingReason' : 'rec.addApCandidateReason',
             reasonParams: {
               cells: zone.cellCount,
               avgRssi: Math.round(zone.avgRssi),
-              candidate: match.candidate.label,
+              candidate: candidateLabel,
               distance: Math.round(match.distanceToIdeal * 10) / 10,
             },
             affectedApIds: [],
@@ -612,6 +616,7 @@ function generateAddApSuggestions(
             distanceToIdeal: match.distanceToIdeal,
             infrastructureRequired: match.requiresInfrastructure,
           });
+          if (match.requiresInfrastructure) infraRequiredCount++;
           addApCount++;
           continue; // Next zone
         }
@@ -620,6 +625,7 @@ function generateAddApSuggestions(
         continue;
       } else {
         // No usable candidate — analyze rejection reasons across all candidates
+        if (infraRequiredCount >= MAX_INFRA_REQUIRED) continue;
         const rejectionReasons = collectCandidateRejectionReasons(
           ctx.candidates, idealX, idealY, walls, ctx.constraintZones, MAX_IDEAL_DISTANCE_ADD_AP_M,
         );
@@ -663,17 +669,21 @@ function generateAddApSuggestions(
           infrastructureRequired: true,
           requiresUserDecision: true,
         });
+        infraRequiredCount++;
         continue; // Next zone
       }
     }
 
     // No candidate locations defined
     if (requireCandidates) {
+      // Cap: max MAX_INFRA_REQUIRED infrastructure_required per analysis (avoid spam)
+      if (infraRequiredCount >= MAX_INFRA_REQUIRED) continue;
       // Policy requires candidates — emit infrastructure_required instead of placing freely
+      // High priority: this is a blocker that explains why no add_ap is possible
       recs.push({
         id: genId(),
         type: 'infrastructure_required',
-        priority: 'medium',
+        priority: 'high',
         severity: 'warning',
         titleKey: 'rec.infraRequiredTitle',
         titleParams: {
@@ -697,6 +707,7 @@ function generateAddApSuggestions(
         infrastructureRequired: true,
         requiresUserDecision: true,
       });
+      infraRequiredCount++;
       continue;
     }
 
@@ -915,8 +926,17 @@ function generateMoveApSuggestions(
       }
     }
 
+    // C1: When uplink is heavily limited, require higher benefit for move_ap
+    const moveMinBenefit = uplinkLimitedRatio > UPLINK_SUPPRESS_ADD_MOVE
+      ? UPLINK_ADD_MOVE_MIN_BENEFIT : 3;
+
     // When policy requires candidate positions for moves, but no candidate produced a useful position → blocked
-    if (!bestDelta && ctx.candidates.length > 0 && movePolicy === 'required_for_move_and_new_ap') {
+    const moveBlocked = movePolicy === 'required_for_move_and_new_ap'
+      && (!bestDelta || bestDelta.changePercent <= moveMinBenefit);
+    if (moveBlocked) {
+      const blockReason = ctx.candidates.length === 0
+        ? 'no_candidates_defined'
+        : 'no_candidate_close_enough';
       recs.push({
         id: genId(),
         type: 'blocked_recommendation',
@@ -927,7 +947,7 @@ function generateMoveApSuggestions(
         reasonKey: 'rec.blockedMoveReason',
         reasonParams: {
           ap: apLabel(ap.id),
-          reason: 'no_candidate_close_enough',
+          reason: blockReason,
         },
         affectedApIds: [ap.id],
         affectedBand: band,
@@ -936,14 +956,14 @@ function generateMoveApSuggestions(
           gridStep,
         },
         confidence: 0.5,
-        blockedByConstraints: [`No candidate within ${MAX_IDEAL_DISTANCE_MOVE_AP_M}m of target zone`],
+        blockedByConstraints: [
+          ctx.candidates.length === 0
+            ? 'No candidate locations defined and policy requires them for moves'
+            : `No candidate within ${MAX_IDEAL_DISTANCE_MOVE_AP_M}m of target zone`,
+        ],
       });
       continue;
     }
-
-    // C1: When uplink is heavily limited, require higher benefit for move_ap
-    const moveMinBenefit = uplinkLimitedRatio > UPLINK_SUPPRESS_ADD_MOVE
-      ? UPLINK_ADD_MOVE_MIN_BENEFIT : 3;
 
     if (bestDelta && bestDelta.changePercent > moveMinBenefit) {
       const titleParams: Record<string, string | number> = {
@@ -1021,7 +1041,7 @@ function generateMoveApSuggestions(
         },
         simulatedDelta: bestDelta,
         confidence: 0.75,
-        selectedCandidatePosition: bestPos,
+        selectedCandidatePosition: selectedCandidateLabel ? bestPos : undefined,
         idealTargetPosition: bestTarget,
         distanceToIdeal: Math.sqrt((bestPos.x - bestTarget.x) ** 2 + (bestPos.y - bestTarget.y) ** 2),
         alternativeRecommendations: alternatives.length > 0 ? alternatives.slice(0, 3) : undefined,
@@ -1518,11 +1538,14 @@ function generateChannelRecommendations(
     channelChanges.set(apId, { from: oldCh, to: newCh, worstScore: summary?.worstScore ?? 0 });
   }
 
-  // Limit to top 5 by worstScore (graph-coloring already diversifies channels)
-  if (channelChanges.size > 5) {
+  // When pool is exhausted (component > pool), limit actionable channel recs to 2
+  // to avoid "change everything to channel X" spam. Exhaustion warning covers the rest.
+  const maxChannelRecs = exhaustedComponents.length > 0 ? 2 : 5;
+
+  if (channelChanges.size > maxChannelRecs) {
     const sorted = [...channelChanges.entries()]
       .sort((a, b) => b[1].worstScore - a[1].worstScore)
-      .slice(0, 5)
+      .slice(0, maxChannelRecs)
       .map(([id]) => id);
     const keepSet = new Set(sorted);
     for (const [apId] of [...channelChanges]) {
@@ -1803,49 +1826,82 @@ function generateRoamingTxAdjustments(
     // No positive step found → skip
     if (!bestDelta) continue;
 
-    // A1: Skip if score deteriorates
-    if (bestDelta.scoreAfter < bestDelta.scoreBefore) continue;
-
     // C2: Block roaming TX when uplink is heavily limited and benefit is marginal
     if (uplinkLimitedRatio > UPLINK_BLOCK_ROAMING && bestDelta.changePercent < 2) continue;
 
+    // A1: If overall score regresses OR benefit is marginal, downgrade to
+    // informational hint. Roaming improvement alone doesn't justify a coverage
+    // regression or near-zero change — the user should decide.
+    const overallRegresses = bestDelta.scoreAfter < bestDelta.scoreBefore;
+    const overallMarginal = !overallRegresses && bestDelta.changePercent < ROAMING_MIN_OVERALL_BENEFIT;
+    const shouldDowngrade = overallRegresses || overallMarginal;
+
     // PZ-weighted severity/priority
     const pzFactor = pair.pzRelevanceScore ?? 0.5;
-    const roamPriority = pzFactor >= 0.7 ? 'high' : 'medium';
-    const roamSeverity = pzFactor >= 0.7 ? 'warning' : 'info';
+    const roamPriority = shouldDowngrade ? 'low' : (pzFactor >= 0.7 ? 'high' : 'medium');
+    const roamSeverity = shouldDowngrade ? 'info' : (pzFactor >= 0.7 ? 'warning' : 'info');
 
-    recs.push({
-      id: genId(),
-      type: 'roaming_tx_adjustment',
-      priority: roamPriority as 'high' | 'medium' | 'low',
-      severity: roamSeverity as 'critical' | 'warning' | 'info',
-      titleKey: 'rec.roamingTxTitle',
-      titleParams: { ap: apLabel(dominantId) },
-      reasonKey: 'rec.roamingTxReason',
-      reasonParams: {
-        ap: apLabel(dominantId),
-        otherAp: apLabel(otherId),
-        percent: Math.round(pair.stickyRatio * 100),
-        delta: bestStep,
-      },
-      affectedApIds: [dominantId],
-      affectedBand: band,
-      suggestedChange: {
-        apId: dominantId,
-        parameter: txParamName,
-        currentValue: dominantAp.txPowerDbm,
-        suggestedValue: bestPower,
-      },
-      evidence: {
-        metrics: {
-          stickyRatio: pair.stickyRatio,
-          handoffZoneCells: pair.handoffZoneCells,
-          gapCells: pair.gapCells,
+    if (shouldDowngrade) {
+      // Downgrade: emit informational sticky_client_risk instead of actionable adjustment
+      recs.push({
+        id: genId(),
+        type: 'sticky_client_risk',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.stickyClientRiskTitle',
+        titleParams: { ap1: apLabel(dominantId), ap2: apLabel(otherId) },
+        reasonKey: 'rec.stickyClientRiskReason',
+        reasonParams: {
+          ap1: apLabel(dominantId),
+          ap2: apLabel(otherId),
+          stickyPercent: Math.round(pair.stickyRatio * 100),
         },
-      },
-      simulatedDelta: bestDelta,
-      confidence: 0.7,
-    });
+        affectedApIds: [dominantId, otherId],
+        affectedBand: band,
+        evidence: {
+          metrics: {
+            stickyRatio: pair.stickyRatio,
+            handoffZoneCells: pair.handoffZoneCells,
+            gapCells: pair.gapCells,
+            ...(overallRegresses ? { overallRegression: 1 } : { marginalBenefit: 1 }),
+          },
+        },
+        confidence: 0.5,
+      });
+    } else {
+      recs.push({
+        id: genId(),
+        type: 'roaming_tx_adjustment',
+        priority: roamPriority as 'high' | 'medium' | 'low',
+        severity: roamSeverity as 'critical' | 'warning' | 'info',
+        titleKey: 'rec.roamingTxTitle',
+        titleParams: { ap: apLabel(dominantId) },
+        reasonKey: 'rec.roamingTxReason',
+        reasonParams: {
+          ap: apLabel(dominantId),
+          otherAp: apLabel(otherId),
+          percent: Math.round(pair.stickyRatio * 100),
+          delta: bestStep,
+        },
+        affectedApIds: [dominantId],
+        affectedBand: band,
+        suggestedChange: {
+          apId: dominantId,
+          parameter: txParamName,
+          currentValue: dominantAp.txPowerDbm,
+          suggestedValue: bestPower,
+        },
+        evidence: {
+          metrics: {
+            stickyRatio: pair.stickyRatio,
+            handoffZoneCells: pair.handoffZoneCells,
+            gapCells: pair.gapCells,
+          },
+        },
+        simulatedDelta: bestDelta,
+        confidence: 0.7,
+      });
+    }
   }
 }
 

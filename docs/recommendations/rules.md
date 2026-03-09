@@ -100,7 +100,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| RM-01 | A1: Score guard | bestDelta.scoreAfter < scoreBefore | — | Skip (would worsen score) | :1598 |
+| RM-01 | A1: Score guard / Z2 demotion | bestDelta.scoreAfter < scoreBefore | — | Downgrade to sticky_client_risk (informational, severity=info, priority=low, keys: stickyClientRiskTitle/Reason, overallRegression=1). No suggestedChange emitted. | :1828-1864 |
 | RM-02 | A2: Minimum handoff zone | handoffZoneCells < 50 AND handoffZoneRatio < 0.01 | — | Skip (trivial pair) | :1514 |
 | RM-03 | A3: Critical gap rate probe | gapRatio >= 0.40 | probeDelta.changePercent < 0 | Skip (simulation worsens) | :1560-1568 |
 | RM-04 | A4: Trigger thresholds | stickyRatio < 0.30 AND gapRatio < 0.20 | — | Skip (no meaningful signal) | :1516-1517 |
@@ -141,6 +141,7 @@ Generator: `generateTxPowerSuggestions()` (generator.ts:1026-1147)
 - D8: roaming_tx allowed when uplink high but benefit >= 2% (Phase 28d)
 - B1: handoff_gap_warning test (Phase 26d-fix)
 - B2/B3: capability blocked roaming_tx (Phase 26d-fix)
+- **Z2: overall regression → sticky_client_risk informational instead of roaming_tx_adjustment (Phase 28z)**
 - **T1: high gapRatio → roaming_tx_boost, not adjustment (Phase 28m)**
 - **T2: canChangeTxPower=false → blocked_recommendation for boost (Phase 28m)**
 - **T3: boost worsens score → skipped (Phase 28m)**

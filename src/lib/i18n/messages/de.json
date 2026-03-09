@@ -519,6 +519,8 @@
     "roamingTxReason": "AP {ap} dominiert {percent}% der Uebergangszone mit {otherAp}. Reduzierung um {delta}dBm verbessert Client-Roaming.",
     "stickyClientTitle": "Sticky-Client-Risiko: {ap1} \u2194 {ap2}",
     "stickyClientReason": "{percent}% der Flaeche zwischen {ap1} und {ap2} hat >15dB Signalunterschied \u2014 Clients roamen moeglicherweise nicht.",
+    "stickyClientRiskTitle": "Sticky-Client-Risiko (TX unveraendert): {ap1} \u2194 {ap2}",
+    "stickyClientRiskReason": "{stickyPercent}% der Uebergangszone zwischen {ap1} und {ap2} sind sticky. TX-Power-Reduktion von {ap1} wuerde Roaming verbessern, aber die Gesamtabdeckung verschlechtern.",
     "handoffGapTitle": "Handoff-Luecke: {ap1} \u2194 {ap2}",
     "handoffGapReason": "{cells} Zellen in der Uebergangszone zwischen {ap1} und {ap2} liegen unter {threshold}dBm \u2014 Funkluecke beim Roaming.",
     "detailScoreChange": "Score-Auswirkung",

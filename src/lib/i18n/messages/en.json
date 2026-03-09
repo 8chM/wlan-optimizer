@@ -519,6 +519,8 @@
     "roamingTxReason": "AP {ap} dominates {percent}% of handoff zone with {otherAp}. Reducing TX power by {delta}dBm improves client handoff.",
     "stickyClientTitle": "Sticky-client risk: {ap1} \u2194 {ap2}",
     "stickyClientReason": "{percent}% of the area between {ap1} and {ap2} has >15dB signal difference \u2014 clients may not roam.",
+    "stickyClientRiskTitle": "Sticky-client risk (TX unchanged): {ap1} \u2194 {ap2}",
+    "stickyClientRiskReason": "{stickyPercent}% of the handoff zone between {ap1} and {ap2} is sticky. Reducing {ap1} TX power would improve roaming but degrade overall coverage.",
     "handoffGapTitle": "Handoff dead zone: {ap1} \u2194 {ap2}",
     "handoffGapReason": "{cells} cells in the handoff zone between {ap1} and {ap2} have signal below {threshold}dBm \u2014 coverage gap during roaming.",
     "detailScoreChange": "Score impact",

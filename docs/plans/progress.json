@@ -1142,6 +1142,33 @@
         "1006 Tests pass (29 files), svelte-check 0 Errors 2 Warnings, Build OK [cd3d769]"
       ]
     },
+    "28af": {
+      "name": "Roaming-Erklaerbarkeit & 'Warum nicht?' Notes",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "PZ guard (TX+Roaming): Silent skip → informational note mit pzBlockedTxTitle/Reason",
+        "Physical gap guard: physicalGapNotEffectiveTitle/Reason mit suggestMove=1 evidence",
+        "Cross-type suppression erweitert: alle roaming types (sticky/gap/adjustment/boost) statt nur gap",
+        "4 neue i18n-Keys EN+DE (pzBlockedTx, physicalGapNotEffective)",
+        "Tests AF-1a (PZ guard note), AF-2a (physical gap note), AF-3a (cross-type suppression)",
+        "1009 Tests pass (29 files), svelte-check 0 Errors 2 Warnings, Build OK [6294dd1]"
+      ]
+    },
+    "28ag": {
+      "name": "Rule-Catalog Finalization + Drift-Proofing",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "rules.md: Summary-Tabelle korrigiert (RM-07b Zaehlung, 89 statt 88 Regeln)",
+        "rules.md: rotate_ap, change_mounting, coverage_warning Typ-Namen explizit eingefuegt",
+        "rulesCatalogIntegrity.test.ts: RC-1 (Typ-Abdeckung), RC-2 (Regel-Zaehlung), RC-3 (i18n-Keys), RC-4 (Typ-Anzahl)",
+        "INV-2 Tests: .get() auf Record → Bracket-Access Fix",
+        "1038 Tests pass (30 files), svelte-check 0 Errors 2 Warnings, Build OK [ee3594e]"
+      ]
+    },
     "28ah": {
       "name": "Correctness Gap vs Sticky vs Uplink — Sanity Suite",
       "status": "completed",

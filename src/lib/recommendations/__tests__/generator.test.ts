@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { generateRecommendations } from '../generator';
+import { generateRecommendations, EVIDENCE_MINIMUMS } from '../generator';
 import type { APConfig, WallData, FloorBounds } from '$lib/heatmap/worker-types';
 import type { HeatmapStats } from '$lib/heatmap/heatmap-manager';
 import type { AccessPointResponse } from '$lib/api/invoke';
@@ -5566,6 +5566,204 @@ describe('generateRecommendations', () => {
       expect(infraRecs.length, 'max 2 infrastructure_required').toBeLessThanOrEqual(2);
       // But at least 1 should exist (there ARE weak zones)
       expect(infraRecs.length, 'should emit at least 1 infrastructure_required').toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ─── Phase 28ab: Evidence-Minimum Validation ────────────────────
+
+  /**
+   * Helper: checks that a recommendation has at least one of the required
+   * evidence.metrics keys defined by EVIDENCE_MINIMUMS for its type.
+   */
+  function assertEvidenceMinimum(rec: Recommendation): void {
+    const requiredKeys = EVIDENCE_MINIMUMS[rec.type];
+    if (!requiredKeys || requiredKeys.length === 0) return; // No minimum defined
+
+    const metricsKeys = Object.keys(rec.evidence?.metrics ?? {});
+    const hasAtLeastOne = requiredKeys.some(k => metricsKeys.includes(k));
+    expect(
+      hasAtLeastOne,
+      `${rec.type} (id=${rec.id}) must have at least one of [${requiredKeys.join(', ')}] in evidence.metrics, got [${metricsKeys.join(', ')}]`,
+    ).toBe(true);
+  }
+
+  describe('AB1: Evidence-Minimum — F1 Dense Cluster', () => {
+    it('AB1a: every F1 recommendation has evidence minimum', () => {
+      const { aps, apResps, walls, bounds, stats } = createF1DenseCluster();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      expect(allRecs.length, 'F1 must produce recommendations').toBeGreaterThan(0);
+
+      for (const rec of allRecs) {
+        assertEvidenceMinimum(rec);
+      }
+    });
+
+    it('AB1b: channel recs have conflictScore or componentSize', () => {
+      const { aps, apResps, walls, bounds, stats } = createF1DenseCluster();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const channelRecs = collectAllRecommendations(result.recommendations)
+        .filter(r => r.type === 'change_channel');
+      for (const rec of channelRecs) {
+        const m = rec.evidence?.metrics ?? {};
+        expect(
+          'conflictScore' in m || 'componentSize' in m,
+          `change_channel ${rec.id} must have conflictScore or componentSize`,
+        ).toBe(true);
+      }
+    });
+  });
+
+  describe('AB2: Evidence-Minimum — F2 Roaming Conflict', () => {
+    it('AB2a: every F2 recommendation has evidence minimum', () => {
+      const { aps, apResps, walls, bounds, stats } = createF2RoamingConflict();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      expect(allRecs.length, 'F2 must produce recommendations').toBeGreaterThan(0);
+
+      for (const rec of allRecs) {
+        assertEvidenceMinimum(rec);
+      }
+    });
+
+    it('AB2b: sticky_client_risk always has stickyRatio', () => {
+      const { aps, apResps, walls, bounds, stats } = createF2RoamingConflict();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const stickyRecs = collectAllRecommendations(result.recommendations)
+        .filter(r => r.type === 'sticky_client_risk');
+      for (const rec of stickyRecs) {
+        expect(
+          rec.evidence?.metrics?.stickyRatio,
+          `sticky_client_risk ${rec.id} must have stickyRatio`,
+        ).toBeDefined();
+        expect(
+          typeof rec.evidence?.metrics?.stickyRatio,
+          'stickyRatio must be a number',
+        ).toBe('number');
+      }
+    });
+
+    it('AB2c: roaming recs have handoffZoneCells and gapCells', () => {
+      const { aps, apResps, walls, bounds, stats } = createF2RoamingConflict();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const roamingRecs = collectAllRecommendations(result.recommendations)
+        .filter(r =>
+          r.type === 'roaming_tx_adjustment' ||
+          r.type === 'roaming_tx_boost' ||
+          r.type === 'sticky_client_risk',
+        );
+      for (const rec of roamingRecs) {
+        expect(
+          rec.evidence?.metrics?.handoffZoneCells,
+          `${rec.type} ${rec.id} must have handoffZoneCells`,
+        ).toBeDefined();
+      }
+    });
+  });
+
+  describe('AB3: Evidence-Minimum — F3 Uplink 75%', () => {
+    it('AB3a: every F3 recommendation has evidence minimum', () => {
+      const { aps, apResps, walls, bounds, stats } = createF3UplinkLimited();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      expect(allRecs.length, 'F3 must produce recommendations').toBeGreaterThan(0);
+
+      for (const rec of allRecs) {
+        assertEvidenceMinimum(rec);
+      }
+    });
+
+    it('AB3b: band_limit_warning has uplinkLimitedPercent', () => {
+      const { aps, apResps, walls, bounds, stats } = createF3UplinkLimited();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const bandLimitRecs = collectAllRecommendations(result.recommendations)
+        .filter(r => r.type === 'band_limit_warning');
+      for (const rec of bandLimitRecs) {
+        expect(
+          rec.evidence?.metrics?.uplinkLimitedPercent,
+          `band_limit_warning ${rec.id} must have uplinkLimitedPercent`,
+        ).toBeDefined();
+      }
+    });
+  });
+
+  describe('AB4: Evidence-Minimum — Z2 demotion sticky_client_risk', () => {
+    it('AB4a: demoted sticky_client_risk always has stickyRatio', () => {
+      // Use F2 fixture which may trigger roaming demotion
+      const { aps, apResps, walls, bounds, stats } = createF2RoamingConflict();
+      const result = generateRecommendations(
+        aps, apResps, walls, bounds, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const allRecs = collectAllRecommendations(result.recommendations);
+      const demotedRecs = allRecs.filter(
+        r => r.type === 'sticky_client_risk' &&
+          (r.evidence?.metrics?.overallRegression === 1 || r.evidence?.metrics?.marginalBenefit === 1),
+      );
+
+      for (const rec of demotedRecs) {
+        expect(
+          rec.evidence?.metrics?.stickyRatio,
+          `demoted sticky_client_risk ${rec.id} must have stickyRatio`,
+        ).toBeDefined();
+        expect(
+          rec.evidence?.metrics?.handoffZoneCells,
+          `demoted sticky_client_risk ${rec.id} must have handoffZoneCells`,
+        ).toBeDefined();
+        expect(
+          rec.evidence?.metrics?.gapCells,
+          `demoted sticky_client_risk ${rec.id} must have gapCells`,
+        ).toBeDefined();
+      }
+    });
+  });
+
+  describe('AB5: No empty evidence.metrics', () => {
+    it('AB5a: no recommendation across all fixtures has empty evidence.metrics', () => {
+      const fixtures = [
+        createF1DenseCluster(),
+        createF2RoamingConflict(),
+        createF3UplinkLimited(),
+        createF3UplinkWithMustHavePZ(),
+      ];
+
+      for (const fixture of fixtures) {
+        const result = generateRecommendations(
+          fixture.aps, fixture.apResps, fixture.walls,
+          fixture.bounds, BAND, fixture.stats, RF_CONFIG, 'balanced',
+          fixture.ctx,
+        );
+
+        const allRecs = collectAllRecommendations(result.recommendations);
+        for (const rec of allRecs) {
+          const keys = Object.keys(rec.evidence?.metrics ?? {});
+          expect(
+            keys.length,
+            `${rec.type} (id=${rec.id}) must have non-empty evidence.metrics`,
+          ).toBeGreaterThan(0);
+        }
+      }
     });
   });
 });

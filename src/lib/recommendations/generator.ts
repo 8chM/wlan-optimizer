@@ -1650,7 +1650,7 @@ function generateChannelRecommendations(
       reasonParams: {},
       affectedApIds: [],
       affectedBand: band,
-      evidence: { metrics: {} },
+      evidence: { metrics: { sixGhzBand: 1 } },
       confidence: 0.9,
     });
   }
@@ -2091,6 +2091,7 @@ function generateStickyClientWarnings(
         metrics: {
           stickyRatio: pair.stickyRatio,
           handoffZoneCells: pair.handoffZoneCells,
+          gapCells: pair.gapCells,
         },
       },
       confidence: 0.75,
@@ -2630,7 +2631,7 @@ function generatePreferredCandidateSuggestions(
       },
       affectedApIds: [],
       affectedBand: band,
-      evidence: { metrics: {} },
+      evidence: { metrics: { candidateCount: preferredCandidates.length, allUnsuitable: 1 } },
       confidence: 0.4,
       infrastructureRequired: true,
       requiresUserDecision: true,
@@ -2769,3 +2770,33 @@ function generateChannelWidthRecommendations(
     });
   }
 }
+
+// ─── Evidence-Minimum Requirements ──────────────────────────────
+//
+// Maps each recommendation type to the minimum set of evidence.metrics
+// keys it MUST contain (at least one key from the array). Exported for
+// test-side validation so every emitted rec is auditable.
+
+export const EVIDENCE_MINIMUMS: Partial<Record<RecommendationType, string[]>> = {
+  change_channel: ['conflictScore', 'componentSize'],
+  adjust_tx_power: ['overlapRatio', 'coverageRatio', 'improvement'],
+  adjust_channel_width: ['nearbyApCount'],
+  roaming_tx_adjustment: ['stickyRatio'],
+  roaming_tx_boost: ['gapRatio', 'gapCells'],
+  sticky_client_risk: ['stickyRatio'],
+  handoff_gap_warning: ['gapCells'],
+  add_ap: ['weakCells'],
+  move_ap: ['improvement', 'currentCoverage'],
+  rotate_ap: ['improvement'],
+  change_mounting: ['improvement'],
+  infrastructure_required: ['weakCells', 'candidateCount', 'allUnsuitable'],
+  disable_ap: ['primaryCoverageRatio'],
+  band_limit_warning: ['uplinkLimitedPercent', 'sixGhzBand'],
+  coverage_warning: ['weakPercent'],
+  overlap_warning: ['overlapPercent', 'componentSize'],
+  low_ap_value: ['primaryCoverageRatio'],
+  constraint_conflict: ['zoneWeight'],
+  preferred_candidate_location: ['improvement'],
+  blocked_recommendation: ['stickyRatio', 'currentCoverage', 'gapRatio'],
+  roaming_hint: ['lowDeltaPercent'],
+};

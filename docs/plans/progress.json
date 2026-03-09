@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-06",
-  "currentPhase": "phase-28z-complete",
+  "currentPhase": "phase-28ab-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1089,6 +1089,24 @@
         "Test Z3a: No candidates → infrastructure_required priority high (bereits in 25e1d21)",
         "Test Z3b: 3 separate Zonen → max 2 infrastructure_required (verbessert: echte 3-Zonen-Geometrie)",
         "965 Tests pass (28 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28ab": {
+      "name": "Explainability-Sicherheit — Evidence-Minimum pro Recommendation",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-09",
+      "deliverables": [
+        "EVIDENCE_MINIMUMS Map exportiert: 20 Recommendation-Typen mit required metric keys (at-least-one Semantik)",
+        "Fix: 6GHz band_limit_warning evidence leer → sixGhzBand:1",
+        "Fix: infrastructure_required (preferred unsuitable) evidence leer → candidateCount + allUnsuitable",
+        "Fix: sticky_client_risk (standalone) fehlte gapCells → ergaenzt",
+        "Tests AB1a/AB1b: F1 Dense Cluster — alle Recs haben Evidence-Minimum, channel hat conflictScore",
+        "Tests AB2a/AB2b/AB2c: F2 Roaming — alle Recs haben Evidence-Minimum, sticky hat stickyRatio, roaming hat handoffZoneCells",
+        "Tests AB3a/AB3b: F3 Uplink — alle Recs haben Evidence-Minimum, band_limit hat uplinkLimitedPercent",
+        "Test AB4a: Z2-Demotion sticky_client_risk hat immer stickyRatio + handoffZoneCells + gapCells",
+        "Test AB5a: Keine leere evidence.metrics ueber alle 4 Fixtures (F1/F2/F3/F3b)",
+        "974 Tests pass (28 files), svelte-check 0 Errors 2 Warnings, Build OK"
       ]
     }
   },

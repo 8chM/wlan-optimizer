@@ -77,3 +77,13 @@ Die Aenderungen sind im Git-Diff reviewbar.
 | RF5 | `create-rf5.ts` + `rf5-user-live-5ghz.json` | User Live v2 (6 APs, 6 Waende, 2 PZ, required_for_new_ap, 47% uplink-limited) | g13 |
 | RF6 | `create-rf6-user-myhouse.ts` | User My House (4 APs, 6 Waende, 3 PZ, 3 Cand, 1 CZ, required_for_new_ap, ch36-Konflikt) | g14 |
 | F1-F8 | `regression-fixtures.ts` | Synthetische Szenarien | g1-g8 |
+
+## Troubleshooting
+
+| Problem | Ursache | Loesung |
+|---------|---------|---------|
+| Button disabled | Kein Analyse-Ergebnis vorhanden | Erst "Analysieren" klicken |
+| Falsches Band in Export | Band aus letzter Analyse | Band im Mixing-Panel pruefen |
+| Falsche Policy im Export | candidatePolicy aus Settings | Settings → Optimization pruefen |
+| Grids fehlen / leer | Analyse nicht abgeschlossen | Warten bis fertig, dann exportieren |
+| JSON zu gross (>5MB) | Grosser Grundriss, feines Grid | gridStep erhoehen |

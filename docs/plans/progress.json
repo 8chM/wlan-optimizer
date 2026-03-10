@@ -1832,6 +1832,19 @@
         "1293 Tests pass (41 files), svelte-check 0 Errors, Build OK"
       ]
     },
+    "28bv": {
+      "name": "DEV-Export wirklich nutzbar machen — Toast, _meta erweitert, Troubleshooting-Doku",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "Block 1: Export UX — Toast nach Export mit Dateiname, disabled-Title mit Erklaerung",
+        "Block 2: _meta erweitert um band + projectId in fixture-export.ts",
+        "Block 3: Troubleshooting-Abschnitt in fixtures.md (5 Eintraege)",
+        "Block 4: RT-4 (_meta Vollstaendigkeit) + RT-5 (band + policy JSON round-trip)",
+        "1295 Tests pass (41 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
     "28bw": {
       "name": "Release Readiness — Definition of Done + Runbook + Release Audit",
       "status": "completed",

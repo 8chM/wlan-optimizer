@@ -33,6 +33,7 @@
   import { t } from '$lib/i18n';
   import type { Recommendation, RejectionReason, CandidateLocation, ConstraintZone, APCapabilities } from '$lib/recommendations/types';
   import { exportRegressionFixture } from '$lib/recommendations/fixture-export';
+  import { toastStore } from '$lib/stores/toastStore.svelte';
   import { RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
 
   // Set page context for toolbar filtering
@@ -415,7 +416,8 @@
   function handleExportFixture(): void {
     const params = recommendationStore.lastAnalysisParams;
     if (!params) return;
-    const fixture = exportRegressionFixture(params, recommendationStore.context, recommendationStore.profile);
+    const pid = projectStore.currentProject?.id ?? null;
+    const fixture = exportRegressionFixture(params, recommendationStore.context, recommendationStore.profile, pid);
     const json = JSON.stringify(fixture, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -423,11 +425,12 @@
     a.href = url;
     const now = new Date();
     const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-    const pid = projectStore.currentProject?.id ?? 'unknown';
     const band = params.band ?? '5ghz';
-    a.download = `rf-user-export-${pid}-${band}-${ts}.json`;
+    const filename = `rf-user-export-${pid ?? 'unknown'}-${band}-${ts}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    toastStore.success(`Fixture exportiert: ${filename} — Im Downloads-Ordner. Fuer Tests via loadExportedFixture().`);
   }
 
   function handleTakeSnapshot(): void {
@@ -567,12 +570,14 @@
         class="dev-export-btn"
         onclick={handleExportFixture}
         disabled={!recommendationStore.lastAnalysisParams}
-        title="Speichert eine JSON-Datei mit dem kompletten Analyse-Snapshot (APs, Waende, Grids, Kontext). Kann in Tests via loadExportedFixture() geladen werden."
+        title={recommendationStore.lastAnalysisParams
+          ? 'Speichert eine JSON-Datei mit dem kompletten Analyse-Snapshot (APs, Waende, Grids, Kontext). Kann in Tests via loadExportedFixture() geladen werden.'
+          : 'Erst Setup analysieren, dann exportieren'}
       >
         Export Regression Fixture (DEV)
       </button>
       <span class="dev-export-hint">
-        1) Neu analysieren &rarr; 2) Export klicken &rarr; 3) JSON im Downloads-Ordner
+        1) Neu analysieren &rarr; 2) Export klicken &rarr; 3) JSON landet im Downloads-Ordner
       </span>
     </div>
   {/if}

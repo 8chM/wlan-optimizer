@@ -12,7 +12,7 @@ import type { AccessPointResponse } from '$lib/api/invoke';
 import type { RecommendationContext, ExpertProfile } from './types';
 
 export interface ExportedFixture {
-  _meta: { exportedAt: string; version: 1 };
+  _meta: { exportedAt: string; version: 1; band: FrequencyBand; projectId: string | null };
   project: {
     aps: APConfig[];
     accessPoints: AccessPointResponse[];
@@ -72,11 +72,14 @@ export function exportRegressionFixture(
   },
   ctx: RecommendationContext,
   profile: ExpertProfile,
+  projectId: string | null = null,
 ): ExportedFixture {
   return {
     _meta: {
       exportedAt: new Date().toISOString(),
       version: 1,
+      band: params.band,
+      projectId,
     },
     project: {
       aps: params.aps,

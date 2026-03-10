@@ -206,4 +206,51 @@ describe('Fixture Round-Trip', () => {
       }
     }
   });
+
+  it('RT-4: _meta completeness — band, projectId, exportedAt, version', () => {
+    const fixture = createRf2UserHouse();
+    const exported = exportRegressionFixture(
+      {
+        aps: fixture.aps,
+        accessPoints: fixture.apResps,
+        walls: fixture.walls,
+        bounds: fixture.bounds,
+        band: '5ghz',
+        stats: fixture.stats,
+      },
+      fixture.ctx,
+      'balanced',
+      'test-project-42',
+    );
+
+    expect(exported._meta.version, '_meta.version').toBe(1);
+    expect(exported._meta.band, '_meta.band').toBe('5ghz');
+    expect(exported._meta.projectId, '_meta.projectId').toBe('test-project-42');
+    expect(typeof exported._meta.exportedAt, '_meta.exportedAt is string').toBe('string');
+    expect(exported._meta.exportedAt.length, '_meta.exportedAt non-empty').toBeGreaterThan(0);
+  });
+
+  it('RT-5: band + policy round-trip through JSON', () => {
+    const fixture = createRf6UserMyhouse();
+    const exported = exportRegressionFixture(
+      {
+        aps: fixture.aps,
+        accessPoints: fixture.apResps,
+        walls: fixture.walls,
+        bounds: fixture.bounds,
+        band: '5ghz',
+        stats: fixture.stats,
+      },
+      fixture.ctx,
+      'balanced',
+      null,
+    );
+
+    // JSON round-trip
+    const parsed = JSON.parse(JSON.stringify(exported)) as ExportedFixture;
+
+    expect(parsed._meta.band, 'round-trip _meta.band').toBe('5ghz');
+    expect(parsed._meta.projectId, 'round-trip _meta.projectId null').toBeNull();
+    expect(parsed.project.ctx.candidatePolicy, 'round-trip candidatePolicy').toBe('required_for_new_ap');
+  });
 });

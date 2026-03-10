@@ -449,6 +449,8 @@
     "candidatePolicyOptional": "Optional (free placement allowed)",
     "candidatePolicyRequiredNew": "Required for new APs (Recommended)",
     "candidatePolicyRequiredAll": "Required for new APs and moves",
+    "supportTools": "Support Tools",
+    "supportToolsDesc": "Enable diagnostic export on the Optimization page",
     "about": "About",
     "version": "Version",
     "techStack": "Tech Stack",
@@ -627,7 +629,15 @@
     "previewActive": "Preview active",
     "cancel": "Cancel",
     "acknowledge": "Acknowledge",
-    "staleHint": "Setup changed \u2014 click Re-analyze to update recommendations."
+    "staleHint": "Setup changed \u2014 click Re-analyze to update recommendations.",
+    "exportFixture": "Export Full Fixture",
+    "exportFixtureSanitized": "Export Anonymized",
+    "exportFixtureTooltip": "Exports a full analysis snapshot (JSON) including AP names, IPs, and layout — for support & tests.",
+    "exportSanitizedTooltip": "Exports an anonymized fixture — AP names, SSID, IP and notes removed for privacy.",
+    "importFixture": "Import Fixture",
+    "importFixtureTooltip": "Loads a previously exported JSON fixture and runs the recommendation analysis on it.",
+    "exportPrivacyHint": "Full export contains layout data & AP names. Use anonymized export to remove sensitive info.",
+    "supportToolsTitle": "Support Tools"
   },
   "capabilities": {
     "title": "Capabilities",

@@ -71,6 +71,13 @@ function handleCandidatePolicyChange(event: Event): void {
   const value = (event.target as HTMLSelectElement).value as CandidatePolicy;
   recommendationStore.setCandidatePolicy(value);
 }
+
+let supportToolsEnabled = $derived(recommendationStore.supportToolsEnabled);
+
+function handleSupportToolsChange(event: Event): void {
+  const checked = (event.target as HTMLInputElement).checked;
+  recommendationStore.setSupportToolsEnabled(checked);
+}
 </script>
 
 <svelte:head>
@@ -237,6 +244,20 @@ function handleCandidatePolicyChange(event: Event): void {
             <option value="required_for_move_and_new_ap">{t('settings.candidatePolicyRequiredAll')}</option>
             <option value="optional">{t('settings.candidatePolicyOptional')}</option>
           </select>
+        </div>
+
+        <div class="field-row">
+          <label class="field-label" for="support-tools">
+            {t('settings.supportTools')}
+            <span class="field-hint">{t('settings.supportToolsDesc')}</span>
+          </label>
+          <input
+            id="support-tools"
+            type="checkbox"
+            checked={supportToolsEnabled}
+            onchange={handleSupportToolsChange}
+            class="field-checkbox"
+          />
         </div>
       </section>
 
@@ -482,6 +503,13 @@ function handleCandidatePolicyChange(event: Event): void {
   .field-slider {
     width: 180px;
     accent-color: #6366f1;
+    cursor: pointer;
+  }
+
+  .field-checkbox {
+    accent-color: #6366f1;
+    width: 18px;
+    height: 18px;
     cursor: pointer;
   }
 

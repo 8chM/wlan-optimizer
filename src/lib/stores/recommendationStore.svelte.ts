@@ -35,6 +35,10 @@ function createRecommendationStore() {
   let profile = $state<ExpertProfile>('balanced');
   let selectedRecommendationId = $state<string | null>(null);
 
+  // Support tools toggle (persisted via localStorage)
+  let supportToolsEnabled = $state(false);
+  try { supportToolsEnabled = localStorage.getItem('wlan-opt:support-tools-enabled') === 'true'; } catch {}
+
   // Context fields as separate state to avoid circular dependencies
   let ctxCandidates = $state<CandidateLocation[]>([]);
   let ctxConstraintZones = $state<ConstraintZone[]>([]);
@@ -74,6 +78,7 @@ function createRecommendationStore() {
     get context() { return buildContext(); },
     get candidatePolicy() { return ctxCandidatePolicy; },
     get lastAnalysisParams() { return lastAnalysisParams; },
+    get supportToolsEnabled() { return supportToolsEnabled; },
 
     setProfile(p: ExpertProfile): void {
       profile = p;
@@ -106,6 +111,11 @@ function createRecommendationStore() {
 
     setCandidatePolicy(policy: CandidatePolicy): void {
       ctxCandidatePolicy = policy;
+    },
+
+    setSupportToolsEnabled(enabled: boolean): void {
+      supportToolsEnabled = enabled;
+      try { localStorage.setItem('wlan-opt:support-tools-enabled', String(enabled)); } catch {}
     },
 
     // ─── Rejection Workflow ──────────────────────────────

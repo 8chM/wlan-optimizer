@@ -449,6 +449,8 @@
     "candidatePolicyOptional": "Optional (freie Platzierung erlaubt)",
     "candidatePolicyRequiredNew": "Pflicht fuer neue APs (Empfohlen)",
     "candidatePolicyRequiredAll": "Pflicht fuer neue APs und Verschiebungen",
+    "supportTools": "Support-Werkzeuge",
+    "supportToolsDesc": "Diagnose-Export auf der Optimierungs-Seite aktivieren",
     "about": "Ueber",
     "version": "Version",
     "techStack": "Technologie-Stack",
@@ -627,7 +629,15 @@
     "previewActive": "Vorschau aktiv",
     "cancel": "Abbrechen",
     "acknowledge": "Zur Kenntnis",
-    "staleHint": "Setup geaendert \u2014 klicke Neu analysieren, um Empfehlungen zu aktualisieren."
+    "staleHint": "Setup geaendert \u2014 klicke Neu analysieren, um Empfehlungen zu aktualisieren.",
+    "exportFixture": "Vollstaendige Fixture exportieren",
+    "exportFixtureSanitized": "Anonymisiert exportieren",
+    "exportFixtureTooltip": "Exportiert einen vollstaendigen Analyse-Snapshot (JSON) inkl. AP-Namen, IPs und Layout — fuer Support & Tests.",
+    "exportSanitizedTooltip": "Exportiert eine anonymisierte Fixture — AP-Namen, SSID, IP und Notizen entfernt.",
+    "importFixture": "Fixture importieren",
+    "importFixtureTooltip": "Laedt eine zuvor exportierte JSON-Fixture und fuehrt die Empfehlungs-Analyse darauf aus.",
+    "exportPrivacyHint": "Vollexport enthaelt Layout-Daten & AP-Namen. Anonymisierter Export entfernt sensible Daten.",
+    "supportToolsTitle": "Support-Werkzeuge"
   },
   "capabilities": {
     "title": "Faehigkeiten",

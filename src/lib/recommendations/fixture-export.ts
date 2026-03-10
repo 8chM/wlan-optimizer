@@ -1,8 +1,10 @@
 /**
  * Export current recommendation analysis state as a regression fixture.
  *
- * DEV-only utility — produces a JSON blob compatible with golden.test.ts
- * serialization format (TypedArrays → plain arrays, Maps → entry arrays).
+ * Produces a JSON blob compatible with golden.test.ts serialization format
+ * (TypedArrays → plain arrays, Maps → entry arrays).
+ *
+ * Also provides sanitizeFixture() for privacy-safe support exports.
  */
 
 import type { APConfig, WallData, FloorBounds } from '$lib/heatmap/worker-types';
@@ -99,4 +101,72 @@ export function exportRegressionFixture(
     },
     stats: serializeStats(params.stats),
   };
+}
+
+/**
+ * Create a sanitized copy of an exported fixture with sensitive fields removed.
+ *
+ * Preserves all RF-relevant data (coordinates, walls, attenuation, TX power,
+ * channels, antenna gain, mounting, stats/grids, band, profile, policy).
+ *
+ * Removes: AP names/labels, SSID, IP, model IDs, floor IDs, timestamps,
+ * candidate/zone notes, project ID. IDs are remapped for consistency.
+ */
+export function sanitizeFixture(fixture: ExportedFixture): ExportedFixture {
+  const clone: ExportedFixture = JSON.parse(JSON.stringify(fixture));
+
+  // Build ID map: old AP id → "ap-1", "ap-2", ...
+  const idMap = new Map<string, string>();
+  for (let i = 0; i < clone.project.accessPoints.length; i++) {
+    const oldId = clone.project.accessPoints[i]!.id;
+    const newId = `ap-${i + 1}`;
+    idMap.set(oldId, newId);
+  }
+
+  // Sanitize _meta
+  clone._meta.projectId = null;
+
+  // Sanitize aps (APConfig[])
+  for (const ap of clone.project.aps) {
+    ap.id = idMap.get(ap.id) ?? ap.id;
+  }
+
+  // Sanitize accessPoints (AccessPointResponse[])
+  for (const ap of clone.project.accessPoints) {
+    ap.id = idMap.get(ap.id) ?? ap.id;
+    ap.label = null;
+    ap.ssid = null;
+    ap.ip_address = null;
+    ap.ap_model_id = null;
+    ap.floor_id = 'floor-1';
+    ap.created_at = '2000-01-01T00:00:00Z';
+    ap.updated_at = '2000-01-01T00:00:00Z';
+    // Clear ap_model reference if present
+    if ('ap_model' in ap) (ap as unknown as Record<string, unknown>).ap_model = null;
+  }
+
+  // Sanitize candidates
+  for (let i = 0; i < clone.project.ctx.candidates.length; i++) {
+    const c = clone.project.ctx.candidates[i]!;
+    c.label = `Candidate-${i + 1}`;
+    if ('notes' in c) (c as unknown as Record<string, unknown>).notes = undefined;
+  }
+
+  // Sanitize constraintZones
+  for (const z of clone.project.ctx.constraintZones) {
+    if ('notes' in z) (z as unknown as Record<string, unknown>).notes = undefined;
+  }
+
+  // Sanitize priorityZones
+  for (let i = 0; i < clone.project.ctx.priorityZones.length; i++) {
+    const pz = clone.project.ctx.priorityZones[i]!;
+    pz.label = `Zone-${i + 1}`;
+  }
+
+  // Remap apCapabilities keys
+  clone.project.ctx.apCapabilities = clone.project.ctx.apCapabilities.map(
+    ([oldKey, value]) => [idMap.get(oldKey) ?? oldKey, value] as [string, unknown],
+  );
+
+  return clone;
 }

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28by-complete",
+  "currentPhase": "phase-28bx-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1856,6 +1856,22 @@
         "scripts/report-integrity.sh: 'release' Modus mit separater Apply-Sequence Ausgabe + RELEASE_OK/RELEASE_FAIL",
         "RELEASE_OK tests=1293 golden=95 applySeq=4 svelteErrors=0 build=OK",
         "Keine Code-Logik-Aenderung in generator.ts"
+      ]
+    },
+    "28bx": {
+      "name": "Fixture Export als Produkt-Feature (gated, safe)",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "recommendationStore: supportToolsEnabled State + Getter + Setter + localStorage",
+        "Settings-Seite: Checkbox-Toggle in Optimization-Section",
+        "Mixing-Seite: Gate von DEV auf supportToolsEnabled, 2 Export-Buttons (Full + Sanitized), Import-Button",
+        "fixture-export.ts: sanitizeFixture() — Deep-Clone + ID-Remap + sensible Felder entfernt",
+        "RT-6: Sanitize entfernt AP-Namen/SSID/IP/Notes, remappt IDs konsistent",
+        "RT-7: Sanitized Fixture bleibt lauffaehig (loadExportedFixture → generateRecommendations)",
+        "7 neue i18n-Keys EN+DE (settings.supportTools*, opt.export*)",
+        "1300 Tests pass (41 files), svelte-check 0 Errors, Build OK"
       ]
     },
     "28by": {

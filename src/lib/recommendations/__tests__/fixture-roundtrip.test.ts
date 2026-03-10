@@ -11,7 +11,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { generateRecommendations, EVIDENCE_MINIMUMS } from '../generator';
-import { exportRegressionFixture } from '../fixture-export';
+import { exportRegressionFixture, sanitizeFixture } from '../fixture-export';
 import { loadExportedFixture, validateExportedFixture } from './fixtures/load-exported-fixture';
 import { createRf2UserHouse } from './fixtures/create-rf2';
 import { createRf6UserMyhouse } from './fixtures/create-rf6-user-myhouse';
@@ -300,5 +300,133 @@ describe('Fixture Round-Trip', () => {
     expect(parsed._meta.band, 'round-trip _meta.band').toBe('5ghz');
     expect(parsed._meta.projectId, 'round-trip _meta.projectId null').toBeNull();
     expect(parsed.project.ctx.candidatePolicy, 'round-trip candidatePolicy').toBe('required_for_new_ap');
+  });
+
+  it('RT-6: sanitizeFixture removes sensitive fields', () => {
+    const fixture = createRf2UserHouse();
+    const exported = exportRegressionFixture(
+      {
+        aps: fixture.aps,
+        accessPoints: fixture.apResps,
+        walls: fixture.walls,
+        bounds: fixture.bounds,
+        band: '5ghz',
+        stats: fixture.stats,
+      },
+      fixture.ctx,
+      'balanced',
+      'secret-project-id',
+    );
+
+    const sanitized = sanitizeFixture(exported);
+
+    // _meta.projectId removed
+    expect(sanitized._meta.projectId, '_meta.projectId must be null').toBeNull();
+
+    // AccessPoints sanitized
+    for (const ap of sanitized.project.accessPoints) {
+      expect(ap.label, 'label must be null').toBeNull();
+      expect(ap.ssid, 'ssid must be null').toBeNull();
+      expect(ap.ip_address, 'ip_address must be null').toBeNull();
+      expect(ap.ap_model_id, 'ap_model_id must be null').toBeNull();
+      expect(ap.floor_id, 'floor_id must be floor-1').toBe('floor-1');
+      expect(ap.created_at, 'created_at sanitized').toBe('2000-01-01T00:00:00Z');
+      expect(ap.updated_at, 'updated_at sanitized').toBe('2000-01-01T00:00:00Z');
+    }
+
+    // AP IDs consistent between aps[] and accessPoints[]
+    for (let i = 0; i < sanitized.project.aps.length; i++) {
+      expect(
+        sanitized.project.aps[i]!.id,
+        `aps[${i}].id matches accessPoints[${i}].id`,
+      ).toBe(sanitized.project.accessPoints[i]!.id);
+    }
+
+    // IDs are sequential "ap-N"
+    for (let i = 0; i < sanitized.project.accessPoints.length; i++) {
+      expect(sanitized.project.accessPoints[i]!.id, `ap id ${i}`).toBe(`ap-${i + 1}`);
+    }
+
+    // Candidate labels sanitized
+    for (let i = 0; i < sanitized.project.ctx.candidates.length; i++) {
+      expect(
+        sanitized.project.ctx.candidates[i]!.label,
+        `candidate ${i} label`,
+      ).toBe(`Candidate-${i + 1}`);
+      expect(
+        sanitized.project.ctx.candidates[i]!,
+        `candidate ${i} notes removed`,
+      ).not.toHaveProperty('notes');
+    }
+
+    // PriorityZone labels sanitized
+    for (let i = 0; i < sanitized.project.ctx.priorityZones.length; i++) {
+      expect(
+        sanitized.project.ctx.priorityZones[i]!.label,
+        `pz ${i} label`,
+      ).toBe(`Zone-${i + 1}`);
+    }
+
+    // ConstraintZone notes removed
+    for (const z of sanitized.project.ctx.constraintZones) {
+      expect(
+        z,
+        'constraintZone notes removed',
+      ).not.toHaveProperty('notes');
+    }
+
+    // apCapabilities keys use new IDs
+    for (const [key] of sanitized.project.ctx.apCapabilities) {
+      expect(key, 'apCapabilities key starts with ap-').toMatch(/^ap-\d+$/);
+    }
+
+    // RF-essential data preserved
+    expect(sanitized.project.aps.length, 'aps count preserved').toBe(exported.project.aps.length);
+    expect(sanitized.project.walls.length, 'walls preserved').toBe(exported.project.walls.length);
+    expect(sanitized.project.bounds, 'bounds preserved').toEqual(exported.project.bounds);
+    expect(sanitized.project.band, 'band preserved').toBe(exported.project.band);
+    expect(sanitized.project.profile, 'profile preserved').toBe(exported.project.profile);
+    expect(sanitized.project.ctx.candidatePolicy, 'policy preserved').toBe(exported.project.ctx.candidatePolicy);
+  });
+
+  it('RT-7: sanitized fixture remains functional — loadExportedFixture → generateRecommendations', () => {
+    const fixture = createRf2UserHouse();
+    const exported = exportRegressionFixture(
+      {
+        aps: fixture.aps,
+        accessPoints: fixture.apResps,
+        walls: fixture.walls,
+        bounds: fixture.bounds,
+        band: '5ghz',
+        stats: fixture.stats,
+      },
+      fixture.ctx,
+      'balanced',
+      'project-to-sanitize',
+    );
+
+    // Sanitize → JSON round-trip → load → run engine
+    const sanitized = sanitizeFixture(exported);
+    const parsed = JSON.parse(JSON.stringify(sanitized)) as ExportedFixture;
+    const loaded = loadExportedFixture(parsed);
+
+    const result = generateRecommendations(
+      loaded.aps, loaded.accessPoints, loaded.walls, loaded.bounds,
+      loaded.band, loaded.stats, loaded.rfConfig, loaded.profile, loaded.ctx,
+    );
+
+    expect(result.recommendations.length, 'sanitized fixture must produce recommendations').toBeGreaterThan(0);
+
+    // All recs pass evidence minimums
+    const allRecs = collectAll(result.recommendations);
+    for (const rec of allRecs) {
+      const required = EVIDENCE_MINIMUMS[rec.type];
+      if (!required) continue;
+      const keys = Object.keys(rec.evidence?.metrics ?? {});
+      expect(
+        required.some(k => keys.includes(k)),
+        `${rec.type} (${rec.id}): needs [${required.join(', ')}], got [${keys.join(', ')}]`,
+      ).toBe(true);
+    }
   });
 });

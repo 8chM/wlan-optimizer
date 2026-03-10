@@ -32,7 +32,7 @@
   import { registerShortcuts } from '$lib/utils/keyboard';
   import { t } from '$lib/i18n';
   import type { Recommendation, RejectionReason, CandidateLocation, ConstraintZone, APCapabilities } from '$lib/recommendations/types';
-  import { exportRegressionFixture } from '$lib/recommendations/fixture-export';
+  import { exportRegressionFixture, sanitizeFixture } from '$lib/recommendations/fixture-export';
   import type { ExportedFixture } from '$lib/recommendations/fixture-export';
   import { loadExportedFixture, validateExportedFixture } from '$lib/recommendations/fixture-import';
   import { toastStore } from '$lib/stores/toastStore.svelte';
@@ -432,7 +432,28 @@
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    toastStore.success(`Fixture exportiert: ${filename} — Im Downloads-Ordner. Fuer Tests via loadExportedFixture().`);
+    toastStore.success(`Fixture exportiert: ${filename}`);
+  }
+
+  function handleExportSanitizedFixture(): void {
+    const params = recommendationStore.lastAnalysisParams;
+    if (!params) return;
+    const pid = projectStore.currentProject?.id ?? null;
+    const fixture = exportRegressionFixture(params, recommendationStore.context, recommendationStore.profile, pid);
+    const sanitized = sanitizeFixture(fixture);
+    const json = JSON.stringify(sanitized, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+    const band = params.band ?? '5ghz';
+    const filename = `rf-sanitized-export-${band}-${ts}.json`;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    toastStore.success(`Sanitized Fixture exportiert: ${filename}`);
   }
 
   async function handleImportFixture(): Promise<void> {
@@ -613,27 +634,36 @@
   <!-- Heatmap Comparison Panel -->
   <HeatmapComparison visible={comparisonStore.isActive} />
 
-  {#if import.meta.env.DEV}
-    <div class="dev-export-area">
-      <button
-        class="dev-export-btn"
-        onclick={handleExportFixture}
-        disabled={!recommendationStore.lastAnalysisParams}
-        title={recommendationStore.lastAnalysisParams
-          ? 'Speichert eine JSON-Datei mit dem kompletten Analyse-Snapshot (APs, Waende, Grids, Kontext). Kann in Tests via loadExportedFixture() geladen werden.'
-          : 'Erst Setup analysieren, dann exportieren'}
-      >
-        Export Regression Fixture (DEV)
-      </button>
-      <button
-        class="dev-export-btn"
-        onclick={handleImportFixture}
-        title="Laedt eine zuvor exportierte JSON-Fixture und fuehrt die Analyse darauf aus. Setzt Kontext (Candidates, Zones, Policy) und startet generateRecommendations()."
-      >
-        Import Fixture JSON (DEV)
-      </button>
-      <span class="dev-export-hint">
-        Export: Analyse &rarr; JSON. Import: JSON &rarr; Analyse.
+  {#if recommendationStore.supportToolsEnabled}
+    <div class="support-tools-area">
+      <span class="support-tools-label">{t('opt.supportToolsTitle')}</span>
+      <div class="support-tools-buttons">
+        <button
+          class="support-btn support-btn--export"
+          onclick={handleExportFixture}
+          disabled={!recommendationStore.lastAnalysisParams}
+          title={t('opt.exportFixtureTooltip')}
+        >
+          &#8599; {t('opt.exportFixture')}
+        </button>
+        <button
+          class="support-btn support-btn--sanitized"
+          onclick={handleExportSanitizedFixture}
+          disabled={!recommendationStore.lastAnalysisParams}
+          title={t('opt.exportSanitizedTooltip')}
+        >
+          &#128274; {t('opt.exportFixtureSanitized')}
+        </button>
+        <button
+          class="support-btn support-btn--import"
+          onclick={handleImportFixture}
+          title={t('opt.importFixtureTooltip')}
+        >
+          &#8601; {t('opt.importFixture')}
+        </button>
+      </div>
+      <span class="support-tools-hint">
+        {t('opt.exportPrivacyHint')}
       </span>
     </div>
   {/if}
@@ -796,41 +826,78 @@
     background: rgba(99, 102, 241, 0.35);
   }
 
-  .dev-export-area {
+  .support-tools-area {
     position: absolute;
-    bottom: 10px;
-    left: 10px;
+    bottom: 12px;
+    left: 12px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 6px;
     align-items: flex-start;
+    background: rgba(15, 15, 30, 0.85);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    border-radius: 8px;
+    padding: 8px 10px;
+    backdrop-filter: blur(6px);
   }
 
-  .dev-export-btn {
-    padding: 4px 10px;
-    background: rgba(234, 179, 8, 0.2);
-    border: 1px solid rgba(234, 179, 8, 0.5);
-    border-radius: 4px;
-    color: #eab308;
-    font-size: 0.65rem;
+  .support-tools-label {
+    color: rgba(234, 179, 8, 0.9);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .support-tools-buttons {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+
+  .support-btn {
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 0.72rem;
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
   }
 
-  .dev-export-btn:disabled {
-    opacity: 0.4;
+  .support-btn--export {
+    background: rgba(234, 179, 8, 0.15);
+    border: 1px solid rgba(234, 179, 8, 0.5);
+    color: #eab308;
+  }
+
+  .support-btn--sanitized {
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.45);
+    color: #22c55e;
+  }
+
+  .support-btn--import {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    color: #a5b4fc;
+  }
+
+  .support-btn:disabled {
+    opacity: 0.35;
     cursor: not-allowed;
   }
 
-  .dev-export-btn:hover:not(:disabled) {
-    background: rgba(234, 179, 8, 0.35);
+  .support-btn:hover:not(:disabled) {
+    filter: brightness(1.3);
   }
 
-  .dev-export-hint {
-    color: rgba(234, 179, 8, 0.6);
-    font-size: 0.55rem;
+  .support-tools-hint {
+    color: rgba(234, 179, 8, 0.5);
+    font-size: 0.6rem;
     font-family: inherit;
-    padding-left: 2px;
+    max-width: 340px;
+    line-height: 1.3;
   }
 </style>

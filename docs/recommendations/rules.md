@@ -422,6 +422,12 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | BG-01 | Max 1 budget note per AP | AP has both channel_deprioritized_note and config_budget_note | — | Keep channel_deprioritized_note (higher priority), remove config_budget_note, merge suppressedCount | deduplicateBudgetNotes |
 
+### Global Budget Note Cap — `capBudgetNotesGlobal()` (Phase 28br)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BR-01 | Max 2 budget-like notes per analysis | >2 budget notes (channel_deprioritized_note, config_budget_note) after per-AP dedup | — | Keep top-2 by evidence metric count → priority → severity → type priority; add suppressedBudgetNotesCount to kept notes | capBudgetNotesGlobal |
+
 ### Advice Note Dedup — `deduplicateAdviceNotes()` (Phase 28bp)
 
 | ID | Description | Trigger | Guards | Action | Reference |
@@ -514,11 +520,12 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Gap Budgeting (BM+BO+BQ) | BM-01a..BM-01c, BM-02a, BM-02b, BO-01, BO-02, BQ-01 | 8 | capGapNotes + uplink demotion |
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
 | Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
+| Global Budget Cap (BR) | BR-01 | 1 | capBudgetNotesGlobal |
 | Advice Dedup (BP) | BP-01 | 1 | deduplicateAdviceNotes |
 | Alt Evidence (BS) | BS-01 | 1 | validateAlternativeEvidence |
 | Channel vs Width Deconfliction (BL) | BL-01a, BL-01b | 2 | deconflictChannelVsWidth |
 
-**Total: 113 rules across 24 clusters. 23 RecommendationType values.**
+**Total: 114 rules across 25 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

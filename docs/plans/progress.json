@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bs-complete",
+  "currentPhase": "phase-28br-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1781,6 +1781,22 @@
         "Leere alternativeRecommendations-Arrays → undefined (clean up)",
         "BS-2: Cross-fixture invariant (9 Fixtures) — alle Alternativen erfuellen EVIDENCE_MINIMUMS",
         "rules.md: BS-01 Regel, Total 113 Regeln, 24 Cluster",
+        "1287 Tests pass (40 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28br": {
+      "name": "Notes Consistency & Ordering — Global Budget Note Cap",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "BR-01: capBudgetNotesGlobal() — max 2 budget-like notes per analysis (channel_deprioritized_note + config_budget_note)",
+        "Sortierung nach evidence metric count → priority → severity → type priority",
+        "suppressedBudgetNotesCount Evidence auf kept notes",
+        "Pipeline Step 20c: nach deduplicateBudgetNotes (per-AP), vor deduplicateAdviceNotes",
+        "BR-1: 5 APs ch36 tight spacing → budget notes ≤ 2, suppression evidence korrekt",
+        "BR-2: Cross-fixture invariant (F1-F8 + RF3/RF4/RF5/RF6) — budget notes ≤ 2",
+        "rules.md: BR-01 Regel, Global Budget Cap Cluster, 114 Regeln total, 25 Cluster",
         "1287 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }

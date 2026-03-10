@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bt-complete",
+  "currentPhase": "phase-28bw-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1830,6 +1830,19 @@
         "BT-2: Cross-fixture — kein actionable_config mit blockedByConstraints ohne blocked_recommendation type oder feasibilityScore=0",
         "rules.md: BT-01..BT-03, Blocked Consistency Cluster, 121 Regeln total, 27 Cluster",
         "1293 Tests pass (41 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bw": {
+      "name": "Release Readiness — Definition of Done + Runbook + Release Audit",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "docs/recommendations/done.md: Definition of Done — alle Test-Suites, Invarianten, Preview/Apply Konsistenz",
+        "docs/recommendations/runbook.md: User-Runbook — Reihenfolge, Kategorien, Notes erklaert, Praxis-Tipps",
+        "scripts/report-integrity.sh: 'release' Modus mit separater Apply-Sequence Ausgabe + RELEASE_OK/RELEASE_FAIL",
+        "RELEASE_OK tests=1293 golden=95 applySeq=4 svelteErrors=0 build=OK",
+        "Keine Code-Logik-Aenderung in generator.ts"
       ]
     }
   },

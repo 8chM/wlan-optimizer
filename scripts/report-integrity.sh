@@ -62,6 +62,18 @@ GOLDEN_PASSED="${GOLDEN_PASSED:-0}"
 GOLDEN_FAILED=$(echo "$GOLDEN_OUTPUT" | grep "Tests" | tail -1 | sed -n 's/.*[^0-9]\([0-9][0-9]*\) failed.*/\1/p')
 GOLDEN_FAILED="${GOLDEN_FAILED:-0}"
 
+# ─── 4b. Apply-sequence tests (separate visibility in release mode) ──
+APPLY_SEQ_PASSED="—"
+APPLY_SEQ_FAILED="—"
+if [ "$PHASE_LABEL" = "release" ] || [ "$PHASE_LABEL" = "release-check" ]; then
+  echo "Running apply-sequence tests..."
+  APPLY_SEQ_OUTPUT=$(npx vitest run src/lib/recommendations/__tests__/apply-sequence.test.ts 2>&1 || true)
+  APPLY_SEQ_PASSED=$(echo "$APPLY_SEQ_OUTPUT" | grep "Tests" | tail -1 | sed -n 's/.*[^0-9]\([0-9][0-9]*\) passed.*/\1/p')
+  APPLY_SEQ_PASSED="${APPLY_SEQ_PASSED:-0}"
+  APPLY_SEQ_FAILED=$(echo "$APPLY_SEQ_OUTPUT" | grep "Tests" | tail -1 | sed -n 's/.*[^0-9]\([0-9][0-9]*\) failed.*/\1/p')
+  APPLY_SEQ_FAILED="${APPLY_SEQ_FAILED:-0}"
+fi
+
 # ─── 5. Build ────────────────────────────────────────────────────
 echo "Running build..."
 BUILD_OUTPUT=$(npm run build 2>&1 || true)
@@ -88,6 +100,7 @@ REPORT="
   Test files:    $TEST_FILES_PASSED / $TEST_FILES_TOTAL
   Duration:      $DURATION
   Golden tests:  $GOLDEN_PASSED passed, $GOLDEN_FAILED failed
+  Apply-seq:     $APPLY_SEQ_PASSED passed, $APPLY_SEQ_FAILED failed
   svelte-check:  $SVELTE_ERRORS errors, $SVELTE_WARNINGS warnings ($SVELTE_FILES files)
   Build:         $BUILD_STATUS
 ══════════════════════════════════════════════════════
@@ -102,13 +115,28 @@ echo "Report saved to $REPORT_FILE"
 
 # ─── 7. Machine-readable summary line ────────────────────────────
 INTEGRITY_LINE="INTEGRITY_OK tests=$TESTS_PASSED golden=$GOLDEN_PASSED svelteErrors=$SVELTE_ERRORS build=$BUILD_STATUS"
+HAS_FAILURE=false
 if [ "$TESTS_FAILED" != "0" ] || [ "$GOLDEN_FAILED" != "0" ] || [ "$SVELTE_ERRORS" != "0" ] || [ "$BUILD_STATUS" != "OK" ]; then
   INTEGRITY_LINE="INTEGRITY_FAIL tests=$TESTS_PASSED golden=$GOLDEN_PASSED svelteErrors=$SVELTE_ERRORS build=$BUILD_STATUS testsFailed=$TESTS_FAILED goldenFailed=$GOLDEN_FAILED"
+  HAS_FAILURE=true
 fi
-echo "$INTEGRITY_LINE"
-echo "$INTEGRITY_LINE" >> "$REPORT_FILE"
+if [ "$APPLY_SEQ_FAILED" != "—" ] && [ "$APPLY_SEQ_FAILED" != "0" ]; then
+  INTEGRITY_LINE="$INTEGRITY_LINE applySeqFailed=$APPLY_SEQ_FAILED"
+  HAS_FAILURE=true
+fi
+
+# Release mode: emit RELEASE_OK/RELEASE_FAIL as alias
+if [ "$PHASE_LABEL" = "release" ] || [ "$PHASE_LABEL" = "release-check" ]; then
+  RELEASE_LINE="${INTEGRITY_LINE/INTEGRITY_/RELEASE_}"
+  RELEASE_LINE="$RELEASE_LINE applySeq=$APPLY_SEQ_PASSED"
+  echo "$RELEASE_LINE"
+  echo "$RELEASE_LINE" >> "$REPORT_FILE"
+else
+  echo "$INTEGRITY_LINE"
+  echo "$INTEGRITY_LINE" >> "$REPORT_FILE"
+fi
 
 # ─── 8. Exit code reflects overall status ────────────────────────
-if [ "$TESTS_FAILED" != "0" ] || [ "$GOLDEN_FAILED" != "0" ] || [ "$SVELTE_ERRORS" != "0" ] || [ "$BUILD_STATUS" != "OK" ]; then
+if [ "$HAS_FAILURE" = "true" ]; then
   exit 1
 fi

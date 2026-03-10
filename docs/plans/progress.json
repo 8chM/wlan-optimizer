@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bp-complete",
+  "currentPhase": "phase-28bq-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1752,6 +1752,20 @@
         "BP-1a: 70% uplink + gaps → genau 1 advice note, adviceKind=1, suppressedAdviceCount>0",
         "BP-2: Cross-fixture invariant (9 Fixtures) — max 1 advice note",
         "rules.md: BP-01 ersetzt BN-01, Total 112 Regeln, 23 Cluster",
+        "1284 Tests pass (40 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bq": {
+      "name": "Gap Note Determinism — pairKey Tie-Breaker",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "BQ-01: pairKey alphabetical tie-breaker in capGapNotes (affectedApIds sorted+joined, localeCompare)",
+        "pairKeyStable=1 Evidence fuer alle kept gap notes",
+        "BQ-1: identical metrics → stable order by pairKey (ap-a|ap-b before ap-c|ap-d)",
+        "BQ-2: two generateRecommendations runs produce identical gap note order",
+        "rules.md: BQ-01 Regel, Gap Budgeting Cluster (BM+BO+BQ, 8 Regeln), 112 Regeln total",
         "1284 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }

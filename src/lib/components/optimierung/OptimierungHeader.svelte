@@ -16,9 +16,9 @@
   let { result, loading, profile, onAnalyze, onProfileChange }: OptimierungHeaderProps = $props();
 
   const PROFILES: Array<{ value: ExpertProfile; labelKey: string }> = [
-    { value: 'conservative', labelKey: 'rec.profileConservative' },
-    { value: 'balanced', labelKey: 'rec.profileBalanced' },
-    { value: 'aggressive', labelKey: 'rec.profileAggressive' },
+    { value: 'conservative', labelKey: 'opt.profileConservative' },
+    { value: 'balanced', labelKey: 'opt.profileBalanced' },
+    { value: 'aggressive', labelKey: 'opt.profileAggressive' },
   ];
 
   function scoreColor(score: number): string {

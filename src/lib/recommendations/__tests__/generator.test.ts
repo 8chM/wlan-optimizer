@@ -8766,9 +8766,9 @@ describe('generateRecommendations', () => {
     });
   });
 
-  // ─── BN-1: Uplink Advice Dedup ────────────────────────────────────
-  describe('BN-1: Uplink Advice Dedup', () => {
-    it('BN-1a: uplinkLimitedRatio ~0.70 + gaps → exactly 1 uplink advice note (no double)', () => {
+  // ─── BP: Advice Note Semantics Guard ───────────────────────────────
+  describe('BP: Advice Note Semantics Guard', () => {
+    it('BP-1a: uplinkLimitedRatio ~0.70 + gaps → exactly 1 advice note, adviceKind tagged', () => {
       const aps = [makeAP('ap-1', 5, 10), makeAP('ap-2', 15, 10)];
       const apResps = [
         makeAPResponse('ap-1', 5, 10, 36),
@@ -8811,19 +8811,24 @@ describe('generateRecommendations', () => {
         r.type === 'band_limit_warning' &&
         (r.titleKey === 'rec.uplinkGapAdviceTitle' || r.titleKey === 'rec.bandLimitClientAdviceTitle'),
       );
-      expect(adviceNotes.length, 'exactly 1 uplink advice note after dedup').toBe(1);
+      expect(adviceNotes.length, 'exactly 1 advice note after dedup').toBe(1);
 
-      // Winner should be uplinkGapAdvice (gap demotion was triggered)
+      // Winner: uplinkGapAdvice (kind=1, most specific)
       expect(adviceNotes[0]!.titleKey).toBe('rec.uplinkGapAdviceTitle');
 
-      // Main bandLimitTitle warning should still exist (not deduped)
+      // Winner must have adviceKind + suppressedAdviceCount in evidence
+      const m = adviceNotes[0]!.evidence?.metrics as Record<string, number>;
+      expect(m.adviceKind, 'winner tagged with adviceKind').toBe(1);
+      expect(m.suppressedAdviceCount, 'suppressedAdviceCount > 0').toBeGreaterThan(0);
+
+      // Main bandLimitTitle warning should still exist (not advice, not deduped)
       const mainWarning = allRecs.filter(r =>
         r.type === 'band_limit_warning' && r.titleKey === 'rec.bandLimitTitle',
       );
       expect(mainWarning.length, 'main band_limit warning not affected').toBeGreaterThanOrEqual(1);
     });
 
-    it('BN-1b: cross-fixture invariant — max 1 uplink advice note', () => {
+    it('BP-2: cross-fixture invariant — max 1 advice note per analysis', () => {
       const fixtureFactories = [
         { name: 'F1', fn: createF1DenseCluster },
         { name: 'F2', fn: createF2RoamingConflict },
@@ -8849,8 +8854,108 @@ describe('generateRecommendations', () => {
         );
         expect(
           adviceNotes.length,
-          `${name}: max 1 uplink advice note, got ${adviceNotes.length}`,
+          `${name}: max 1 advice note, got ${adviceNotes.length}`,
         ).toBeLessThanOrEqual(1);
+      }
+    });
+  });
+
+  // ─── Phase 28bq: Gap Note Determinism ───────────────────────────
+
+  describe('BQ: Gap Note Determinism', () => {
+
+    it('BQ-1: gap pairs with identical metrics → kept order stable by pairKey asc', () => {
+      // 4 APs in line with identical gap profiles at each boundary.
+      // AP IDs chosen so alphabetical pairKey order differs from array order.
+      // pairKey "ap-b|ap-d" > "ap-a|ap-c" — ap-b/ap-d pair should sort after ap-a/ap-c.
+      const aps = [
+        makeAP('ap-b', 2, 2),
+        makeAP('ap-d', 6, 2),
+        makeAP('ap-a', 10, 2),
+        makeAP('ap-c', 14, 2),
+      ];
+      const apResps = [
+        makeAPResponse('ap-b', 2, 2, 36),
+        makeAPResponse('ap-d', 6, 2, 44),
+        makeAPResponse('ap-a', 10, 2, 48),
+        makeAPResponse('ap-c', 14, 2, 52),
+      ];
+
+      const W = 16;
+      const H = 4;
+      const grids = makeGrids(W, H, { rssi: -65, overlap: 2 });
+      // Symmetric layout: identical handoff zones at x=3 and x=11
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W;
+        if (x < 4) { grids.apIndexGrid[i] = 0; grids.secondBestApIndexGrid[i] = 1; }
+        else if (x < 8) { grids.apIndexGrid[i] = 1; grids.secondBestApIndexGrid[i] = 0; }
+        else if (x < 12) { grids.apIndexGrid[i] = 2; grids.secondBestApIndexGrid[i] = 3; }
+        else { grids.apIndexGrid[i] = 3; grids.secondBestApIndexGrid[i] = 2; }
+        // Gap cells at boundaries
+        if (x === 3 || x === 11) {
+          grids.rssiGrid[i] = -82;
+          grids.deltaGrid[i] = 2;
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 10, good: 30, fair: 30, poor: 20, none: 10,
+      });
+      stats.apIds = ['ap-b', 'ap-d', 'ap-a', 'ap-c'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const gapNotes = result.recommendations.filter(r => r.type === 'handoff_gap_warning');
+
+      // Kept notes must have pairKeyStable=1
+      for (const note of gapNotes) {
+        const m = note.evidence?.metrics as Record<string, number> | undefined;
+        expect(m?.pairKeyStable, 'kept note must have pairKeyStable=1').toBe(1);
+      }
+
+      // If both pairs survive, the one with lower alphabetical pairKey should be first
+      if (gapNotes.length >= 2) {
+        const pk0 = [...(gapNotes[0]!.affectedApIds ?? [])].sort().join('|');
+        const pk1 = [...(gapNotes[1]!.affectedApIds ?? [])].sort().join('|');
+        expect(
+          pk0.localeCompare(pk1),
+          `first gap note pairKey '${pk0}' must be <= '${pk1}'`,
+        ).toBeLessThanOrEqual(0);
+      }
+    });
+
+    it('BQ-2: determinism — two runs produce identical gap note order', () => {
+      // Use RF5 fixture (has multiple APs, potential gap pairs)
+      const f = createRf5UserLiveV2();
+      const band = '5ghz' as const;
+
+      const result1 = generateRecommendations(
+        f.aps, f.apResps, f.walls, f.bounds,
+        band, f.stats, RF_CONFIG, 'balanced', f.ctx,
+      );
+      const result2 = generateRecommendations(
+        f.aps, f.apResps, f.walls, f.bounds,
+        band, f.stats, RF_CONFIG, 'balanced', f.ctx,
+      );
+
+      const gaps1 = result1.recommendations.filter(r => r.type === 'handoff_gap_warning');
+      const gaps2 = result2.recommendations.filter(r => r.type === 'handoff_gap_warning');
+
+      expect(gaps1.length, 'deterministic gap note count').toBe(gaps2.length);
+
+      for (let i = 0; i < gaps1.length; i++) {
+        const pk1 = [...(gaps1[i]!.affectedApIds ?? [])].sort().join('|');
+        const pk2 = [...(gaps2[i]!.affectedApIds ?? [])].sort().join('|');
+        expect(pk1, `gap note ${i}: same pairKey across runs`).toBe(pk2);
+
+        const m1 = gaps1[i]!.evidence?.metrics as Record<string, number> | undefined;
+        const m2 = gaps2[i]!.evidence?.metrics as Record<string, number> | undefined;
+        expect(m1?.gapCells, `gap note ${i}: same gapCells`).toBe(m2?.gapCells);
+        expect(m1?.gapRankScore, `gap note ${i}: same gapRankScore`).toBe(m2?.gapRankScore);
       }
     });
   });

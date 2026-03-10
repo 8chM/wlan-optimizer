@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bo-complete",
+  "currentPhase": "phase-28bp-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1737,6 +1737,22 @@
         "BO-3: Cross-fixture (F1/F2/RF3/RF5/RF6) — kept notes haben whyKept=1 + gapRankScore > 0",
         "rules.md: BO-01/BO-02 Regeln, Gap Budgeting Cluster erweitert (BM+BO), 111 Regeln total",
         "1282 Tests pass (40 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bp": {
+      "name": "Advice Note Semantics Guard — Future-Proof Dedup",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "ADVICE_TITLE_TO_KIND Klassifikation: titleKey → adviceKind (1=uplink-gap, 2=client)",
+        "deduplicateAdviceNotes() ersetzt deduplicateUplinkAdviceNotes(): kind-basierte Prioritaet",
+        "adviceKind in evidence.metrics aller Kandidaten, suppressedAdviceCount beim Winner",
+        "Erweiterbar: neuer Advice-Typ = 1 Zeile in ADVICE_TITLE_TO_KIND",
+        "BP-1a: 70% uplink + gaps → genau 1 advice note, adviceKind=1, suppressedAdviceCount>0",
+        "BP-2: Cross-fixture invariant (9 Fixtures) — max 1 advice note",
+        "rules.md: BP-01 ersetzt BN-01, Total 112 Regeln, 23 Cluster",
+        "1284 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

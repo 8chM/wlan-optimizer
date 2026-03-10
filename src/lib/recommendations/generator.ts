@@ -414,8 +414,8 @@ export function generateRecommendations(
   // 20. BG-01: Budget note dedup: max 1 budget/limit note per AP
   deduplicateBudgetNotes(recommendations);
 
-  // 20b. BN-01: Uplink advice dedup: max 1 uplink/client advice note per analysis
-  deduplicateUplinkAdviceNotes(recommendations);
+  // 20b. BP-01: Advice note dedup: max 1 advice note per analysis (kind-based priority)
+  deduplicateAdviceNotes(recommendations);
 
   // Deduplicate: max 1 physical recommendation per AP, rest as alternatives
   const deduped = deduplicateRecommendations(recommendations);
@@ -3324,7 +3324,11 @@ function capGapNotes(recs: Recommendation[]): void {
   if (gapNotes.length === 0) return;
 
   // BO-01: Sort by impact area — gapCells desc, gapRatio desc, avgRssiInZone asc
+  // BQ-01: Final tie-breaker: pairKey asc for determinism
   // Rationale: 300 gap cells at 30% ratio is more impactful than 12 cells at 90% ratio
+  const pairKey = (r: Recommendation): string =>
+    [...(r.affectedApIds ?? [])].sort().join('|');
+
   gapNotes.sort((a, b) => {
     const ma = a.evidence?.metrics as Record<string, number> | undefined;
     const mb = b.evidence?.metrics as Record<string, number> | undefined;
@@ -3334,7 +3338,9 @@ function capGapNotes(recs: Recommendation[]): void {
     const gapRatioA = cellsA / Math.max(ma?.handoffZoneCells ?? 1, 1);
     const gapRatioB = cellsB / Math.max(mb?.handoffZoneCells ?? 1, 1);
     if (gapRatioA !== gapRatioB) return gapRatioB - gapRatioA;
-    return (ma?.avgRssiInZone ?? 0) - (mb?.avgRssiInZone ?? 0);
+    const rssiDiff = (ma?.avgRssiInZone ?? 0) - (mb?.avgRssiInZone ?? 0);
+    if (rssiDiff !== 0) return rssiDiff;
+    return pairKey(a).localeCompare(pairKey(b));
   });
 
   // Keep top-K respecting both global cap and per-AP cap (max 1 per AP)
@@ -3359,6 +3365,7 @@ function capGapNotes(recs: Recommendation[]): void {
     const ratio = cells / Math.max(m.handoffZoneCells ?? 1, 1);
     m.gapRankScore = cells + ratio * 1000;
     m.whyKept = 1;
+    m.pairKeyStable = 1;
     if (!note.evidence) note.evidence = { metrics: m };
     else note.evidence.metrics = m;
   }
@@ -3376,37 +3383,53 @@ function capGapNotes(recs: Recommendation[]): void {
   }
 }
 
-// ─── Uplink Advice Dedup ─────────────────────────────────────────
+// ─── Advice Note Dedup ───────────────────────────────────────────
 
-/** BN-01: Max 1 uplink/client advice note per analysis.
- *  Candidates: uplinkGapAdviceTitle, bandLimitClientAdviceTitle.
- *  Winner: uplinkGapAdvice if gap demotion was triggered, else bandLimitClientAdvice.
- *  Sixghz note and main bandLimitTitle are NOT candidates (different semantics). */
-const UPLINK_ADVICE_TITLE_KEYS = new Set([
-  'rec.uplinkGapAdviceTitle',
-  'rec.bandLimitClientAdviceTitle',
-]);
+/** BP-01: Advice-note classification.
+ *  adviceKind codes (lower = higher priority, wins dedup):
+ *    1 = uplink-gap  (most specific — triggered by gap demotion)
+ *    2 = client       (generic client-side advice)
+ *  Notes NOT classified as advice (excluded from dedup):
+ *    - bandLimitTitle  (main warning, not advice)
+ *    - sixGhzChannelNoteTitle (channel planning, not advice)
+ *  To add a new advice type: add its titleKey here with a kind code.
+ *  Lower kind code = higher specificity = wins dedup. */
+const ADVICE_TITLE_TO_KIND: Record<string, number> = {
+  'rec.uplinkGapAdviceTitle': 1,      // uplink-gap: most specific
+  'rec.bandLimitClientAdviceTitle': 2, // client: generic
+};
 
-function deduplicateUplinkAdviceNotes(recs: Recommendation[]): void {
-  const candidates = recs.filter(
-    r => r.type === 'band_limit_warning' && UPLINK_ADVICE_TITLE_KEYS.has(r.titleKey),
-  );
+/** BP-01: Max 1 advice note per analysis.
+ *  Lowest adviceKind wins (most specific). Winner gets suppressedAdviceCount. */
+function deduplicateAdviceNotes(recs: Recommendation[]): void {
+  const candidates: { rec: Recommendation; kind: number }[] = [];
+  for (const rec of recs) {
+    if (rec.type !== 'band_limit_warning') continue;
+    const kind = ADVICE_TITLE_TO_KIND[rec.titleKey];
+    if (kind != null) candidates.push({ rec, kind });
+  }
   if (candidates.length <= 1) return;
 
-  // Winner: uplinkGapAdvice wins (more specific — explains gap demotion), else first bandLimitClientAdvice
-  const gapAdvice = candidates.find(r => r.titleKey === 'rec.uplinkGapAdviceTitle');
-  const winner = gapAdvice ?? candidates[0]!;
-  const removeIds = new Set(candidates.filter(r => r !== winner).map(r => r.id));
+  // Tag all candidates with adviceKind in evidence
+  for (const c of candidates) {
+    const m = (c.rec.evidence?.metrics ?? {}) as Record<string, number>;
+    m.adviceKind = c.kind;
+    if (!c.rec.evidence) c.rec.evidence = { metrics: m };
+    else c.rec.evidence.metrics = m;
+  }
 
-  if (removeIds.size > 0) {
-    const m = (winner.evidence?.metrics ?? {}) as Record<string, number>;
-    m.suppressedUplinkAdviceCount = removeIds.size;
-    if (!winner.evidence) winner.evidence = { metrics: m };
-    else winner.evidence.metrics = m;
+  // Winner: lowest kind code (most specific)
+  candidates.sort((a, b) => a.kind - b.kind);
+  const winner = candidates[0]!.rec;
+  const removeIds = new Set(
+    candidates.slice(1).map(c => c.rec.id),
+  );
 
-    for (let i = recs.length - 1; i >= 0; i--) {
-      if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
-    }
+  const m = (winner.evidence?.metrics ?? {}) as Record<string, number>;
+  m.suppressedAdviceCount = removeIds.size;
+
+  for (let i = recs.length - 1; i >= 0; i--) {
+    if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
   }
 }
 

@@ -400,7 +400,8 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 | BM-01b | Per-AP gap note cap | AP already has 1 gap note | — | Skip additional gap notes for same AP (per-AP max 1) | capGapNotes |
 | BM-01c | Suppressed count evidence | Gap notes suppressed | — | Add suppressedGapNotesCount to surviving notes' evidence.metrics | capGapNotes |
 | BO-01 | Impact-area sort | Multiple gap notes | — | Sort by gapCells desc (impact) → gapRatio desc → avgRssiInZone asc | capGapNotes |
-| BO-02 | Rank evidence | Gap note kept | — | Enrich with gapRankScore (gapCells + gapRatio*1000) + whyKept=1 | capGapNotes |
+| BO-02 | Rank evidence | Gap note kept | — | Enrich with gapRankScore (gapCells + gapRatio*1000) + whyKept=1 + pairKeyStable=1 | capGapNotes |
+| BQ-01 | Deterministic tie-breaker | gapCells/gapRatio/avgRssiInZone all equal | — | Final sort by pairKey asc (alphabetical AP ID pair) | capGapNotes |
 
 ### Uplink-aware Demotion (Phase 28bm)
 
@@ -421,11 +422,11 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | BG-01 | Max 1 budget note per AP | AP has both channel_deprioritized_note and config_budget_note | — | Keep channel_deprioritized_note (higher priority), remove config_budget_note, merge suppressedCount | deduplicateBudgetNotes |
 
-### Uplink Advice Dedup — `deduplicateUplinkAdviceNotes()` (Phase 28bn)
+### Advice Note Dedup — `deduplicateAdviceNotes()` (Phase 28bp)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| BN-01 | Max 1 uplink advice note | >1 band_limit_warning with uplinkGapAdviceTitle or bandLimitClientAdviceTitle | sixGhzChannelNoteTitle + bandLimitTitle excluded (different semantics) | Keep uplinkGapAdvice (wins over bandLimitClientAdvice), add suppressedUplinkAdviceCount | deduplicateUplinkAdviceNotes |
+| BP-01 | Max 1 advice note per analysis | >1 band_limit_warning with ADVICE_TITLE_TO_KIND key | bandLimitTitle + sixGhzChannelNoteTitle excluded (different semantics) | Keep lowest adviceKind (most specific), tag adviceKind + suppressedAdviceCount | deduplicateAdviceNotes |
 
 ### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1681-1713)
 
@@ -504,13 +505,13 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Roaming Hint | RH-01 | 1 | generateRoamingHints |
 | Cross-Type | CT-01 | 1 | post-processing in main function |
 | Noise & Dedup (BC) | BC-01, BC-02a, BC-02b | 3 | capChannelRecsPerCluster + deduplicateRoamingNotes |
-| Gap Budgeting (BM+BO) | BM-01a..BM-01c, BM-02a, BM-02b, BO-01, BO-02 | 7 | capGapNotes + uplink demotion |
+| Gap Budgeting (BM+BO+BQ) | BM-01a..BM-01c, BM-02a, BM-02b, BO-01, BO-02, BQ-01 | 8 | capGapNotes + uplink demotion |
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
 | Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
-| Uplink Advice Dedup (BN) | BN-01 | 1 | deduplicateUplinkAdviceNotes |
+| Advice Dedup (BP) | BP-01 | 1 | deduplicateAdviceNotes |
 | Channel vs Width Deconfliction (BL) | BL-01a, BL-01b | 2 | deconflictChannelVsWidth |
 
-**Total: 111 rules across 23 clusters. 23 RecommendationType values.**
+**Total: 112 rules across 23 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

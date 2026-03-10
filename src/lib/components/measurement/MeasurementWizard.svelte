@@ -15,6 +15,8 @@
   import MeasurementProgress from './MeasurementProgress.svelte';
   import ResultCard from './ResultCard.svelte';
   import CalibrationResult from './CalibrationResult.svelte';
+  import ManualEntryForm from './ManualEntryForm.svelte';
+  import { measurementStore } from '$lib/stores/measurementStore.svelte';
 
   // ─── Props ─────────────────────────────────────────────────────
 
@@ -118,6 +120,7 @@
 
   let wizardStep = $state<'server' | 'runs' | 'measure'>('server');
   let selectedPointId = $state<string | null>(null);
+  let showManualEntry = $state(false);
 
   // ─── Derived ──────────────────────────────────────────────────
 
@@ -181,6 +184,26 @@
       onTestConnection={onTestServer}
       onContinue={handleServerContinue}
     />
+  {/if}
+
+  <!-- Band Filter -->
+  {#if wizardStep === 'runs' || wizardStep === 'measure'}
+    <div class="band-filter">
+      {#each [
+        { value: 'all', label: t('measurement.bandFilterAll') },
+        { value: '2.4ghz', label: t('measurement.bandFilter24') },
+        { value: '5ghz', label: t('measurement.bandFilter5') },
+        { value: '6ghz', label: t('measurement.bandFilter6') },
+      ] as option (option.value)}
+        <button
+          class="band-btn"
+          class:active={measurementStore.bandFilter === option.value}
+          onclick={() => measurementStore.setBandFilter(option.value as 'all' | '2.4ghz' | '5ghz' | '6ghz')}
+        >
+          {option.label}
+        </button>
+      {/each}
+    </div>
   {/if}
 
   <!-- Step 2: Run Selection / Overview -->
@@ -248,6 +271,23 @@
               {t('measurement.deletePoint')}
             </button>
           </div>
+
+          <!-- Manual entry toggle -->
+          {#if activeRunId}
+            <button
+              class="manual-toggle"
+              onclick={() => { showManualEntry = !showManualEntry; }}
+            >
+              {t('measurement.manualOrAuto')}
+            </button>
+            {#if showManualEntry}
+              <ManualEntryForm
+                pointId={selectedPointId}
+                runId={activeRunId}
+                onSave={() => { showManualEntry = false; }}
+              />
+            {/if}
+          {/if}
         {/if}
       {/if}
     </div>
@@ -474,5 +514,54 @@
     background: rgba(239, 68, 68, 0.2);
     border-color: rgba(239, 68, 68, 0.5);
     color: #fca5a5;
+  }
+
+  .band-filter {
+    display: flex;
+    gap: 2px;
+    padding: 4px 0;
+  }
+
+  .band-btn {
+    flex: 1;
+    padding: 3px 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    color: #808090;
+    font-size: 0.65rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .band-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #a0a0b0;
+  }
+
+  .band-btn.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #c7d2fe;
+  }
+
+  .manual-toggle {
+    width: 100%;
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    color: #808090;
+    font-size: 0.7rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-top: 4px;
+  }
+
+  .manual-toggle:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #a0a0b0;
   }
 </style>

@@ -30,7 +30,7 @@
 <!-- Measurement points -->
 <MeasurementPoints
   points={measurementStore.points}
-  measurements={measurementStore.measurements}
+  measurements={measurementStore.filteredMeasurements}
   {scalePxPerMeter}
   activeRunId={measurementStore.currentRunId}
   {activeRunNumber}

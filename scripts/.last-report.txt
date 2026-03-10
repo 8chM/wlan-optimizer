@@ -2,22 +2,22 @@
 ══════════════════════════════════════════════════════
   REPORT INTEGRITY — Single Source of Truth
 ══════════════════════════════════════════════════════
-  Timestamp:     2026-03-10T08:53:32Z
-  Phase:         phase-28bw
+  Timestamp:     2026-03-10T10:41:29Z
+  Phase:         phase-29a
   Branch:        main
-  Commit:        1c45cac (1c45cac1c0fc253106b70285a9d810ea4d338407)
-  Dirty files:   4
+  Commit:        2364c60 (2364c606bc95ee116f80524c4f1576ac2ead0fdd)
+  Dirty files:   12
 ──────────────────────────────────────────────────────
-  Tests:         1293 passed, 0 failed (1293 total)
-  Test files:    41 / 41
-  Duration:      9.30s
+  Tests:         1331 passed, 0 failed (1331 total)
+  Test files:    43 / 43
+  Duration:      8.68s
   Golden tests:  95 passed, 0 failed
   Apply-seq:     — passed, — failed
-  svelte-check:  0 errors, 2 warnings (610 files)
+  svelte-check:  0 errors, 2 warnings (616 files)
   Build:         OK
 ══════════════════════════════════════════════════════
   Copyable line for progress.json:
-  "1293 Tests pass (41 files), svelte-check 0 Errors 2 Warnings, Build OK [1c45cac]"
+  "1331 Tests pass (43 files), svelte-check 0 Errors 2 Warnings, Build OK [2364c60]"
 ══════════════════════════════════════════════════════
 
-INTEGRITY_OK tests=1293 golden=95 svelteErrors=0 build=OK
+INTEGRITY_OK tests=1331 golden=95 svelteErrors=0 build=OK

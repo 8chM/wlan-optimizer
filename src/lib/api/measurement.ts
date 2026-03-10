@@ -116,6 +116,20 @@ export async function deleteMeasurementRun(
 }
 
 /**
+ * Saves a measurement result (manual/passive entry without iPerf).
+ * Uses the existing `save_measurement` IPC command.
+ */
+export async function saveMeasurement(params: {
+  measurement_point_id: string;
+  measurement_run_id: string;
+  frequency_band: string;
+  rssi_dbm?: number;
+  noise_dbm?: number;
+}): Promise<string> {
+  return safeInvoke('save_measurement', { params });
+}
+
+/**
  * Deletes a measurement point and all its associated measurements.
  */
 export async function deleteMeasurementPoint(

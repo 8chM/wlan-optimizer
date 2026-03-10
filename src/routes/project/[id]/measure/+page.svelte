@@ -16,6 +16,7 @@
   import { registerShortcuts } from '$lib/utils/keyboard';
   import { safeInvoke } from '$lib/api/invoke';
   import { t } from '$lib/i18n';
+  import { exportMeasurementsToJson } from '$lib/utils/measurement-export';
 
   // Set page context for toolbar filtering
   $effect(() => {
@@ -186,6 +187,22 @@
     const label = `P${pointIndex}`;
     await measurementStore.addPoint(floorId, label, x, y);
   }
+
+  function handleExportJson(): void {
+    const json = exportMeasurementsToJson(
+      measurementStore.runs,
+      measurementStore.points,
+      measurementStore.measurements,
+      floorId,
+    );
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `measurements-${floorId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 </script>
 
 <svelte:head>
@@ -194,6 +211,18 @@
 
 <!-- Sidebar with measurement wizard -->
 <aside class="measure-sidebar">
+  {#if measurementStore.runs.length > 0}
+    <button
+      class="export-btn"
+      onclick={handleExportJson}
+      title={t('measurement.exportJsonTooltip')}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+      </svg>
+      {t('measurement.exportJson')}
+    </button>
+  {/if}
   <MeasurementWizard
     {floorId}
     runs={measurementStore.runs}
@@ -238,5 +267,28 @@
     padding: 8px;
     border-right: 1px solid #2a2a4e;
     flex-shrink: 0;
+  }
+
+  .export-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    color: #808090;
+    font-size: 0.7rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-bottom: 6px;
+  }
+
+  .export-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #a0a0b0;
   }
 </style>

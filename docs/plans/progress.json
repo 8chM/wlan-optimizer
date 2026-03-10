@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-29b-complete",
+  "currentPhase": "phase-29a-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1906,6 +1906,25 @@
         "MC-1..MC-12: Measurement-Compare Tests (median, coverage bins, worst 10%, throughput, roaming events)",
         "11 neue i18n-Keys EN+DE (opt.dbVerified/Failed/Unverified/hardwareNotVerified, results.coverage*/worst/median/roaming, opt.validateWithMeasurement)",
         "1321 Tests pass (42 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "29a": {
+      "name": "Measurement MVP — Passive Entry, Band Filter, JSON Export",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "API: saveMeasurement() Wrapper in measurement.ts fuer save_measurement IPC-Command",
+        "Store: bandFilter State + filteredMeasurements Derived + saveManualMeasurement() Aktion + setBandFilter()",
+        "ManualEntryForm.svelte: Kompaktes Formular fuer manuelle RSSI/Noise-Eingabe mit SNR-Berechnung",
+        "MeasurementWizard: ManualEntryForm Toggle + Band-Filter Segment-Control (All/2.4/5/6 GHz)",
+        "MeasureCanvasLayers: filteredMeasurements statt measurements (Band-Filter wirkt auf Canvas)",
+        "measurement-export.ts: exportMeasurementsToJson() + MeasurementExport Interface",
+        "Measure-Seite: Export-Button (JSON-Download) + handleExportJson()",
+        "15 neue i18n-Keys EN+DE (manualEntry, band, rssiLabel, noiseLabel, snrLabel, saveManual, bandFilter*, exportJson*)",
+        "M1-M5: Store-Tests (saveManualMeasurement, bandFilter, filteredMeasurements, reset)",
+        "ME1-ME4: Export-Tests (valid JSON, _meta, empty arrays, round-trip)",
+        "1331 Tests pass (43 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

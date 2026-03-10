@@ -232,7 +232,21 @@
     "placePoint": "Add Point",
     "clickToPlace": "Click on floor plan...",
     "completeRun": "Complete",
-    "cancelRun": "Cancel Run"
+    "cancelRun": "Cancel Run",
+    "manualEntry": "Manual Entry",
+    "manualEntryHint": "Enter RSSI and optionally noise manually",
+    "band": "Band",
+    "rssiLabel": "Signal (RSSI)",
+    "noiseLabel": "Noise Floor",
+    "snrLabel": "SNR (calculated)",
+    "saveManual": "Save",
+    "bandFilterAll": "All",
+    "bandFilter24": "2.4 GHz",
+    "bandFilter5": "5 GHz",
+    "bandFilter6": "6 GHz",
+    "exportJson": "Export measurements",
+    "exportJsonTooltip": "Download all measurement data as JSON",
+    "manualOrAuto": "Or enter manually"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

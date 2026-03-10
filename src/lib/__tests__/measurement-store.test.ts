@@ -38,6 +38,7 @@ vi.mock('$lib/api/measurement', () => ({
   startMeasurement: vi.fn(),
   cancelMeasurement: vi.fn(),
   updateMeasurementRunStatus: vi.fn(),
+  saveMeasurement: vi.fn(),
 }));
 
 import {
@@ -48,6 +49,7 @@ import {
   createMeasurementPoint,
   startMeasurement,
   cancelMeasurement,
+  saveMeasurement,
 } from '$lib/api/measurement';
 
 import type {
@@ -910,5 +912,87 @@ describe('reset', () => {
     store.reset();
 
     expect(store.runCount).toBe(0);
+  });
+
+  it('resets bandFilter to all', () => {
+    store.setBandFilter('5ghz');
+    expect(store.bandFilter).toBe('5ghz');
+
+    store.reset();
+
+    expect(store.bandFilter).toBe('all');
+  });
+});
+
+// ─── saveManualMeasurement ────────────────────────────────────────────────────
+
+describe('saveManualMeasurement', () => {
+  it('M1: saves a manual measurement and reloads measurements', async () => {
+    const savedMeas = { ...makeMeasurement('m-manual', 'run-1'), frequency_band: '5ghz', rssi_dbm: -65 };
+    vi.mocked(saveMeasurement).mockResolvedValue('m-manual');
+    vi.mocked(getMeasurementsByRun).mockResolvedValue([savedMeas]);
+
+    const result = await store.saveManualMeasurement('point-1', 'run-1', '5ghz', -65, -90);
+
+    expect(result).toBe('m-manual');
+    expect(saveMeasurement).toHaveBeenCalledWith({
+      measurement_point_id: 'point-1',
+      measurement_run_id: 'run-1',
+      frequency_band: '5ghz',
+      rssi_dbm: -65,
+      noise_dbm: -90,
+    });
+    expect(store.measurements).toHaveLength(1);
+    expect(store.measurements[0]?.frequency_band).toBe('5ghz');
+  });
+
+  it('M2: returns null and sets error on API failure', async () => {
+    vi.mocked(saveMeasurement).mockRejectedValue(new Error('save failed'));
+
+    const result = await store.saveManualMeasurement('point-1', 'run-1', '5ghz', -65);
+
+    expect(result).toBeNull();
+    expect(store.error).toBe('save failed');
+  });
+});
+
+// ─── bandFilter ───────────────────────────────────────────────────────────────
+
+describe('bandFilter', () => {
+  function makeMeasurementWithBand(id: string, runId: string, band: string): MeasurementResponse {
+    return { ...makeMeasurement(id, runId), frequency_band: band };
+  }
+
+  it('M3: filters measurements by band', async () => {
+    vi.mocked(getMeasurementsByRun).mockResolvedValue([
+      makeMeasurementWithBand('m1', 'r1', '2.4ghz'),
+      makeMeasurementWithBand('m2', 'r1', '5ghz'),
+      makeMeasurementWithBand('m3', 'r1', '6ghz'),
+    ]);
+    await store.loadMeasurements('r1');
+
+    store.setBandFilter('5ghz');
+
+    expect(store.filteredMeasurements).toHaveLength(1);
+    expect(store.filteredMeasurements[0]?.frequency_band).toBe('5ghz');
+  });
+
+  it('M4: bandFilter all shows all measurements', async () => {
+    vi.mocked(getMeasurementsByRun).mockResolvedValue([
+      makeMeasurementWithBand('m1', 'r1', '2.4ghz'),
+      makeMeasurementWithBand('m2', 'r1', '5ghz'),
+      makeMeasurementWithBand('m3', 'r1', '6ghz'),
+    ]);
+    await store.loadMeasurements('r1');
+
+    store.setBandFilter('all');
+
+    expect(store.filteredMeasurements).toHaveLength(3);
+  });
+
+  it('M5: reset clears bandFilter to all', () => {
+    store.setBandFilter('5ghz');
+    store.reset();
+    expect(store.bandFilter).toBe('all');
   });
 });

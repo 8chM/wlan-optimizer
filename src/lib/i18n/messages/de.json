@@ -232,7 +232,21 @@
     "placePoint": "Punkt hinzufuegen",
     "clickToPlace": "Auf Grundriss klicken...",
     "completeRun": "Abschliessen",
-    "cancelRun": "Abbrechen"
+    "cancelRun": "Abbrechen",
+    "manualEntry": "Manuelle Eingabe",
+    "manualEntryHint": "RSSI und optional Noise manuell eintragen",
+    "band": "Band",
+    "rssiLabel": "Signal (RSSI)",
+    "noiseLabel": "Noise Floor",
+    "snrLabel": "SNR (berechnet)",
+    "saveManual": "Speichern",
+    "bandFilterAll": "Alle",
+    "bandFilter24": "2.4 GHz",
+    "bandFilter5": "5 GHz",
+    "bandFilter6": "6 GHz",
+    "exportJson": "Messungen exportieren",
+    "exportJsonTooltip": "Alle Messdaten als JSON herunterladen",
+    "manualOrAuto": "Oder manuell eingeben"
   },
   "shortcuts": {
     "title": "Tastenkuerzel",

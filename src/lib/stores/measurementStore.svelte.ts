@@ -23,6 +23,7 @@ import {
   deleteMeasurementRun,
   deleteMeasurementPoint,
   updateMeasurementRunStatus,
+  saveMeasurement,
 } from '$lib/api/measurement';
 import {
   REFERENCE_LOSS,
@@ -182,9 +183,15 @@ function createMeasurementStore() {
   let calibrationPointCount = $state<number>(0);
   let error = $state<string | null>(null);
   let isLoading = $state(false);
+  let bandFilter = $state<'all' | '2.4ghz' | '5ghz' | '6ghz'>('all');
 
   // Derived
   let currentRun = $derived(runs.find((r) => r.id === currentRunId) ?? null);
+  let filteredMeasurements = $derived(
+    bandFilter === 'all'
+      ? measurements
+      : measurements.filter((m) => m.frequency_band === bandFilter),
+  );
   let completedMeasurements = $derived(
     measurements.filter((m) => m.measurement_run_id === currentRunId),
   );
@@ -213,6 +220,8 @@ function createMeasurementStore() {
     get isLoading() { return isLoading; },
     get completedMeasurements() { return completedMeasurements; },
     get runCount() { return runCount; },
+    get bandFilter() { return bandFilter; },
+    get filteredMeasurements() { return filteredMeasurements; },
 
     // ── Actions ─────────────────────────────────────────────
 
@@ -416,6 +425,34 @@ function createMeasurementStore() {
       currentRunId = runId;
     },
 
+    setBandFilter(band: 'all' | '2.4ghz' | '5ghz' | '6ghz'): void {
+      bandFilter = band;
+    },
+
+    async saveManualMeasurement(
+      pointId: string,
+      runId: string,
+      band: string,
+      rssiDbm: number,
+      noiseDbm?: number,
+    ): Promise<string | null> {
+      error = null;
+      try {
+        const measId = await saveMeasurement({
+          measurement_point_id: pointId,
+          measurement_run_id: runId,
+          frequency_band: band,
+          rssi_dbm: rssiDbm,
+          noise_dbm: noiseDbm,
+        });
+        measurements = await getMeasurementsByRun(runId);
+        return measId;
+      } catch (err: unknown) {
+        error = extractErrorMessage(err);
+        return null;
+      }
+    },
+
     setServerIp(ip: string): void {
       iperfServerIp = ip;
       // Reset reachability when IP changes
@@ -538,6 +575,7 @@ function createMeasurementStore() {
       calibrationPointCount = 0;
       error = null;
       isLoading = false;
+      bandFilter = 'all';
     },
   };
 }

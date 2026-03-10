@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28br-complete",
+  "currentPhase": "phase-28bt-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1798,6 +1798,38 @@
         "BR-2: Cross-fixture invariant (F1-F8 + RF3/RF4/RF5/RF6) — budget notes ≤ 2",
         "rules.md: BR-01 Regel, Global Budget Cap Cluster, 114 Regeln total, 25 Cluster",
         "1287 Tests pass (40 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bu": {
+      "name": "Apply Sequence Regression — Multi-step Correctness",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "apply-sequence.test.ts: 4 Tests (BU-1..BU-4) fuer Multi-Step Apply Correctness",
+        "BU-1: Ping-pong Guard — keine Empfehlung reverst einen gerade angewandten Parameter",
+        "BU-2: Budget Caps stabil nach Apply (max 2 actionable_config/AP, max 2 budget notes)",
+        "BU-3: Candidate-Invarianten stabil (kein phantom add_ap unter required policy)",
+        "BU-4: EVIDENCE_MINIMUMS gelten auch nach Apply-Sequenz",
+        "Fixtures: RF2, RF3, RF5, RF6 — deterministisches Top-3 Apply via mapSuggestedChangeToApUpdate",
+        "rules.md: BU-01..BU-04, 121 Regeln total, 27 Cluster",
+        "1291 Tests pass (41 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bt": {
+      "name": "Blocked Recommendations Consistency — blockedKind Schema + neue Block-Pfade",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "BT-01: Add-AP Fallback Constraint Block — blocked_recommendation wenn idealPosition in Zone/Wall (blockedKind=3/4)",
+        "BT-02: Channel Capability Block — blocked_recommendation wenn isActionAllowed=false im Konflikt-Cluster (blockedKind=1)",
+        "BT-03: Einheitliches blockedKind-Schema (1=capability, 2=policy, 3=constraint, 4=wall) + blockingReasonsCount auf allen blocked_recommendations",
+        "4 neue i18n-Keys EN+DE (blockedAddApTitle, blockedAddApConstraintReason, blockedChannelTitle, blockedChannelReason)",
+        "BT-1: Cross-fixture — jede blocked_recommendation hat blockedKind + blockingReasonsCount + EVIDENCE_MINIMUM key",
+        "BT-2: Cross-fixture — kein actionable_config mit blockedByConstraints ohne blocked_recommendation type oder feasibilityScore=0",
+        "rules.md: BT-01..BT-03, Blocked Consistency Cluster, 121 Regeln total, 27 Cluster",
+        "1293 Tests pass (41 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

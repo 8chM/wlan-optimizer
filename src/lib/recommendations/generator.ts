@@ -895,8 +895,41 @@ function generateAddApSuggestions(
     }
 
     // Policy is 'optional' and no candidates — fallback: place at RF-weighted ideal position
-    if (!isMovementAllowed(idealX, idealY, ctx.constraintZones)) continue;
-    if (!isPhysicallyValidApPosition(idealX, idealY, walls)) continue;
+    const fallbackMovementOk = isMovementAllowed(idealX, idealY, ctx.constraintZones);
+    const fallbackPhysicalOk = fallbackMovementOk && isPhysicallyValidApPosition(idealX, idealY, walls);
+    if (!fallbackPhysicalOk) {
+      // BT-01: Emit blocked_recommendation when constraint/wall blocks fallback placement
+      recs.push({
+        id: genId(),
+        type: 'blocked_recommendation',
+        priority: 'low',
+        severity: 'info',
+        titleKey: 'rec.blockedAddApTitle',
+        titleParams: {},
+        reasonKey: 'rec.blockedAddApConstraintReason',
+        reasonParams: {
+          x: Math.round(idealX * 10) / 10,
+          y: Math.round(idealY * 10) / 10,
+        },
+        affectedApIds: [],
+        affectedBand: band,
+        evidence: {
+          metrics: {
+            currentCoverage: zone.avgRssi,
+            blockedKind: !fallbackMovementOk ? 3 : 4, // 3=constraint, 4=wall
+            blockingReasonsCount: 1,
+          },
+          gridStep,
+        },
+        confidence: 0.3,
+        blockedByConstraints: [
+          !fallbackMovementOk
+            ? `Fallback position (${Math.round(idealX)},${Math.round(idealY)}) blocked by constraint zone`
+            : `Fallback position (${Math.round(idealX)},${Math.round(idealY)}) inside wall`,
+        ],
+      });
+      continue;
+    }
 
     const fallbackDelta = simulateAddAP(
       aps, walls, bounds, band, rfConfig,
@@ -989,7 +1022,11 @@ function generateMoveApSuggestions(
         affectedApIds: [ap.id],
         affectedBand: band,
         evidence: {
-          metrics: { currentCoverage: metrics.primaryCoverageRatio },
+          metrics: {
+            currentCoverage: metrics.primaryCoverageRatio,
+            blockedKind: !canMove ? 1 : 3, // 1=capability, 3=constraint
+            blockingReasonsCount: 1,
+          },
           gridStep,
         },
         confidence: 0.5,
@@ -1145,6 +1182,8 @@ function generateMoveApSuggestions(
         evidence: {
           metrics: {
             currentCoverage: metrics.primaryCoverageRatio,
+            blockedKind: 2, // 2=policy
+            blockingReasonsCount: 1,
             candidateCount: ctx.candidates.length,
             nearestDistance: nearestMoveDist === Infinity ? -1 : Math.round(nearestMoveDist * 10) / 10,
             maxDistance: MAX_IDEAL_DISTANCE_MOVE_AP_M,
@@ -1796,7 +1835,33 @@ function generateChannelRecommendations(
       .sort((a, b) => b.degree - a.degree);
 
     for (const { id: targetApId } of sorted) {
-      if (!isActionAllowed(targetApId, 'change_channel', band, ctx)) continue;
+      if (!isActionAllowed(targetApId, 'change_channel', band, ctx)) {
+        // BT-02: Emit blocked_recommendation when channel change blocked by capability
+        recs.push({
+          id: genId(),
+          type: 'blocked_recommendation',
+          priority: 'low',
+          severity: 'info',
+          titleKey: 'rec.blockedChannelTitle',
+          titleParams: { ap: apLabel(targetApId) },
+          reasonKey: 'rec.blockedChannelReason',
+          reasonParams: { ap: apLabel(targetApId) },
+          affectedApIds: [targetApId],
+          affectedBand: band,
+          evidence: {
+            metrics: {
+              currentCoverage: 0,
+              blockedKind: 1, // 1=capability
+              blockingReasonsCount: 1,
+            },
+          },
+          confidence: 0.4,
+          blockedByConstraints: [
+            `Channel change not allowed for ${apLabel(targetApId)} on ${band}`,
+          ],
+        });
+        continue;
+      }
 
       const targetAp = accessPoints.find(a => a.id === targetApId);
       if (!targetAp) continue;
@@ -2122,7 +2187,13 @@ function generateRoamingTxAdjustments(
         },
         affectedApIds: [dominantId],
         affectedBand: band,
-        evidence: { metrics: { stickyRatio: pair.stickyRatio } },
+        evidence: {
+          metrics: {
+            stickyRatio: pair.stickyRatio,
+            blockedKind: 1, // 1=capability
+            blockingReasonsCount: 1,
+          },
+        },
         confidence: 0.5,
         blockedByConstraints: [
           `TX power change not allowed for ${apLabel(dominantId)} on ${band}`,
@@ -2364,7 +2435,14 @@ function generateRoamingTxBoosts(
         },
         affectedApIds: [weakerId],
         affectedBand: band,
-        evidence: { metrics: { gapRatio, gapCells: pair.gapCells } },
+        evidence: {
+          metrics: {
+            gapRatio,
+            gapCells: pair.gapCells,
+            blockedKind: 1, // 1=capability
+            blockingReasonsCount: 1,
+          },
+        },
         confidence: 0.5,
         blockedByConstraints: [
           `TX power change not allowed for ${apLabel(weakerId)} on ${band}`,

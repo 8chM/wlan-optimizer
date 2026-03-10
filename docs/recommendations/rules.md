@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-10 (Phase 28bo — Gap Note Impact-Area Sort)
+Last updated: 2026-03-10 (Phase 28bu — Apply Sequence Regression)
 
 ---
 
@@ -440,6 +440,23 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | BS-01 | Alternative evidence integrity | alternativeRecommendation fails EVIDENCE_MINIMUMS for its type | Types without EVIDENCE_MINIMUMS entry → kept | Remove alternative, increment parent's suppressedAlternativeCount | validateAlternativeEvidence |
 
+### Blocked Recommendation Consistency — (Phase 28bt)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BT-01 | Add-AP fallback constraint block | optional policy, no candidates, idealPosition in constraintZone or wall | — | blocked_recommendation with blockedKind=3 (constraint) or 4 (wall), currentCoverage metric | generateAddApSuggestions |
+| BT-02 | Channel capability block | AP in conflict cluster but isActionAllowed=false | — | blocked_recommendation with blockedKind=1 (capability), currentCoverage=0 | generateChannelRecommendations |
+| BT-03 | Unified blockedKind schema | All blocked_recommendation emissions | — | evidence.metrics includes blockedKind (1=capability, 2=policy, 3=constraint, 4=wall) + blockingReasonsCount | all generators |
+
+### Apply Sequence Regression — `apply-sequence.test.ts`
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BU-01 | No ping-pong after apply | Re-run after applying top-N actionable_config | Same parameter+AP | No rec reverses a just-applied value to its previous value | apply-sequence.test.ts BU-1 |
+| BU-02 | Budget caps stable after apply | Re-run after applying top-N recs | per-AP + global caps | max 2 actionable_config/AP, max 2 budget notes | apply-sequence.test.ts BU-2 |
+| BU-03 | Candidate invariants after apply | Re-run under required candidate policy | add_ap only at candidates | No phantom add_ap, selectedCandidatePosition required | apply-sequence.test.ts BU-3 |
+| BU-04 | Evidence integrity after apply | Re-run after applying recs | EVIDENCE_MINIMUMS | All recs+alternatives satisfy EVIDENCE_MINIMUMS | apply-sequence.test.ts BU-4 |
+
 ### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1681-1713)
 
 | ID | Description | Trigger | Guards | Action | Reference |
@@ -523,9 +540,11 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Global Budget Cap (BR) | BR-01 | 1 | capBudgetNotesGlobal |
 | Advice Dedup (BP) | BP-01 | 1 | deduplicateAdviceNotes |
 | Alt Evidence (BS) | BS-01 | 1 | validateAlternativeEvidence |
+| Apply Sequence Regression (BU) | BU-01..BU-04 | 4 | apply-sequence.test.ts |
 | Channel vs Width Deconfliction (BL) | BL-01a, BL-01b | 2 | deconflictChannelVsWidth |
+| Blocked Consistency (BT) | BT-01..BT-03 | 3 | generators + unified blockedKind schema |
 
-**Total: 114 rules across 25 clusters. 23 RecommendationType values.**
+**Total: 121 rules across 27 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

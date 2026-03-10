@@ -9093,4 +9093,109 @@ describe('generateRecommendations', () => {
       }
     });
   });
+
+  // ─── BT: Blocked Recommendations Consistency ───────────────────
+
+  describe('BT: Blocked recommendations consistency', () => {
+    it('BT-1: every blocked_recommendation has blockedKind + blockingReasonsCount + at least one EVIDENCE_MINIMUM key', () => {
+      const allFixtures = [
+        { name: 'F1', fn: createF1DenseCluster },
+        { name: 'F2', fn: createF2RoamingConflict },
+        { name: 'F3', fn: createF3UplinkLimited },
+        { name: 'F4', fn: createF4NoNewCable },
+        { name: 'F5', fn: createF5FarCandidates },
+        { name: 'F6', fn: createF6StickyTinyHandoff },
+        { name: 'F7', fn: createF7UplinkWeakCoverage },
+        { name: 'F8', fn: createF8CandidateRequiredNoNear },
+        { name: 'RF3', fn: createRf3MyHouse },
+        { name: 'RF4', fn: createRf4UserLive },
+        { name: 'RF5', fn: createRf5UserLiveV2 },
+        { name: 'RF6', fn: createRf6UserMyhouse },
+      ];
+
+      for (const { name, fn } of allFixtures) {
+        const f = fn();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx,
+        );
+
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const blocked = allRecs.filter(r => r.type === 'blocked_recommendation');
+
+        for (const rec of blocked) {
+          const m = rec.evidence?.metrics as Record<string, unknown> | undefined;
+
+          // Must have blockedKind
+          expect(
+            m?.blockedKind,
+            `${name}: blocked ${rec.id} must have blockedKind`,
+          ).toBeDefined();
+          expect(
+            typeof m?.blockedKind,
+            `${name}: blockedKind must be number`,
+          ).toBe('number');
+
+          // Must have blockingReasonsCount
+          expect(
+            m?.blockingReasonsCount,
+            `${name}: blocked ${rec.id} must have blockingReasonsCount`,
+          ).toBeDefined();
+
+          // Must have at least one EVIDENCE_MINIMUM key
+          const evidenceKeys = Object.keys(m ?? {});
+          const required = ['stickyRatio', 'currentCoverage', 'gapRatio'];
+          const hasRequiredKey = required.some(k => evidenceKeys.includes(k));
+          expect(
+            hasRequiredKey,
+            `${name}: blocked ${rec.id} must have one of [${required.join(', ')}], got [${evidenceKeys.join(', ')}]`,
+          ).toBe(true);
+
+          // Must have blockedByConstraints
+          expect(
+            rec.blockedByConstraints?.length,
+            `${name}: blocked ${rec.id} must have non-empty blockedByConstraints`,
+          ).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it('BT-2: cross-fixture — no actionable_config rec has blockedByConstraints without blocked_recommendation type', () => {
+      const allFixtures = [
+        { name: 'F1', fn: createF1DenseCluster },
+        { name: 'F2', fn: createF2RoamingConflict },
+        { name: 'F3', fn: createF3UplinkLimited },
+        { name: 'F4', fn: createF4NoNewCable },
+        { name: 'F5', fn: createF5FarCandidates },
+        { name: 'F6', fn: createF6StickyTinyHandoff },
+        { name: 'F7', fn: createF7UplinkWeakCoverage },
+        { name: 'F8', fn: createF8CandidateRequiredNoNear },
+        { name: 'RF3', fn: createRf3MyHouse },
+        { name: 'RF4', fn: createRf4UserLive },
+        { name: 'RF5', fn: createRf5UserLiveV2 },
+        { name: 'RF6', fn: createRf6UserMyhouse },
+      ];
+
+      for (const { name, fn } of allFixtures) {
+        const f = fn();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx,
+        );
+
+        // All blocked recs must carry blocking evidence
+        for (const rec of result.recommendations) {
+          if (rec.blockedByConstraints?.length && rec.blockedByConstraints.length > 0) {
+            // If blocked, must be type=blocked_recommendation OR have feasibilityScore=0
+            const isBlockedType = rec.type === 'blocked_recommendation';
+            const hasZeroFeasibility = rec.feasibilityScore === 0;
+            expect(
+              isBlockedType || hasZeroFeasibility,
+              `${name}: rec ${rec.type} (${rec.id}) has blockedByConstraints but is neither blocked_recommendation nor feasibilityScore=0`,
+            ).toBe(true);
+          }
+        }
+      }
+    });
+  });
 });

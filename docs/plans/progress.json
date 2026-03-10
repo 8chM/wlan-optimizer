@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bn-complete",
+  "currentPhase": "phase-28bo-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1720,6 +1720,22 @@
         "BN-1a: uplinkLimitedRatio ~0.70 + gaps → genau 1 advice note (uplinkGapAdvice gewinnt)",
         "BN-1b: Cross-fixture invariant (9 Fixtures) — max 1 uplink advice note",
         "rules.md: BN-01 Regel, Total 109 Regeln, 23 Cluster",
+        "1282 Tests pass (40 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bo": {
+      "name": "Gap Note Selection by Impact Area",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "BO-01: capGapNotes Sortierung umgestellt: gapCells desc (Impact) → gapRatio desc → avgRssiInZone asc",
+        "BO-02: gapRankScore (gapCells + gapRatio*1000) + whyKept=1 Evidence fuer alle kept gap notes",
+        "Early return entfernt: Enrichment laeuft auch bei 1 gap note (nicht nur bei >1)",
+        "BO-1: high gapCells (300) gewinnt ueber high gapRatio (90% mit 12 cells)",
+        "BO-2: gapRankScore Formel verifiziert (gapCells + gapRatio*1000)",
+        "BO-3: Cross-fixture (F1/F2/RF3/RF5/RF6) — kept notes haben whyKept=1 + gapRankScore > 0",
+        "rules.md: BO-01/BO-02 Regeln, Gap Budgeting Cluster erweitert (BM+BO), 111 Regeln total",
         "1282 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }

@@ -3,7 +3,7 @@
 Complete inventory of all recommendation rules in `src/lib/recommendations/generator.ts`.
 Each entry documents: ID, description, category, trigger, guards, action, dedup, code reference, and test coverage.
 
-Last updated: 2026-03-09 (Phase 28bl — Channel vs Width Deconfliction)
+Last updated: 2026-03-10 (Phase 28bo — Gap Note Impact-Area Sort)
 
 ---
 
@@ -396,9 +396,11 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 
 | ID | Description | Trigger | Guards | Action | Reference |
 |----|-------------|---------|--------|--------|-----------|
-| BM-01a | Global gap note cap | >2 handoff_gap_warning in recs | — | Keep top 2 sorted by gapRatio desc, gapCells desc, avgRssiInZone asc; remove rest | capGapNotes |
+| BM-01a | Global gap note cap | >2 handoff_gap_warning in recs | — | Keep top 2 sorted by gapCells desc (BO-01), gapRatio desc, avgRssiInZone asc; remove rest | capGapNotes |
 | BM-01b | Per-AP gap note cap | AP already has 1 gap note | — | Skip additional gap notes for same AP (per-AP max 1) | capGapNotes |
 | BM-01c | Suppressed count evidence | Gap notes suppressed | — | Add suppressedGapNotesCount to surviving notes' evidence.metrics | capGapNotes |
+| BO-01 | Impact-area sort | Multiple gap notes | — | Sort by gapCells desc (impact) → gapRatio desc → avgRssiInZone asc | capGapNotes |
+| BO-02 | Rank evidence | Gap note kept | — | Enrich with gapRankScore (gapCells + gapRatio*1000) + whyKept=1 | capGapNotes |
 
 ### Uplink-aware Demotion (Phase 28bm)
 
@@ -502,13 +504,13 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Roaming Hint | RH-01 | 1 | generateRoamingHints |
 | Cross-Type | CT-01 | 1 | post-processing in main function |
 | Noise & Dedup (BC) | BC-01, BC-02a, BC-02b | 3 | capChannelRecsPerCluster + deduplicateRoamingNotes |
-| Gap Budgeting (BM) | BM-01a..BM-01c, BM-02a, BM-02b | 5 | capGapNotes + uplink demotion |
+| Gap Budgeting (BM+BO) | BM-01a..BM-01c, BM-02a, BM-02b, BO-01, BO-02 | 7 | capGapNotes + uplink demotion |
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
 | Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
 | Uplink Advice Dedup (BN) | BN-01 | 1 | deduplicateUplinkAdviceNotes |
 | Channel vs Width Deconfliction (BL) | BL-01a, BL-01b | 2 | deconflictChannelVsWidth |
 
-**Total: 109 rules across 23 clusters. 23 RecommendationType values.**
+**Total: 111 rules across 23 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

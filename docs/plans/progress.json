@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bq-complete",
+  "currentPhase": "phase-28bs-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1767,6 +1767,21 @@
         "BQ-2: two generateRecommendations runs produce identical gap note order",
         "rules.md: BQ-01 Regel, Gap Budgeting Cluster (BM+BO+BQ, 8 Regeln), 112 Regeln total",
         "1284 Tests pass (40 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bs": {
+      "name": "AlternativeRecommendations Evidence Integrity",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "validateAlternativeEvidence(): Postprocessing-Step nach paramDeduped",
+        "Prueft alle alternativeRecommendations gegen EVIDENCE_MINIMUMS[type]",
+        "Nicht erfuellt → Alternative entfernt, parent bekommt suppressedAlternativeCount",
+        "Leere alternativeRecommendations-Arrays → undefined (clean up)",
+        "BS-2: Cross-fixture invariant (9 Fixtures) — alle Alternativen erfuellen EVIDENCE_MINIMUMS",
+        "rules.md: BS-01 Regel, Total 113 Regeln, 24 Cluster",
+        "1287 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

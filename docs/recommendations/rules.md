@@ -428,6 +428,12 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | BP-01 | Max 1 advice note per analysis | >1 band_limit_warning with ADVICE_TITLE_TO_KIND key | bandLimitTitle + sixGhzChannelNoteTitle excluded (different semantics) | Keep lowest adviceKind (most specific), tag adviceKind + suppressedAdviceCount | deduplicateAdviceNotes |
 
+### Alternative Evidence Validation — `validateAlternativeEvidence()` (Phase 28bs)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BS-01 | Alternative evidence integrity | alternativeRecommendation fails EVIDENCE_MINIMUMS for its type | Types without EVIDENCE_MINIMUMS entry → kept | Remove alternative, increment parent's suppressedAlternativeCount | validateAlternativeEvidence |
+
 ### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1681-1713)
 
 | ID | Description | Trigger | Guards | Action | Reference |
@@ -509,9 +515,10 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
 | Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
 | Advice Dedup (BP) | BP-01 | 1 | deduplicateAdviceNotes |
+| Alt Evidence (BS) | BS-01 | 1 | validateAlternativeEvidence |
 | Channel vs Width Deconfliction (BL) | BL-01a, BL-01b | 2 | deconflictChannelVsWidth |
 
-**Total: 112 rules across 23 clusters. 23 RecommendationType values.**
+**Total: 113 rules across 24 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

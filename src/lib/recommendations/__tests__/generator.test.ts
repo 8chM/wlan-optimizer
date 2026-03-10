@@ -8959,4 +8959,138 @@ describe('generateRecommendations', () => {
       }
     });
   });
+
+  // ─── BS: Alternative Evidence Integrity ───────────────────────────
+  describe('BS: Alternative Evidence Integrity', () => {
+    it('BS-2: cross-fixture — all alternatives satisfy EVIDENCE_MINIMUMS', () => {
+      const fixtureFactories = [
+        { name: 'F1', fn: createF1DenseCluster },
+        { name: 'F2', fn: createF2RoamingConflict },
+        { name: 'F3', fn: createF3UplinkLimited },
+        { name: 'F6', fn: createF6StickyTinyHandoff },
+        { name: 'F7', fn: createF7UplinkWeakCoverage },
+        { name: 'RF3', fn: createRf3MyHouse },
+        { name: 'RF4', fn: createRf4UserLive },
+        { name: 'RF5', fn: createRf5UserLiveV2 },
+        { name: 'RF6', fn: createRf6UserMyhouse },
+      ];
+
+      for (const { name, fn } of fixtureFactories) {
+        const fix = fn();
+        const result = generateRecommendations(
+          fix.aps, fix.apResps, fix.walls, fix.bounds,
+          BAND, fix.stats, RF_CONFIG, 'balanced', fix.ctx,
+        );
+
+        // Collect only alternatives (not main recs — those are tested elsewhere)
+        const alternatives: Recommendation[] = [];
+        for (const rec of result.recommendations) {
+          if (rec.alternativeRecommendations) {
+            alternatives.push(...collectAllRecommendations(rec.alternativeRecommendations));
+          }
+        }
+
+        for (const alt of alternatives) {
+          const required = EVIDENCE_MINIMUMS[alt.type];
+          if (!required) continue;
+          const keys = Object.keys(alt.evidence?.metrics ?? {});
+          const hasAtLeastOne = required.some(k => keys.includes(k));
+          expect(
+            hasAtLeastOne,
+            `${name}: alternative ${alt.type} (${alt.id}) needs one of [${required.join(', ')}], got [${keys.join(', ')}]`,
+          ).toBe(true);
+        }
+      }
+    });
+  });
+
+  // ─── BR: Budget Notes Consistency & Ordering ────────────────────
+
+  describe('BR: Global budget note cap', () => {
+    const BUDGET_NOTES = new Set(['channel_deprioritized_note', 'config_budget_note']);
+
+    it('BR-1: 5 APs same channel tight spacing → budget notes ≤ 2, suppressedBudgetNotesCount', () => {
+      // 5 APs tight spacing, all ch36, high overlap → many config recs per AP + channel cluster cap
+      const aps = [
+        makeAP('ap-1', 2, 5),  makeAP('ap-2', 5, 5),  makeAP('ap-3', 8, 5),
+        makeAP('ap-4', 11, 5), makeAP('ap-5', 14, 5),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 2, 5, 36),
+        makeAPResponse('ap-2', 5, 5, 36),
+        makeAPResponse('ap-3', 8, 5, 36),
+        makeAPResponse('ap-4', 11, 5, 36),
+        makeAPResponse('ap-5', 14, 5, 36),
+      ];
+
+      // Grid 16x10 — dense coverage with high overlap
+      const grids = makeGrids(16, 10, { rssi: -55, overlap: 3, delta: 8 });
+      for (let x = 0; x < 16; x++) {
+        for (let y = 0; y < 10; y++) {
+          const i = y * 16 + x;
+          grids.apIndexGrid[i] = Math.min(4, Math.floor(x / 3.2));
+          grids.secondBestApIndexGrid[i] = (grids.apIndexGrid[i]! + 1) % 5;
+          grids.overlapCountGrid[i] = 3;
+        }
+      }
+
+      const stats = makeStats(16, 10, grids);
+      stats.apIds = ['ap-1', 'ap-2', 'ap-3', 'ap-4', 'ap-5'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS, BOUNDS, BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const budgetNotes = result.recommendations.filter(r => BUDGET_NOTES.has(r.type));
+      expect(
+        budgetNotes.length,
+        `Expected ≤2 budget notes, got ${budgetNotes.length}: [${budgetNotes.map(n => n.type).join(', ')}]`,
+      ).toBeLessThanOrEqual(2);
+
+      // If any budget notes exist, suppression evidence must be present on at least one
+      if (budgetNotes.length > 0) {
+        const allMetrics = budgetNotes.map(n => n.evidence?.metrics as Record<string, number> | undefined);
+        const hasSuppression = allMetrics.some(m =>
+          m && (
+            (m.suppressedBudgetNotesCount ?? 0) > 0 ||
+            (m.otherNotesSuppressed ?? 0) > 0 ||
+            (m.channelRecsSuppressed ?? 0) > 0 ||
+            (m.suppressedCount ?? 0) > 0
+          ),
+        );
+        expect(hasSuppression, 'at least one budget note must carry suppression evidence').toBe(true);
+      }
+    });
+
+    it('BR-2: cross-fixture invariant — budget-like notes ≤ 2', () => {
+      const allFixtures = [
+        { name: 'F1', fn: createF1DenseCluster },
+        { name: 'F2', fn: createF2RoamingConflict },
+        { name: 'F3', fn: createF3UplinkLimited },
+        { name: 'F4', fn: createF4NoNewCable },
+        { name: 'F5', fn: createF5FarCandidates },
+        { name: 'F6', fn: createF6StickyTinyHandoff },
+        { name: 'F7', fn: createF7UplinkWeakCoverage },
+        { name: 'F8', fn: createF8CandidateRequiredNoNear },
+        { name: 'RF3', fn: createRf3MyHouse },
+        { name: 'RF4', fn: createRf4UserLive },
+        { name: 'RF5', fn: createRf5UserLiveV2 },
+        { name: 'RF6', fn: createRf6UserMyhouse },
+      ];
+
+      for (const { name, fn } of allFixtures) {
+        const f = fn();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx,
+        );
+
+        const budgetNotes = result.recommendations.filter(r => BUDGET_NOTES.has(r.type));
+        expect(
+          budgetNotes.length,
+          `${name}: max 2 budget-like notes (got ${budgetNotes.length}: [${budgetNotes.map(n => n.type).join(', ')}])`,
+        ).toBeLessThanOrEqual(2);
+      }
+    });
+  });
 });

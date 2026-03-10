@@ -414,6 +414,9 @@ export function generateRecommendations(
   // 20. BG-01: Budget note dedup: max 1 budget/limit note per AP
   deduplicateBudgetNotes(recommendations);
 
+  // 20c. BR-01: Global budget note cap: max 2 budget-like notes per analysis
+  capBudgetNotesGlobal(recommendations);
+
   // 20b. BP-01: Advice note dedup: max 1 advice note per analysis (kind-based priority)
   deduplicateAdviceNotes(recommendations);
 
@@ -426,6 +429,9 @@ export function generateRecommendations(
   const paramDeduped = deduplicateByParameterFamily(recommendations);
   recommendations.length = 0;
   recommendations.push(...paramDeduped);
+
+  // BS-01: Validate alternative evidence — remove alternatives that fail EVIDENCE_MINIMUMS
+  validateAlternativeEvidence(recommendations);
 
   // Compute feasibility scores for all recommendations
   for (const rec of recommendations) {
@@ -3433,6 +3439,42 @@ function deduplicateAdviceNotes(recs: Recommendation[]): void {
   }
 }
 
+// ─── Alternative Evidence Validation ─────────────────────────────
+
+/** BS-01: Remove alternatives that fail EVIDENCE_MINIMUMS for their type.
+ *  Alternatives inherit evidence from their original generation, but edge cases
+ *  (type mismatch after dedup, thin generators) can leave them without required metrics.
+ *  Removed alternatives are counted in parent's suppressedAlternativeCount. */
+function validateAlternativeEvidence(recs: Recommendation[]): void {
+  for (const rec of recs) {
+    const alts = rec.alternativeRecommendations;
+    if (!alts || alts.length === 0) continue;
+
+    let removedCount = 0;
+    for (let i = alts.length - 1; i >= 0; i--) {
+      const alt = alts[i]!;
+      const required = EVIDENCE_MINIMUMS[alt.type];
+      if (!required) continue; // no requirement → keep
+      const keys = Object.keys(alt.evidence?.metrics ?? {});
+      const hasAtLeastOne = required.some(k => keys.includes(k));
+      if (!hasAtLeastOne) {
+        alts.splice(i, 1);
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0) {
+      const m = (rec.evidence?.metrics ?? {}) as Record<string, number>;
+      m.suppressedAlternativeCount = (m.suppressedAlternativeCount ?? 0) + removedCount;
+      if (!rec.evidence) rec.evidence = { metrics: m };
+      else rec.evidence.metrics = m;
+    }
+
+    // Clean up empty arrays
+    if (alts.length === 0) rec.alternativeRecommendations = undefined;
+  }
+}
+
 // ─── Per-AP Config Budget ────────────────────────────────────────
 
 const MAX_CONFIG_RECS_PER_AP = 2;
@@ -3597,6 +3639,63 @@ function deduplicateBudgetNotes(recs: Recommendation[]): void {
   if (removeIds.size > 0) {
     for (let i = recs.length - 1; i >= 0; i--) {
       if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
+    }
+  }
+}
+
+/**
+ * BR-01: Global budget-note cap — max 2 budget-like notes per analysis.
+ * After per-AP dedup (BG-01), there may still be >2 notes from different APs.
+ * Keep the 2 with highest impact (evidence count), suppress the rest.
+ * Increments suppressedBudgetNotesCount on kept notes.
+ */
+const MAX_BUDGET_NOTES_GLOBAL = 2;
+
+function capBudgetNotesGlobal(recs: Recommendation[]): void {
+  const budgetNotes: Recommendation[] = [];
+  for (const rec of recs) {
+    if (BUDGET_NOTE_TYPES.has(rec.type)) budgetNotes.push(rec);
+  }
+  if (budgetNotes.length <= MAX_BUDGET_NOTES_GLOBAL) return;
+
+  // Sort by impact: evidence metric count desc → priority → severity → type priority
+  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+
+  budgetNotes.sort((a, b) => {
+    // More evidence metrics = higher impact
+    const aMetrics = Object.keys(a.evidence?.metrics ?? {}).length;
+    const bMetrics = Object.keys(b.evidence?.metrics ?? {}).length;
+    if (aMetrics !== bMetrics) return bMetrics - aMetrics;
+
+    // Priority
+    const pDiff = (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
+    if (pDiff !== 0) return pDiff;
+
+    // Severity
+    const sDiff = (severityOrder[a.severity] ?? 2) - (severityOrder[b.severity] ?? 2);
+    if (sDiff !== 0) return sDiff;
+
+    // Type priority (channel_deprioritized wins over config_budget)
+    return (BUDGET_NOTE_PRIORITY[a.type] ?? 99) - (BUDGET_NOTE_PRIORITY[b.type] ?? 99);
+  });
+
+  const kept = new Set(budgetNotes.slice(0, MAX_BUDGET_NOTES_GLOBAL).map(r => r.id));
+  const suppressedCount = budgetNotes.length - MAX_BUDGET_NOTES_GLOBAL;
+
+  // Enrich kept notes with suppression count
+  for (const rec of budgetNotes) {
+    if (!kept.has(rec.id)) continue;
+    const m = rec.evidence?.metrics as Record<string, number> | undefined;
+    if (m) {
+      m.suppressedBudgetNotesCount = (m.suppressedBudgetNotesCount ?? 0) + suppressedCount;
+    }
+  }
+
+  // Remove suppressed notes
+  for (let i = recs.length - 1; i >= 0; i--) {
+    if (BUDGET_NOTE_TYPES.has(recs[i]!.type) && !kept.has(recs[i]!.id)) {
+      recs.splice(i, 1);
     }
   }
 }

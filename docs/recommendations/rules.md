@@ -419,6 +419,12 @@ Function: `deduplicateRecommendations()` (generator.ts:2090-2137)
 |----|-------------|---------|--------|--------|-----------|
 | BG-01 | Max 1 budget note per AP | AP has both channel_deprioritized_note and config_budget_note | — | Keep channel_deprioritized_note (higher priority), remove config_budget_note, merge suppressedCount | deduplicateBudgetNotes |
 
+### Uplink Advice Dedup — `deduplicateUplinkAdviceNotes()` (Phase 28bn)
+
+| ID | Description | Trigger | Guards | Action | Reference |
+|----|-------------|---------|--------|--------|-----------|
+| BN-01 | Max 1 uplink advice note | >1 band_limit_warning with uplinkGapAdviceTitle or bandLimitClientAdviceTitle | sixGhzChannelNoteTitle + bandLimitTitle excluded (different semantics) | Keep uplinkGapAdvice (wins over bandLimitClientAdvice), add suppressedUplinkAdviceCount | deduplicateUplinkAdviceNotes |
+
 ### Overlap Warning — `generateOverlapWarnings()` (generator.ts:1681-1713)
 
 | ID | Description | Trigger | Guards | Action | Reference |
@@ -499,9 +505,10 @@ Every `add_ap`, `move_ap`, or `preferred_candidate_location` recommendation with
 | Gap Budgeting (BM) | BM-01a..BM-01c, BM-02a, BM-02b | 5 | capGapNotes + uplink demotion |
 | Config Budget (BD) | BD-01 | 1 | capConfigBudgetPerAp |
 | Budget Note Dedup (BG) | BG-01 | 1 | deduplicateBudgetNotes |
+| Uplink Advice Dedup (BN) | BN-01 | 1 | deduplicateUplinkAdviceNotes |
 | Channel vs Width Deconfliction (BL) | BL-01a, BL-01b | 2 | deconflictChannelVsWidth |
 
-**Total: 108 rules across 22 clusters. 23 RecommendationType values.**
+**Total: 109 rules across 23 clusters. 23 RecommendationType values.**
 
 All rules have code references. Every documented rule has a corresponding code path.
 

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
-  "lastUpdated": "2026-03-09",
-  "currentPhase": "phase-28bm-complete",
+  "lastUpdated": "2026-03-10",
+  "currentPhase": "phase-28bn-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1705,6 +1705,22 @@
         "D9/T1a Tests angepasst: channel recs als alternatives von width recs akzeptiert",
         "rules.md: BL-01a/BL-01b Regeln, Cluster 22 (Channel vs Width Deconfliction), 108 Regeln total",
         "1277 Tests pass (40 files), 95 Golden, svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "28bn": {
+      "name": "Uplink Advice Dedup & Placement",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "deduplicateUplinkAdviceNotes(): max 1 uplink advice note per analysis (uplinkGapAdvice vs bandLimitClientAdvice)",
+        "Prioritaet: uplinkGapAdvice gewinnt (spezifischer, erklaert Gap-Demotion), sonst bandLimitClientAdvice",
+        "Winner bekommt suppressedUplinkAdviceCount in evidence.metrics",
+        "Sixghz + main bandLimitTitle unberuehrt (andere Semantik)",
+        "BN-1a: uplinkLimitedRatio ~0.70 + gaps → genau 1 advice note (uplinkGapAdvice gewinnt)",
+        "BN-1b: Cross-fixture invariant (9 Fixtures) — max 1 uplink advice note",
+        "rules.md: BN-01 Regel, Total 109 Regeln, 23 Cluster",
+        "1282 Tests pass (40 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

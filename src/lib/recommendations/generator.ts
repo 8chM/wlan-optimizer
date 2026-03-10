@@ -414,6 +414,9 @@ export function generateRecommendations(
   // 20. BG-01: Budget note dedup: max 1 budget/limit note per AP
   deduplicateBudgetNotes(recommendations);
 
+  // 20b. BN-01: Uplink advice dedup: max 1 uplink/client advice note per analysis
+  deduplicateUplinkAdviceNotes(recommendations);
+
   // Deduplicate: max 1 physical recommendation per AP, rest as alternatives
   const deduped = deduplicateRecommendations(recommendations);
   recommendations.length = 0;
@@ -3318,16 +3321,19 @@ const MAX_GAP_NOTES_GLOBAL = 2;
 
 function capGapNotes(recs: Recommendation[]): void {
   const gapNotes = recs.filter(r => r.type === 'handoff_gap_warning');
-  if (gapNotes.length <= 1) return; // 0 or 1 → nothing to cap
+  if (gapNotes.length === 0) return;
 
-  // Sort: gapRatio desc, gapCells desc, avgRssiInZone asc (lower RSSI = worse = higher priority)
+  // BO-01: Sort by impact area — gapCells desc, gapRatio desc, avgRssiInZone asc
+  // Rationale: 300 gap cells at 30% ratio is more impactful than 12 cells at 90% ratio
   gapNotes.sort((a, b) => {
     const ma = a.evidence?.metrics as Record<string, number> | undefined;
     const mb = b.evidence?.metrics as Record<string, number> | undefined;
-    const gapRatioA = (ma?.gapCells ?? 0) / Math.max(ma?.handoffZoneCells ?? 1, 1);
-    const gapRatioB = (mb?.gapCells ?? 0) / Math.max(mb?.handoffZoneCells ?? 1, 1);
+    const cellsA = ma?.gapCells ?? 0;
+    const cellsB = mb?.gapCells ?? 0;
+    if (cellsA !== cellsB) return cellsB - cellsA;
+    const gapRatioA = cellsA / Math.max(ma?.handoffZoneCells ?? 1, 1);
+    const gapRatioB = cellsB / Math.max(mb?.handoffZoneCells ?? 1, 1);
     if (gapRatioA !== gapRatioB) return gapRatioB - gapRatioA;
-    if ((ma?.gapCells ?? 0) !== (mb?.gapCells ?? 0)) return (mb?.gapCells ?? 0) - (ma?.gapCells ?? 0);
     return (ma?.avgRssiInZone ?? 0) - (mb?.avgRssiInZone ?? 0);
   });
 
@@ -3346,15 +3352,58 @@ function capGapNotes(recs: Recommendation[]): void {
     }
   }
 
+  // BO-02: Enrich kept notes with gapRankScore + whyKept for debug/test traceability
+  for (const note of kept) {
+    const m = (note.evidence?.metrics ?? {}) as Record<string, number>;
+    const cells = m.gapCells ?? 0;
+    const ratio = cells / Math.max(m.handoffZoneCells ?? 1, 1);
+    m.gapRankScore = cells + ratio * 1000;
+    m.whyKept = 1;
+    if (!note.evidence) note.evidence = { metrics: m };
+    else note.evidence.metrics = m;
+  }
+
   if (removeIds.size > 0) {
     // Add suppressedGapNotesCount to surviving notes
     for (const note of kept) {
       const m = (note.evidence?.metrics ?? {}) as Record<string, number>;
       m.suppressedGapNotesCount = removeIds.size;
-      if (!note.evidence) note.evidence = { metrics: m };
-      else note.evidence.metrics = m;
     }
     // Remove suppressed notes
+    for (let i = recs.length - 1; i >= 0; i--) {
+      if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
+    }
+  }
+}
+
+// ─── Uplink Advice Dedup ─────────────────────────────────────────
+
+/** BN-01: Max 1 uplink/client advice note per analysis.
+ *  Candidates: uplinkGapAdviceTitle, bandLimitClientAdviceTitle.
+ *  Winner: uplinkGapAdvice if gap demotion was triggered, else bandLimitClientAdvice.
+ *  Sixghz note and main bandLimitTitle are NOT candidates (different semantics). */
+const UPLINK_ADVICE_TITLE_KEYS = new Set([
+  'rec.uplinkGapAdviceTitle',
+  'rec.bandLimitClientAdviceTitle',
+]);
+
+function deduplicateUplinkAdviceNotes(recs: Recommendation[]): void {
+  const candidates = recs.filter(
+    r => r.type === 'band_limit_warning' && UPLINK_ADVICE_TITLE_KEYS.has(r.titleKey),
+  );
+  if (candidates.length <= 1) return;
+
+  // Winner: uplinkGapAdvice wins (more specific — explains gap demotion), else first bandLimitClientAdvice
+  const gapAdvice = candidates.find(r => r.titleKey === 'rec.uplinkGapAdviceTitle');
+  const winner = gapAdvice ?? candidates[0]!;
+  const removeIds = new Set(candidates.filter(r => r !== winner).map(r => r.id));
+
+  if (removeIds.size > 0) {
+    const m = (winner.evidence?.metrics ?? {}) as Record<string, number>;
+    m.suppressedUplinkAdviceCount = removeIds.size;
+    if (!winner.evidence) winner.evidence = { metrics: m };
+    else winner.evidence.metrics = m;
+
     for (let i = recs.length - 1; i >= 0; i--) {
       if (removeIds.has(recs[i]!.id)) recs.splice(i, 1);
     }

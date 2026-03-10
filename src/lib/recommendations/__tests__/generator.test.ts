@@ -8585,4 +8585,273 @@ describe('generateRecommendations', () => {
       });
     }
   });
+
+  // ─── Phase 28bo: Gap Note Selection by Impact Area ──────────────
+
+  describe('BO: Gap Note Selection by Impact Area', () => {
+
+    it('BO-1: high gapCells wins over high gapRatio — Pair B (300 cells) kept over Pair A (12 cells, 90%)', () => {
+      // 3 AP pairs with different gap profiles:
+      // Pair A (ap-1/ap-2): high gapRatio ~0.90 but only 12 gapCells
+      // Pair B (ap-3/ap-4): moderate gapRatio ~0.30 but 300 gapCells (large impact area)
+      // Pair C (ap-5/ap-6): medium gapRatio ~0.50, 50 gapCells
+      // → With BO-01 (gapCells primary), B should be kept before A
+      const aps = [
+        makeAP('ap-1', 2, 5),
+        makeAP('ap-2', 6, 5),
+        makeAP('ap-3', 12, 5),
+        makeAP('ap-4', 22, 5),
+        makeAP('ap-5', 30, 5),
+        makeAP('ap-6', 35, 5),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 2, 5, 36),
+        makeAPResponse('ap-2', 6, 5, 44),
+        makeAPResponse('ap-3', 12, 5, 48),
+        makeAPResponse('ap-4', 22, 5, 52),
+        makeAPResponse('ap-5', 30, 5, 149),
+        makeAPResponse('ap-6', 35, 5, 153),
+      ];
+
+      // Large grid (40x10) — Pair B has massive handoff zone (30 cols × 10 rows = 300 cells)
+      const W = 40;
+      const H = 10;
+      const grids = makeGrids(W, H, { rssi: -65, overlap: 2 });
+
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W;
+        // Pair A: ap-1 covers 0-3, ap-2 covers 4-7 (boundary at x=3)
+        // Small handoff zone: x=3 and x=4 (2 cols × H = ~20 cells, ~13 gap = ~90%)
+        if (x < 4) {
+          grids.apIndexGrid[i] = 0;
+          grids.secondBestApIndexGrid[i] = 1;
+          if (x === 3) { grids.rssiGrid[i] = -82; grids.deltaGrid[i] = 2; }
+        }
+        else if (x < 8) {
+          grids.apIndexGrid[i] = 1;
+          grids.secondBestApIndexGrid[i] = 0;
+          if (x === 4) { grids.rssiGrid[i] = -82; grids.deltaGrid[i] = 2; }
+        }
+        // Pair B: ap-3 covers 8-16, ap-4 covers 17-25 (large transition)
+        // Big handoff zone: x=12-22 (11 cols × H = ~110 cells, ~30 gap cells)
+        else if (x < 17) {
+          grids.apIndexGrid[i] = 2;
+          grids.secondBestApIndexGrid[i] = 3;
+          if (x >= 12) { grids.rssiGrid[i] = -80; grids.deltaGrid[i] = 3; }
+        }
+        else if (x < 26) {
+          grids.apIndexGrid[i] = 3;
+          grids.secondBestApIndexGrid[i] = 2;
+          if (x < 22) { grids.rssiGrid[i] = -80; grids.deltaGrid[i] = 3; }
+        }
+        // Pair C: ap-5 covers 26-32, ap-6 covers 33-39
+        else if (x < 33) {
+          grids.apIndexGrid[i] = 4;
+          grids.secondBestApIndexGrid[i] = 5;
+          if (x >= 31) { grids.rssiGrid[i] = -81; grids.deltaGrid[i] = 2; }
+        }
+        else {
+          grids.apIndexGrid[i] = 5;
+          grids.secondBestApIndexGrid[i] = 4;
+          if (x <= 34) { grids.rssiGrid[i] = -81; grids.deltaGrid[i] = 2; }
+        }
+      }
+
+      const stats = makeStats(W, H, grids, {
+        excellent: 10, good: 20, fair: 30, poor: 25, none: 15,
+      });
+      stats.apIds = aps.map(a => a.id);
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const gapNotes = result.recommendations.filter(r => r.type === 'handoff_gap_warning');
+
+      // Global cap: max 2
+      expect(gapNotes.length).toBeLessThanOrEqual(2);
+
+      // If multiple gap notes exist, the one with most gapCells should be first
+      if (gapNotes.length >= 2) {
+        const cells0 = (gapNotes[0]!.evidence?.metrics as Record<string, number>)?.gapCells ?? 0;
+        const cells1 = (gapNotes[1]!.evidence?.metrics as Record<string, number>)?.gapCells ?? 0;
+        expect(cells0, 'first gap note should have most gapCells').toBeGreaterThanOrEqual(cells1);
+      }
+
+      // Every kept note should have gapRankScore + whyKept
+      for (const note of gapNotes) {
+        const m = note.evidence?.metrics as Record<string, number> | undefined;
+        expect(m?.gapRankScore, 'kept note must have gapRankScore').toBeGreaterThan(0);
+        expect(m?.whyKept, 'kept note must have whyKept=1').toBe(1);
+      }
+    });
+
+    it('BO-2: gapRankScore is gapCells + gapRatio*1000', () => {
+      // Verify rank score formula for a simple 2-pair case
+      const aps = [
+        makeAP('ap-1', 3, 3),
+        makeAP('ap-2', 8, 3),
+      ];
+      const apResps = [
+        makeAPResponse('ap-1', 3, 3, 36),
+        makeAPResponse('ap-2', 8, 3, 44),
+      ];
+      const W = 12;
+      const H = 6;
+      const grids = makeGrids(W, H, { rssi: -70, overlap: 2 });
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W;
+        if (x < 6) {
+          grids.apIndexGrid[i] = 0;
+          grids.secondBestApIndexGrid[i] = 1;
+        } else {
+          grids.apIndexGrid[i] = 1;
+          grids.secondBestApIndexGrid[i] = 0;
+        }
+        if (x >= 5 && x <= 6) {
+          grids.rssiGrid[i] = -82;
+          grids.deltaGrid[i] = 2;
+        }
+      }
+      const stats = makeStats(W, H, grids, {
+        excellent: 10, good: 20, fair: 30, poor: 25, none: 15,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+
+      const gapNotes = result.recommendations.filter(r => r.type === 'handoff_gap_warning');
+      for (const note of gapNotes) {
+        const m = note.evidence?.metrics as Record<string, number> | undefined;
+        if (m?.gapCells != null && m.handoffZoneCells != null) {
+          const expectedRank = m.gapCells + (m.gapCells / Math.max(m.handoffZoneCells, 1)) * 1000;
+          expect(m.gapRankScore).toBeCloseTo(expectedRank, 1);
+        }
+        expect(m?.whyKept).toBe(1);
+      }
+    });
+
+    it('BO-3: cross-fixture — kept gap notes always have whyKept=1 + gapRankScore', () => {
+      const fixtureFactories = [
+        { name: 'F1', create: createF1DenseCluster },
+        { name: 'F2', create: createF2RoamingConflict },
+        { name: 'RF3', create: createRf3MyHouse },
+        { name: 'RF5', create: createRf5UserLiveV2 },
+        { name: 'RF6', create: createRf6UserMyhouse },
+      ];
+
+      for (const { name, create } of fixtureFactories) {
+        const f = create();
+        const result = generateRecommendations(
+          f.aps, f.apResps, f.walls, f.bounds,
+          BAND, f.stats, RF_CONFIG, 'balanced', f.ctx ?? EMPTY_CONTEXT,
+        );
+
+        const gapNotes = result.recommendations.filter(r => r.type === 'handoff_gap_warning');
+        for (const note of gapNotes) {
+          const m = note.evidence?.metrics as Record<string, number> | undefined;
+          expect(m?.whyKept, `${name}: kept gap note must have whyKept=1`).toBe(1);
+          expect(m?.gapRankScore, `${name}: kept gap note must have gapRankScore > 0`).toBeGreaterThan(0);
+        }
+
+        // Max 2 global cap still holds
+        expect(gapNotes.length, `${name}: max 2 gap notes`).toBeLessThanOrEqual(2);
+      }
+    });
+  });
+
+  // ─── BN-1: Uplink Advice Dedup ────────────────────────────────────
+  describe('BN-1: Uplink Advice Dedup', () => {
+    it('BN-1a: uplinkLimitedRatio ~0.70 + gaps → exactly 1 uplink advice note (no double)', () => {
+      const aps = [makeAP('ap-1', 5, 10), makeAP('ap-2', 15, 10)];
+      const apResps = [
+        makeAPResponse('ap-1', 5, 10, 36),
+        makeAPResponse('ap-2', 15, 10, 44),
+      ];
+      const W = 20;
+      const H = 20;
+      const total = W * H;
+      const grids = makeGrids(W, H, { rssi: -55, overlap: 2 });
+      for (let i = 0; i < total; i++) {
+        grids.uplinkLimitedGrid[i] = i < Math.round(total * 0.70) ? 1 : 0;
+        const x = i % W;
+        if (x < 10) {
+          grids.apIndexGrid[i] = 0;
+          grids.secondBestApIndexGrid[i] = 1;
+        } else {
+          grids.apIndexGrid[i] = 1;
+          grids.secondBestApIndexGrid[i] = 0;
+        }
+        if (x >= 7 && x <= 12) {
+          grids.deltaGrid[i] = 3;
+          grids.rssiGrid[i] = -78;
+        } else {
+          grids.deltaGrid[i] = 25;
+        }
+      }
+      const stats = makeStats(W, H, grids, {
+        excellent: 20, good: 100, fair: 150, poor: 100, none: 30,
+      });
+      stats.apIds = ['ap-1', 'ap-2'];
+
+      const result = generateRecommendations(
+        aps, apResps, WALLS,
+        { width: W, height: H, originX: 0, originY: 0 },
+        BAND, stats, RF_CONFIG, 'balanced',
+      );
+      const allRecs = collectAllRecommendations(result.recommendations);
+
+      const adviceNotes = allRecs.filter(r =>
+        r.type === 'band_limit_warning' &&
+        (r.titleKey === 'rec.uplinkGapAdviceTitle' || r.titleKey === 'rec.bandLimitClientAdviceTitle'),
+      );
+      expect(adviceNotes.length, 'exactly 1 uplink advice note after dedup').toBe(1);
+
+      // Winner should be uplinkGapAdvice (gap demotion was triggered)
+      expect(adviceNotes[0]!.titleKey).toBe('rec.uplinkGapAdviceTitle');
+
+      // Main bandLimitTitle warning should still exist (not deduped)
+      const mainWarning = allRecs.filter(r =>
+        r.type === 'band_limit_warning' && r.titleKey === 'rec.bandLimitTitle',
+      );
+      expect(mainWarning.length, 'main band_limit warning not affected').toBeGreaterThanOrEqual(1);
+    });
+
+    it('BN-1b: cross-fixture invariant — max 1 uplink advice note', () => {
+      const fixtureFactories = [
+        { name: 'F1', fn: createF1DenseCluster },
+        { name: 'F2', fn: createF2RoamingConflict },
+        { name: 'F3', fn: createF3UplinkLimited },
+        { name: 'F6', fn: createF6StickyTinyHandoff },
+        { name: 'F7', fn: createF7UplinkWeakCoverage },
+        { name: 'RF3', fn: createRf3MyHouse },
+        { name: 'RF4', fn: createRf4UserLive },
+        { name: 'RF5', fn: createRf5UserLiveV2 },
+        { name: 'RF6', fn: createRf6UserMyhouse },
+      ];
+
+      for (const { name, fn } of fixtureFactories) {
+        const fix = fn();
+        const result = generateRecommendations(
+          fix.aps, fix.apResps, fix.walls, fix.bounds,
+          BAND, fix.stats, RF_CONFIG, 'balanced', fix.ctx,
+        );
+        const allRecs = collectAllRecommendations(result.recommendations);
+        const adviceNotes = allRecs.filter(r =>
+          r.type === 'band_limit_warning' &&
+          (r.titleKey === 'rec.uplinkGapAdviceTitle' || r.titleKey === 'rec.bandLimitClientAdviceTitle'),
+        );
+        expect(
+          adviceNotes.length,
+          `${name}: max 1 uplink advice note, got ${adviceNotes.length}`,
+        ).toBeLessThanOrEqual(1);
+      }
+    });
+  });
 });

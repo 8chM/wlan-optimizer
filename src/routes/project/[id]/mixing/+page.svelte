@@ -33,6 +33,8 @@
   import { t } from '$lib/i18n';
   import type { Recommendation, RejectionReason, CandidateLocation, ConstraintZone, APCapabilities } from '$lib/recommendations/types';
   import { exportRegressionFixture } from '$lib/recommendations/fixture-export';
+  import type { ExportedFixture } from '$lib/recommendations/fixture-export';
+  import { loadExportedFixture, validateExportedFixture } from '$lib/recommendations/fixture-import';
   import { toastStore } from '$lib/stores/toastStore.svelte';
   import { RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
 
@@ -433,6 +435,53 @@
     toastStore.success(`Fixture exportiert: ${filename} — Im Downloads-Ordner. Fuer Tests via loadExportedFixture().`);
   }
 
+  async function handleImportFixture(): Promise<void> {
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+
+      const file = await new Promise<File | null>((resolve) => {
+        input.onchange = () => resolve(input.files?.[0] ?? null);
+        input.click();
+      });
+      if (!file) return;
+
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      const error = validateExportedFixture(data);
+      if (error) {
+        toastStore.error(`Import fehlgeschlagen: ${error}`);
+        return;
+      }
+
+      const loaded = loadExportedFixture(data as ExportedFixture);
+
+      // Set recommendation context
+      recommendationStore.setCandidates(loaded.ctx.candidates);
+      recommendationStore.setConstraintZones(loaded.ctx.constraintZones);
+      recommendationStore.setAPCapabilities(Array.from(loaded.ctx.apCapabilities.values()));
+      recommendationStore.setPriorityZones(loaded.ctx.priorityZones);
+      recommendationStore.setCandidatePolicy(loaded.ctx.candidatePolicy);
+      recommendationStore.setProfile(loaded.profile);
+
+      // Set workspace context for canvas
+      workspaceStore.setCandidates(loaded.ctx.candidates);
+      workspaceStore.setConstraintZones(loaded.ctx.constraintZones);
+
+      // Run analysis with loaded params
+      recommendationStore.analyze(
+        loaded.aps, loaded.accessPoints, loaded.walls,
+        loaded.bounds, loaded.band, loaded.stats, loaded.rfConfig,
+      );
+
+      toastStore.success(`Fixture importiert: ${file.name} — ${loaded.aps.length} APs, Band ${loaded.band}`);
+    } catch (e) {
+      toastStore.error(`Import fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   function handleTakeSnapshot(): void {
     if (!forecastCanvas) return;
     if (!comparisonStore.beforeCanvas) {
@@ -576,8 +625,15 @@
       >
         Export Regression Fixture (DEV)
       </button>
+      <button
+        class="dev-export-btn"
+        onclick={handleImportFixture}
+        title="Laedt eine zuvor exportierte JSON-Fixture und fuehrt die Analyse darauf aus. Setzt Kontext (Candidates, Zones, Policy) und startet generateRecommendations()."
+      >
+        Import Fixture JSON (DEV)
+      </button>
       <span class="dev-export-hint">
-        1) Neu analysieren &rarr; 2) Export klicken &rarr; 3) JSON landet im Downloads-Ordner
+        Export: Analyse &rarr; JSON. Import: JSON &rarr; Analyse.
       </span>
     </div>
   {/if}

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { generateRecommendations, EVIDENCE_MINIMUMS } from '../generator';
 import { exportRegressionFixture } from '../fixture-export';
-import { loadExportedFixture } from './fixtures/load-exported-fixture';
+import { loadExportedFixture, validateExportedFixture } from './fixtures/load-exported-fixture';
 import { createRf2UserHouse } from './fixtures/create-rf2';
 import { createRf6UserMyhouse } from './fixtures/create-rf6-user-myhouse';
 import type { Recommendation } from '../types';
@@ -228,6 +228,54 @@ describe('Fixture Round-Trip', () => {
     expect(exported._meta.projectId, '_meta.projectId').toBe('test-project-42');
     expect(typeof exported._meta.exportedAt, '_meta.exportedAt is string').toBe('string');
     expect(exported._meta.exportedAt.length, '_meta.exportedAt non-empty').toBeGreaterThan(0);
+  });
+
+  it('BY-1: validateExportedFixture rejects invalid data', () => {
+    expect(validateExportedFixture(null), 'null').not.toBeNull();
+    expect(validateExportedFixture({}), 'empty object').not.toBeNull();
+    expect(validateExportedFixture({ _meta: { version: 2 } }), 'wrong version').toContain('version');
+    expect(validateExportedFixture({ _meta: { version: 1 } }), 'missing project').toContain('project');
+    expect(validateExportedFixture({ _meta: { version: 1 }, project: { aps: [] }, stats: {} }), 'missing accessPoints').toContain('accessPoints');
+    expect(
+      validateExportedFixture({ _meta: { version: 1 }, project: { aps: [], accessPoints: [], bounds: {} }, stats: {} }),
+      'missing band',
+    ).toContain('band');
+  });
+
+  it('BY-2: validateExportedFixture accepts valid fixture', () => {
+    const fixture = createRf2UserHouse();
+    const exported = exportRegressionFixture(
+      {
+        aps: fixture.aps,
+        accessPoints: fixture.apResps,
+        walls: fixture.walls,
+        bounds: fixture.bounds,
+        band: '5ghz',
+        stats: fixture.stats,
+      },
+      fixture.ctx,
+      'balanced',
+    );
+    const json = JSON.parse(JSON.stringify(exported));
+    expect(validateExportedFixture(json), 'valid fixture passes validation').toBeNull();
+  });
+
+  it('BY-3: validated fixture → loadExportedFixture → generateRecommendations (no exception)', () => {
+    const fixtureJson = JSON.parse(
+      readFileSync(join(__testdir, 'real-fixtures', 'rf3-my-house-5ghz.json'), 'utf-8'),
+    );
+
+    // Validate first (as the UI handler would)
+    const validationError = validateExportedFixture(fixtureJson);
+    expect(validationError, 'rf3 fixture must pass validation').toBeNull();
+
+    // Load and run engine
+    const loaded = loadExportedFixture(fixtureJson as ExportedFixture);
+    const result = generateRecommendations(
+      loaded.aps, loaded.accessPoints, loaded.walls, loaded.bounds,
+      loaded.band, loaded.stats, loaded.rfConfig, loaded.profile, loaded.ctx,
+    );
+    expect(result.recommendations.length, 'must produce recommendations').toBeGreaterThan(0);
   });
 
   it('RT-5: band + policy round-trip through JSON', () => {

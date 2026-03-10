@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bw-complete",
+  "currentPhase": "phase-28by-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1856,6 +1856,20 @@
         "scripts/report-integrity.sh: 'release' Modus mit separater Apply-Sequence Ausgabe + RELEASE_OK/RELEASE_FAIL",
         "RELEASE_OK tests=1293 golden=95 applySeq=4 svelteErrors=0 build=OK",
         "Keine Code-Logik-Aenderung in generator.ts"
+      ]
+    },
+    "28by": {
+      "name": "Fixture Import — DEV-only Support Tool",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "src/lib/recommendations/fixture-import.ts: loadExportedFixture + validateExportedFixture (aus Tests extrahiert)",
+        "DEV-only Import Button auf Mixing-Seite neben Export Button",
+        "Guardrails: _meta.version, band, project.aps, project.accessPoints, bounds, stats.rssiGrid",
+        "Store-Integration: recommendationStore Kontext + analyze(), workspaceStore Candidates/Zones",
+        "BY-1/BY-2/BY-3 Tests: Validation reject/accept, importierte Fixture → generateRecommendations",
+        "1298 Tests pass (41 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

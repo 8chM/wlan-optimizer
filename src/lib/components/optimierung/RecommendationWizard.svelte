@@ -6,22 +6,24 @@
 <script lang="ts">
   import { t } from '$lib/i18n';
   import type { AnalysisResult, Recommendation, RejectionReason } from '$lib/recommendations/types';
-  import type { StepState } from '$lib/stores/optimierungStore.svelte';
+  import type { StepState, ApplyVerification } from '$lib/stores/optimierungStore.svelte';
   import RecommendationStep from './RecommendationStep.svelte';
 
   interface RecommendationWizardProps {
     result: AnalysisResult | null;
     stepStates: Map<string, StepState>;
+    verifications?: Map<string, ApplyVerification>;
     stale?: boolean;
     onApply: (rec: Recommendation) => void;
     onSkip: (rec: Recommendation) => void;
     onReject: (rec: Recommendation, reason: RejectionReason) => void;
     onSelect: (rec: Recommendation) => void;
     onPreview?: (rec: Recommendation) => void;
+    onReanalyze?: () => void;
     previewActive?: boolean;
   }
 
-  let { result, stepStates, stale = false, onApply, onSkip, onReject, onSelect, onPreview, previewActive = false }: RecommendationWizardProps = $props();
+  let { result, stepStates, verifications, stale = false, onApply, onSkip, onReject, onSelect, onPreview, onReanalyze, previewActive = false }: RecommendationWizardProps = $props();
 
   function interpolate(text: string, params: Record<string, string | number>): string {
     let r = text;
@@ -80,6 +82,9 @@
       <div class="stale-banner">
         <span class="stale-icon">&#x26A0;</span>
         <span class="stale-text">{t('opt.staleHint')}</span>
+        {#if onReanalyze}
+          <button class="stale-btn" onclick={onReanalyze}>{t('opt.validateWithMeasurement')}</button>
+        {/if}
       </div>
     {/if}
 
@@ -90,6 +95,7 @@
           {rec}
           stepNumber={i + 1}
           stepState={stepStates.get(rec.id) ?? 'pending'}
+          verification={verifications?.get(rec.id)}
           {onApply}
           {onSkip}
           {onReject}
@@ -215,5 +221,23 @@
     font-size: 0.7rem;
     color: #f59e0b;
     line-height: 1.3;
+  }
+
+  .stale-btn {
+    margin-top: 4px;
+    padding: 3px 8px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 4px;
+    color: #f59e0b;
+    font-size: 0.65rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .stale-btn:hover {
+    background: rgba(245, 158, 11, 0.25);
   }
 </style>

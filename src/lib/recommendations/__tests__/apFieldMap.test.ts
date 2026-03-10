@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   mapSuggestedChangeToApUpdate,
   mapSuggestedChangeToOverrides,
+  verifyApplyResult,
   type SuggestedParameter,
 } from '../apFieldMap';
+import type { AccessPointResponse } from '$lib/api/invoke';
 
 describe('mapSuggestedChangeToApUpdate', () => {
   it('maps tx_power_24ghz to tx_power_24ghz_dbm', () => {
@@ -141,4 +143,99 @@ describe('Apply/Preview consistency', () => {
       expect(overrides.length).toBeGreaterThan(0);
     });
   }
+});
+
+// ─── Apply Verification Tests ────────────────────────────────────
+
+/** Minimal AP stub for verification tests */
+function makeApStub(overrides: Partial<AccessPointResponse> = {}): AccessPointResponse {
+  return {
+    id: 'ap-1',
+    floor_id: 'floor-1',
+    ap_model_id: null,
+    label: null,
+    x: 5,
+    y: 5,
+    height_m: 2.5,
+    mounting: 'ceiling',
+    tx_power_24ghz_dbm: 20,
+    tx_power_5ghz_dbm: 23,
+    tx_power_6ghz_dbm: null,
+    channel_24ghz: 6,
+    channel_5ghz: 36,
+    channel_6ghz: null,
+    channel_width: '80',
+    band_steering_enabled: false,
+    ip_address: null,
+    ssid: null,
+    enabled: true,
+    orientation_deg: 0,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ap_model: null,
+    ...overrides,
+  };
+}
+
+describe('verifyApplyResult', () => {
+  it('V1: returns verified when DB matches tx_power_5ghz', () => {
+    const ap = makeApStub({ tx_power_5ghz_dbm: 20 });
+    const result = verifyApplyResult('tx_power_5ghz', 20, ap);
+    expect(result.status).toBe('verified');
+    expect(result.checkedFields).toEqual(['tx_power_5ghz_dbm']);
+    expect(result.mismatchedFields).toBeUndefined();
+    expect(result.hardwareVerified).toBe(false);
+  });
+
+  it('V2: returns failed when DB does not match tx_power_5ghz', () => {
+    const ap = makeApStub({ tx_power_5ghz_dbm: 23 }); // still old value
+    const result = verifyApplyResult('tx_power_5ghz', 20, ap);
+    expect(result.status).toBe('failed');
+    expect(result.mismatchedFields).toContain('tx_power_5ghz_dbm');
+  });
+
+  it('V3: returns verified for channel change', () => {
+    const ap = makeApStub({ channel_5ghz: 44 });
+    const result = verifyApplyResult('channel_5ghz', 44, ap);
+    expect(result.status).toBe('verified');
+    expect(result.checkedFields).toEqual(['channel_5ghz']);
+  });
+
+  it('V4: returns verified for enabled=false (boolean)', () => {
+    const ap = makeApStub({ enabled: false });
+    const result = verifyApplyResult('enabled', 'false', ap);
+    expect(result.status).toBe('verified');
+  });
+
+  it('V5: returns failed for enabled mismatch', () => {
+    const ap = makeApStub({ enabled: true });
+    const result = verifyApplyResult('enabled', 'false', ap);
+    expect(result.status).toBe('failed');
+  });
+
+  it('V6: returns verified for channel_width string match', () => {
+    const ap = makeApStub({ channel_width: '40' });
+    const result = verifyApplyResult('channel_width', '40', ap);
+    expect(result.status).toBe('verified');
+  });
+
+  it('V7: returns verified for position match', () => {
+    const ap = makeApStub({ x: 3.5, y: 7.2 });
+    const result = verifyApplyResult('position', '(3.5, 7.2)', ap);
+    expect(result.status).toBe('verified');
+    expect(result.checkedFields).toEqual(expect.arrayContaining(['x', 'y']));
+  });
+
+  it('V8: returns unverified for unknown parameter', () => {
+    const ap = makeApStub();
+    const result = verifyApplyResult('unknownParam', 42, ap);
+    expect(result.status).toBe('unverified');
+    expect(result.checkedFields).toEqual([]);
+  });
+
+  it('V9: hardwareVerified is always false', () => {
+    const ap = makeApStub({ tx_power_5ghz_dbm: 20 });
+    const result = verifyApplyResult('tx_power_5ghz', 20, ap);
+    expect(result.hardwareVerified).toBe(false);
+  });
 });

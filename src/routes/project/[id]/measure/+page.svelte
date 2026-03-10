@@ -10,6 +10,7 @@
   import { canvasStore } from '$lib/stores/canvasStore.svelte';
   import { projectStore } from '$lib/stores/projectStore.svelte';
   import { measurementStore } from '$lib/stores/measurementStore.svelte';
+  import { optimierungStore } from '$lib/stores/optimierungStore.svelte';
   import { workspaceStore } from '$lib/stores/workspaceStore.svelte';
   import { editorHeatmapStore } from '$lib/stores/editorHeatmapStore.svelte';
   import { registerShortcuts } from '$lib/utils/keyboard';
@@ -165,6 +166,10 @@
     status: 'completed' | 'cancelled',
   ): Promise<void> {
     await measurementStore.updateRunStatus(runId, status);
+    // Trigger re-analyze on the Optimierung page when a run is completed
+    if (status === 'completed') {
+      optimierungStore.setStale(true);
+    }
   }
 
   async function handleDeletePoint(pointId: string): Promise<void> {

@@ -1,7 +1,7 @@
 {
   "project": "WLAN-Optimizer",
   "lastUpdated": "2026-03-10",
-  "currentPhase": "phase-28bx-complete",
+  "currentPhase": "phase-29b-complete",
   "phases": {
     "0": {
       "name": "Autonomie-Recherche",
@@ -1886,6 +1886,26 @@
         "Store-Integration: recommendationStore Kontext + analyze(), workspaceStore Candidates/Zones",
         "BY-1/BY-2/BY-3 Tests: Validation reject/accept, importierte Fixture → generateRecommendations",
         "1298 Tests pass (41 files), svelte-check 0 Errors, Build OK"
+      ]
+    },
+    "29b": {
+      "name": "Closed-Loop & Apply Verification",
+      "status": "completed",
+      "gate": "passed",
+      "completedAt": "2026-03-10",
+      "deliverables": [
+        "Apply-Verification: verifyApplyResult() in apFieldMap.ts — vergleicht DB-Antwort mit Soll-Werten",
+        "optimierungStore: ApplyVerification Typ + verifications Map + setVerification/getVerification/clearVerifications",
+        "Mixing-Seite: applyRecommendationToAP() fuehrt Read-Back-Verification durch, Status in Store",
+        "RecommendationStep: Verification-Badge (verified/failed/unverified) + Hardware-Hint",
+        "RunComparisonCard: Coverage-Bins (-67/-70/-75 dBm), Worst 10%, Median Upload/Download, Roaming Events",
+        "measurement-compare.ts: Extrahierte pure Functions (median, computeRunComparisonStats) fuer Testbarkeit",
+        "Measure-Seite: Run-Completion setzt optimierungStore.stale=true",
+        "RecommendationWizard: onReanalyze Prop + 'Validate with measurement data' Button im Stale-Banner",
+        "V1-V9: verifyApplyResult Tests (TX, Channel, Enabled, Position, Unknown-Param, hardwareVerified)",
+        "MC-1..MC-12: Measurement-Compare Tests (median, coverage bins, worst 10%, throughput, roaming events)",
+        "11 neue i18n-Keys EN+DE (opt.dbVerified/Failed/Unverified/hardwareNotVerified, results.coverage*/worst/median/roaming, opt.validateWithMeasurement)",
+        "1321 Tests pass (42 files), svelte-check 0 Errors, Build OK"
       ]
     }
   },

@@ -26,7 +26,7 @@
   import { convertApsToConfig, convertWallsToData } from '$lib/heatmap/convert';
   import { createRFConfig } from '$lib/heatmap/rf-engine';
   import { updateAccessPoint } from '$lib/api/accessPoint';
-  import { mapSuggestedChangeToApUpdate, mapSuggestedChangeToOverrides } from '$lib/recommendations/apFieldMap';
+  import { mapSuggestedChangeToApUpdate, mapSuggestedChangeToOverrides, verifyApplyResult } from '$lib/recommendations/apFieldMap';
   import { addApCommand, updateApCommand } from '$lib/stores/commands/apCommands';
   import { undoStore } from '$lib/stores/undoStore.svelte';
   import { registerShortcuts } from '$lib/utils/keyboard';
@@ -253,12 +253,26 @@
 
   // ─── Apply Recommendation to AP ─────────────────────────────────
 
-  async function applyRecommendationToAP(change: NonNullable<Recommendation['suggestedChange']>): Promise<void> {
+  async function applyRecommendationToAP(
+    recId: string,
+    change: NonNullable<Recommendation['suggestedChange']>,
+  ): Promise<void> {
     const { apId, parameter, suggestedValue } = change;
     if (!apId) return;
     const updates = mapSuggestedChangeToApUpdate(parameter, suggestedValue);
     if (Object.keys(updates).length > 0) {
-      await updateAccessPoint(apId, updates);
+      try {
+        const returnedAp = await updateAccessPoint(apId, updates);
+        const verification = verifyApplyResult(parameter, suggestedValue, returnedAp);
+        optimierungStore.setVerification(recId, verification);
+      } catch {
+        optimierungStore.setVerification(recId, {
+          status: 'failed',
+          checkedFields: Object.keys(updates),
+          mismatchedFields: Object.keys(updates),
+          hardwareVerified: false,
+        });
+      }
       await projectStore.refreshFloorData();
     }
   }
@@ -296,7 +310,7 @@
         await undoStore.execute(cmd);
       }
     } else if (rec.suggestedChange?.apId) {
-      await applyRecommendationToAP(rec.suggestedChange);
+      await applyRecommendationToAP(rec.id, rec.suggestedChange);
     }
     optimierungStore.setStepState(rec.id, 'applied');
     if (cat === 'actionable_config' || cat === 'actionable_create') {
@@ -347,7 +361,7 @@
       optimierungStore.setStepState(previewRec.id, 'applied');
     } else {
       if (previewRec.suggestedChange?.apId) {
-        await applyRecommendationToAP(previewRec.suggestedChange);
+        await applyRecommendationToAP(previewRec.id, previewRec.suggestedChange);
       }
       optimierungStore.setStepState(previewRec.id, 'applied');
       if (cat === 'actionable_config' || cat === 'actionable_create') {
@@ -559,12 +573,14 @@
     <RecommendationWizard
       result={recommendationStore.result}
       stepStates={optimierungStore.stepStates}
+      verifications={optimierungStore.verifications}
       stale={optimierungStore.stale}
       onApply={handleStepApply}
       onSkip={handleStepSkip}
       onReject={handleStepReject}
       onSelect={handleStepSelect}
       onPreview={handleStepPreview}
+      onReanalyze={runOptimierungAnalysis}
       previewActive={previewRec !== null}
     />
   {:else}

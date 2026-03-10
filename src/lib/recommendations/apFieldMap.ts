@@ -6,9 +6,15 @@
  *   - updateAccessPoint() field names (DB level)
  *   - mixingStore.applyChange() override keys (forecast/preview)
  *
+ * Also provides verifyApplyResult() for closed-loop verification:
+ * compares intended updates against the DB response after apply.
+ *
  * convert.ts consumes the override keys — they must stay in sync with this map.
  * See also: docs/recommendations/engine-rules.md
  */
+
+import type { AccessPointResponse } from '$lib/api/invoke';
+import type { ApplyVerification } from '$lib/stores/optimierungStore.svelte';
 
 /** All parameter strings emitted by the recommendation generator. */
 export type SuggestedParameter =
@@ -109,4 +115,53 @@ export function mapSuggestedChangeToOverrides(
 ): Array<{ key: string; value: string }> {
   const mapping = FIELD_MAP[parameter as SuggestedParameter];
   return mapping ? mapping.toOverrides(suggestedValue) : [];
+}
+
+/**
+ * Verifies that the AP returned by updateAccessPoint() matches the intended updates.
+ *
+ * Compares the DB-level fields produced by mapSuggestedChangeToApUpdate() against
+ * the actual values in the returned AccessPointResponse. Numeric fields are compared
+ * with a tolerance of 0.01. Boolean/string fields use strict equality.
+ *
+ * Note: This verifies the DB write only — no vendor/hardware API verification is possible.
+ */
+export function verifyApplyResult(
+  parameter: string,
+  suggestedValue: string | number,
+  returnedAp: AccessPointResponse,
+): ApplyVerification {
+  const intended = mapSuggestedChangeToApUpdate(parameter, suggestedValue);
+  const checkedFields: string[] = [];
+  const mismatchedFields: string[] = [];
+
+  for (const [field, expectedValue] of Object.entries(intended)) {
+    checkedFields.push(field);
+    const actualValue = (returnedAp as unknown as Record<string, unknown>)[field];
+
+    if (typeof expectedValue === 'number' && typeof actualValue === 'number') {
+      if (Math.abs(actualValue - expectedValue) > 0.01) {
+        mismatchedFields.push(field);
+      }
+    } else if (typeof expectedValue === 'boolean') {
+      if (actualValue !== expectedValue) {
+        mismatchedFields.push(field);
+      }
+    } else {
+      if (String(actualValue) !== String(expectedValue)) {
+        mismatchedFields.push(field);
+      }
+    }
+  }
+
+  if (checkedFields.length === 0) {
+    return { status: 'unverified', checkedFields, hardwareVerified: false };
+  }
+
+  return {
+    status: mismatchedFields.length === 0 ? 'verified' : 'failed',
+    checkedFields,
+    mismatchedFields: mismatchedFields.length > 0 ? mismatchedFields : undefined,
+    hardwareVerified: false,
+  };
 }

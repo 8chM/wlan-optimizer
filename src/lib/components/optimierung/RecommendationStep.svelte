@@ -8,12 +8,13 @@
   import { t } from '$lib/i18n';
   import type { Recommendation, RejectionReason, EffortLevel } from '$lib/recommendations/types';
   import { EFFORT_LEVELS, RECOMMENDATION_CATEGORIES } from '$lib/recommendations/types';
-  import type { StepState } from '$lib/stores/optimierungStore.svelte';
+  import type { StepState, ApplyVerification } from '$lib/stores/optimierungStore.svelte';
 
   interface RecommendationStepProps {
     rec: Recommendation;
     stepNumber: number;
     stepState: StepState;
+    verification?: ApplyVerification;
     onApply: (rec: Recommendation) => void;
     onSkip: (rec: Recommendation) => void;
     onReject: (rec: Recommendation, reason: RejectionReason) => void;
@@ -22,7 +23,7 @@
     previewActive?: boolean;
   }
 
-  let { rec, stepNumber, stepState, onApply, onSkip, onReject, onSelect, onPreview, previewActive = false }: RecommendationStepProps = $props();
+  let { rec, stepNumber, stepState, verification, onApply, onSkip, onReject, onSelect, onPreview, previewActive = false }: RecommendationStepProps = $props();
 
   let rejectOpen = $state(false);
 
@@ -226,6 +227,18 @@
       <p class="blocked-reason">{rec.blockedByConstraints?.[0] ?? ''}</p>
     {:else if stepState === 'applied'}
       <span class="state-label applied">{isInstructional ? t('opt.instructionDone') : t('opt.applied')}</span>
+      {#if verification}
+        <span class="verification-badge verification-{verification.status}">
+          {#if verification.status === 'verified'}
+            &#x2713; {t('opt.dbVerified')}
+          {:else if verification.status === 'failed'}
+            &#x2717; {t('opt.dbFailed')}
+          {:else}
+            &#x2014; {t('opt.dbUnverified')}
+          {/if}
+        </span>
+        <span class="hardware-hint">{t('opt.hardwareNotVerified')}</span>
+      {/if}
     {:else if stepState === 'skipped'}
       <span class="state-label skipped">{t('opt.skipped')}</span>
     {:else}
@@ -574,5 +587,38 @@
   .debug-divider {
     border-top: 1px solid rgba(255, 255, 255, 0.04);
     margin: 2px 0;
+  }
+
+  .verification-badge {
+    display: inline-block;
+    margin-top: 2px;
+    margin-left: 4px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.58rem;
+    font-weight: 500;
+  }
+
+  .verification-verified {
+    background: rgba(34, 197, 94, 0.12);
+    color: #22c55e;
+  }
+
+  .verification-failed {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+  }
+
+  .verification-unverified {
+    background: rgba(107, 114, 128, 0.12);
+    color: #9ca3af;
+  }
+
+  .hardware-hint {
+    display: block;
+    margin-top: 1px;
+    font-size: 0.55rem;
+    color: #606078;
+    font-style: italic;
   }
 </style>

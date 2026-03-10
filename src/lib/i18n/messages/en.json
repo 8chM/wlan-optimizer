@@ -315,7 +315,14 @@
     "exportJson": "Export JSON",
     "exportCsv": "Export CSV",
     "exportTitle": "Export Results",
-    "pointsCount": "Measurement Points"
+    "pointsCount": "Measurement Points",
+    "coverageExcellent": "Coverage >= -67 dBm",
+    "coverageGood": "Coverage >= -70 dBm",
+    "coverageFair": "Coverage >= -75 dBm",
+    "worst10Pct": "Worst 10%",
+    "medianUpload": "Median Upload",
+    "medianDownload": "Median Download",
+    "roamingEvents": "Roaming Events"
   },
   "properties": {
     "title": "Properties",
@@ -630,6 +637,7 @@
     "cancel": "Cancel",
     "acknowledge": "Acknowledge",
     "staleHint": "Setup changed \u2014 click Re-analyze to update recommendations.",
+    "validateWithMeasurement": "Validate with measurement data",
     "exportFixture": "Export Full Fixture",
     "exportFixtureSanitized": "Export Anonymized",
     "exportFixtureTooltip": "Exports a full analysis snapshot (JSON) including AP names, IPs, and layout — for support & tests.",
@@ -637,7 +645,11 @@
     "importFixture": "Import Fixture",
     "importFixtureTooltip": "Loads a previously exported JSON fixture and runs the recommendation analysis on it.",
     "exportPrivacyHint": "Full export contains layout data & AP names. Use anonymized export to remove sensitive info.",
-    "supportToolsTitle": "Support Tools"
+    "supportToolsTitle": "Support Tools",
+    "dbVerified": "DB verified",
+    "dbFailed": "DB mismatch",
+    "dbUnverified": "Not verified",
+    "hardwareNotVerified": "Hardware not verified — no vendor API available"
   },
   "capabilities": {
     "title": "Capabilities",

@@ -315,7 +315,14 @@
     "exportJson": "JSON exportieren",
     "exportCsv": "CSV exportieren",
     "exportTitle": "Ergebnisse exportieren",
-    "pointsCount": "Messpunkte"
+    "pointsCount": "Messpunkte",
+    "coverageExcellent": "Abdeckung >= -67 dBm",
+    "coverageGood": "Abdeckung >= -70 dBm",
+    "coverageFair": "Abdeckung >= -75 dBm",
+    "worst10Pct": "Schlechteste 10%",
+    "medianUpload": "Median Upload",
+    "medianDownload": "Median Download",
+    "roamingEvents": "Roaming-Ereignisse"
   },
   "properties": {
     "title": "Eigenschaften",
@@ -630,6 +637,7 @@
     "cancel": "Abbrechen",
     "acknowledge": "Zur Kenntnis",
     "staleHint": "Setup geaendert \u2014 klicke Neu analysieren, um Empfehlungen zu aktualisieren.",
+    "validateWithMeasurement": "Mit Messdaten validieren",
     "exportFixture": "Vollstaendige Fixture exportieren",
     "exportFixtureSanitized": "Anonymisiert exportieren",
     "exportFixtureTooltip": "Exportiert einen vollstaendigen Analyse-Snapshot (JSON) inkl. AP-Namen, IPs und Layout — fuer Support & Tests.",
@@ -637,7 +645,11 @@
     "importFixture": "Fixture importieren",
     "importFixtureTooltip": "Laedt eine zuvor exportierte JSON-Fixture und fuehrt die Empfehlungs-Analyse darauf aus.",
     "exportPrivacyHint": "Vollexport enthaelt Layout-Daten & AP-Namen. Anonymisierter Export entfernt sensible Daten.",
-    "supportToolsTitle": "Support-Werkzeuge"
+    "supportToolsTitle": "Support-Werkzeuge",
+    "dbVerified": "DB verifiziert",
+    "dbFailed": "DB-Abweichung",
+    "dbUnverified": "Nicht verifiziert",
+    "hardwareNotVerified": "Hardware nicht verifiziert — keine Hersteller-API verfuegbar"
   },
   "capabilities": {
     "title": "Faehigkeiten",

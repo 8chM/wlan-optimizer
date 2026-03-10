@@ -4,10 +4,24 @@
  * Manages the combined Optimierung page state:
  * - Active tab: 'empfehlungen' (recommendations wizard) or 'manuell' (mixing console)
  * - Step states: per-recommendation status tracking for the wizard flow
+ * - Apply verification: tracks whether DB updates actually persisted correctly
  */
 
 export type OptimierungTab = 'empfehlungen' | 'manuell';
 export type StepState = 'pending' | 'applied' | 'skipped';
+
+/** Result of verifying an applied recommendation against the DB response. */
+export type ApplyVerificationStatus = 'verified' | 'failed' | 'unverified';
+
+export interface ApplyVerification {
+  status: ApplyVerificationStatus;
+  /** Which fields were checked */
+  checkedFields: string[];
+  /** Fields that did not match (only when status === 'failed') */
+  mismatchedFields?: string[];
+  /** Whether hardware-level verification was possible (always false — no vendor API) */
+  hardwareVerified: false;
+}
 
 /** Stable key for identifying a recommendation across re-analyses */
 export function instructionalStableKey(rec: { type: string; affectedApIds: string[] }): string {
@@ -19,6 +33,7 @@ function createOptimierungStore() {
   let stepStates = $state<Map<string, StepState>>(new Map());
   let stale = $state(false);
   let doneInstructional = $state<Set<string>>(new Set());
+  let verifications = $state<Map<string, ApplyVerification>>(new Map());
 
   return {
     get activeTab() { return activeTab; },
@@ -42,6 +57,7 @@ function createOptimierungStore() {
     resetSteps(): void {
       stepStates = new Map();
       stale = false;
+      verifications = new Map();
     },
 
     getProgress(): { completed: number; total: number } {
@@ -84,6 +100,27 @@ function createOptimierungStore() {
     },
 
     get doneCount() { return doneInstructional.size; },
+
+    // ─── Apply Verification ────────────────────────────────────
+
+    get verifications() { return verifications; },
+
+    /** Record verification result for a recommendation */
+    setVerification(recId: string, verification: ApplyVerification): void {
+      const next = new Map(verifications);
+      next.set(recId, verification);
+      verifications = next;
+    },
+
+    /** Get verification result for a recommendation */
+    getVerification(recId: string): ApplyVerification | undefined {
+      return verifications.get(recId);
+    },
+
+    /** Clear all verification states (e.g. on re-analyze) */
+    clearVerifications(): void {
+      verifications = new Map();
+    },
   };
 }
 
